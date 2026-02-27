@@ -89,7 +89,7 @@ project-root/
 │   └── engine.py              # Tick loop orchestration
 ├── tests/                     # (Phase 1: add)
 ├── data/                      # (Phase 1: simulation logs)
-└── project-bible/             # This knowledge base
+└── project-cornerstone/             # This knowledge base
 ```
 
 ## File Structure (target Phase 2+)
@@ -135,5 +135,5 @@ project-root/
 │   ├── logs/
 │   ├── worlds/
 │   └── replays/
-└── project-bible/
+└── project-cornerstone/
 ```

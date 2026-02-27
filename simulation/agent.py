@@ -148,53 +148,112 @@ class Agent:
             fallback["_llm_trace"] = llm_trace
             return fallback
 
+    def _build_ascii_grid(self, nearby_tiles: list[dict]) -> str:
+        """Build a 7x7 ASCII grid centered on the agent."""
+        tile_map = {(t["x"], t["y"]): t for t in nearby_tiles}
+        radius = AGENT_VISION_RADIUS
+        rows = []
+        for dy in range(-radius, radius + 1):  # -3 (north) to +3 (south)
+            row_chars = []
+            for dx in range(-radius, radius + 1):  # -3 (west) to +3 (east)
+                nx, ny = self.x + dx, self.y + dy
+                if dx == 0 and dy == 0:
+                    row_chars.append("@")
+                elif (nx, ny) in tile_map:
+                    t = tile_map[(nx, ny)]
+                    tile_type = t["tile"]
+                    if tile_type == "tree":
+                        row_chars.append("F" if "resource" in t else "t")
+                    elif tile_type == "water":
+                        row_chars.append("W")
+                    else:
+                        row_chars.append(".")
+                else:
+                    row_chars.append("#")
+            rows.append(" ".join(row_chars))
+        return "\n".join(rows)
+
+    def _build_resource_hints(self, nearby_tiles: list[dict]) -> str:
+        """Pre-compute directional hints so the model never has to do coordinate math."""
+        resource_tiles = [t for t in nearby_tiles if "resource" in t]
+        if not resource_tiles:
+            return "No resources visible."
+        resource_tiles.sort(key=lambda t: t["distance"])
+        hints = []
+        for t in resource_tiles:
+            dx = t["x"] - self.x
+            dy = t["y"] - self.y  # negative dy = north
+            resource_type = t["resource"]["type"]
+            qty = t["resource"]["quantity"]
+            dist = t["distance"]
+            parts = []
+            if dy < 0:
+                parts.append("NORTH")
+            elif dy > 0:
+                parts.append("SOUTH")
+            if dx > 0:
+                parts.append("EAST")
+            elif dx < 0:
+                parts.append("WEST")
+            direction = "-".join(parts) if parts else "HERE"
+            tile_word = "tile" if dist == 1 else "tiles"
+            hints.append(f"- {resource_type} {dist} {tile_word} {direction} (qty: {qty})")
+        return "\n".join(hints)
+
     def _build_system_prompt(self) -> str:
         return f"""You are {self.name}, a human trying to survive in a 2D world.
-You must choose actions wisely to stay alive. You need to eat to reduce hunger, rest to recover energy, and explore to find resources.
-
-Your current stats:
-- Life: {self.life}/{AGENT_MAX_LIFE}
-- Hunger: {self.hunger}/{AGENT_MAX_HUNGER} (higher = more hungry, at {HUNGER_DAMAGE_THRESHOLD} you start losing life)
-- Energy: {self.energy}/{AGENT_MAX_ENERGY}
+You must choose actions wisely to stay alive.
 
 Available actions: {', '.join(self.actions)}
 
 Action format - respond with a JSON object:
 - move: {{"action": "move", "direction": "north|south|east|west", "reason": "..."}}
-- eat: {{"action": "eat", "reason": "..."}} (eat food at current or adjacent tile)
+- eat: {{"action": "eat", "reason": "..."}} (eat food at your current tile or adjacent tile)
 - rest: {{"action": "rest", "reason": "..."}} (recover energy, skip this turn)
-- innovate: {{"action": "innovate", "new_action_name": "...", "description": "...", "reason": "..."}} (create a new type of action)
+- innovate: {{"action": "innovate", "new_action_name": "...", "description": "...", "reason": "..."}}
 - For any innovated action: {{"action": "<action_name>", "reason": "...", ...extra_params}}
+
+GRID LEGEND:
+  @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds
+DIRECTIONS: north=up, south=down, west=left, east=right
+
+EXAMPLES:
+Example 1 - Food nearby, move toward it:
+  Stats: Life=90/100, Hunger=55/100 (danger at 70+), Energy=80/100
+  Resources: fruit 2 tiles NORTH (qty: 3)
+  Response: {{"action": "move", "direction": "north", "reason": "Moving north toward fruit to eat before hunger gets dangerous"}}
+
+Example 2 - Food adjacent, eat it:
+  Stats: Life=85/100, Hunger=62/100 (danger at 70+), Energy=75/100
+  Resources: fruit 1 tile EAST (qty: 2)
+  Response: {{"action": "eat", "reason": "Fruit is right next to me, eating now before hunger hits the danger zone"}}
+
+Example 3 - Low energy, rest first:
+  Stats: Life=80/100, Hunger=45/100 (danger at 70+), Energy=15/100
+  Resources: fruit 2 tiles SOUTH (qty: 4)
+  Response: {{"action": "rest", "reason": "Energy too low to move safely, resting to recover before heading to food"}}
 
 Always respond ONLY with a valid JSON object. Be strategic about survival."""
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int) -> str:
-        # Summary of nearby tiles
-        tile_descriptions = []
-        for t in nearby_tiles:
-            desc = f"  ({t['x']},{t['y']}): {t['tile']}"
-            if "resource" in t:
-                desc += f" [resource: {t['resource']['type']}, qty: {t['resource']['quantity']}]"
-            if t["x"] == self.x and t["y"] == self.y:
-                desc += " ← YOU ARE HERE"
-            tile_descriptions.append(desc)
-
-        nearby_text = "\n".join(tile_descriptions[:30])  # Limit to avoid saturation
-
+        ascii_grid = self._build_ascii_grid(nearby_tiles)
+        resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
 
-        return f"""TICK {tick} - It's time to decide your next action.
+        return f"""TICK {tick} - What do you do next?
 
-YOUR POSITION: ({self.x}, {self.y})
-YOUR STATS: Life={self.life}, Hunger={self.hunger}, Energy={self.energy}
+YOUR STATS: Life={self.life}/{AGENT_MAX_LIFE}, Hunger={self.hunger}/{AGENT_MAX_HUNGER} (danger at {HUNGER_DAMAGE_THRESHOLD}+), Energy={self.energy}/{AGENT_MAX_ENERGY}
 
-NEARBY TILES (what you can see):
-{nearby_text}
+YOUR VISION (7x7 grid, you are @):
+{ascii_grid}
+
+NEARBY RESOURCES:
+{resource_hints}
 
 YOUR RECENT MEMORY:
 {memory_text}
 
-What do you do? Respond with a JSON object."""
+Respond with a JSON object."""
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
         """Basic decision without LLM based on simple rules."""

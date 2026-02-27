@@ -11,7 +11,7 @@ TILE_TREE = "tree"
 
 # World generation probabilities
 WORLD_WATER_PROB = 0.15
-WORLD_TREE_PROB = 0.20  # on land tiles
+WORLD_TREE_PROB = 0.10  # on land tiles
 
 # --- Agents ---
 MAX_AGENTS = 5

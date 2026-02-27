@@ -8,10 +8,10 @@ A simulation where human-like agents controlled by LLMs (Qwen 2.5-3B via Ollama)
 
 ### Knowledge Base
 
-**READ BEFORE CODING.** The `project-bible/` directory contains everything you need:
+**READ BEFORE CODING.** The `project-cornerstone/` directory contains everything you need:
 
 ```
-project-bible/
+project-cornerstone/
 ├── 00-master-plan/
 │   ├── MASTER_PLAN.md          ← START HERE. Roadmap, phases, metrics.
 │   └── DECISION_LOG.md         ← Architectural decisions. Add new ones here.
@@ -66,4 +66,4 @@ python main.py --agents 3 --ticks 10 --verbose --save-log --save-state
 5. **Oracle is deterministic.** Same input → same output. Use precedents.
 6. **Prompts in English.** Qwen 2.5-3B performs significantly better in English.
 7. **One feature per PR.** Atomic changes, never massive refactors.
-8. **Update the bible.** If you make a design decision, add it to DECISION_LOG.md.
+8. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md.
