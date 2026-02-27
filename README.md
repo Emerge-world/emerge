@@ -1,4 +1,4 @@
-# 🧬 Life Simulation - Autonomous Agents with LLM
+# 🌌🧬 Emerge: Life Simulation via Autonomous Agents with LLM
 
 Life and evolution simulation using agents controlled by language models (Qwen 2.5-3B via Ollama).
 
