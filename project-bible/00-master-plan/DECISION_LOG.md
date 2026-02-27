@@ -35,3 +35,10 @@
 - **Decision**: Simple list of strings with cap of 50 entries, FIFO.
 - **Rejected alternatives**: Database per agent (overengineering), embeddings + RAG (Phase 1+).
 - **Consequences**: Memory is volatile (lost between executions). In Phase 1 it must be persisted. The cap of 50 may be insufficient — monitor.
+
+### DEC-004: Oracle physical reflection replaces hardcoded base-action rules
+- **Date**: 2026-02-27
+- **Context**: Agents were inventing actions (like diagonal movement) that the Oracle rejected programmatically without ever consulting its own LLM reasoning. The Oracle should embody world physics, not hardcode them.
+- **Decision**: Remove hardcoded programmatic rules from base actions (move, eat, rest). All actions route through `_oracle_reflect_physical()`: the Oracle's LLM reasons about physical plausibility once per novel situation, then caches the result as a precedent. Move now supports all 8 compass directions (N/NE/E/SE/S/SW/W/NW).
+- **Rejected alternatives**: Keep hardcoded rules but add diagonal support (doesn't fix the architectural inconsistency; Oracle bypasses its own reasoning).
+- **Consequences**: ~4-6 new LLM calls on first run (one per tile type / action context). After warm-up, all base-action resolution is precedent-driven (no additional LLM calls). Fallback defaults apply when LLM is unavailable.

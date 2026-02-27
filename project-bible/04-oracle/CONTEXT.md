@@ -68,16 +68,18 @@ class PrecedentValue:
 Before calling the LLM, the oracle follows a deterministic decision tree:
 
 ```
-Is it a base action (move/eat/rest)?
-├── Yes → resolve with hardcoded logic (no LLM)
+Is there an established physical-law precedent for this action's context?
+├── Yes → apply cached physical judgment
 └── No
-    Does exact precedent exist?
+    └── Oracle LLM reflects on physical plausibility → cache as precedent
+
+If physical judgment says "possible":
+    Does exact outcome precedent exist?
     ├── Yes → apply precedent
-    └── No
-        Does similar precedent exist (same action, different tile)?
-        ├── Yes → use as hint for LLM
-        └── No → LLM decides freely
-        → Save result as new precedent
+    └── No → LLM determines effects → cache as precedent
+
+If physical judgment says "not possible":
+    → Return failure immediately
 ```
 
 ### Validation of innovated actions
@@ -99,8 +101,8 @@ REJECT if:
 
 ## Considerations for Claude Code
 
-- Base actions (move, eat, rest) NEVER call the LLM. They're deterministic.
-- Only `innovate` and custom actions call the oracle's LLM.
+- Base actions now call `_oracle_reflect_physical()` once per novel situation. Results are cached as precedents — subsequent calls are fully deterministic and LLM-free.
+- Only `innovate` and custom actions call the oracle's LLM for effect determination.
 - Tests must verify: same input → same output (determinism), precedents are reused, invalid actions return success=false.
 - The oracle NEVER modifies the world directly except via consume_resource().
 - Logging: each oracle decision must remain in the world_log with tick, agent, action, and result.

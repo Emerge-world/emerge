@@ -16,6 +16,21 @@ from simulation.agent import Agent
 
 logger = logging.getLogger(__name__)
 
+DIRECTION_DELTAS = {
+    "north":     (0, -1),
+    "south":     (0,  1),
+    "east":      (1,  0),
+    "west":      (-1, 0),
+    "northeast": (1, -1),
+    "northwest": (-1, -1),
+    "southeast": (1,  1),
+    "southwest": (-1, 1),
+    "north-east": (1, -1),
+    "north-west": (-1, -1),
+    "south-east": (1,  1),
+    "south-west": (-1, 1),
+}
+
 
 class Oracle:
     """
@@ -62,47 +77,102 @@ class Oracle:
                 "effects": {},
             }
 
+    # --- Physical reflection ---
+
+    def _oracle_reflect_physical(self, situation_key: str, prompt: str, tick: int) -> dict:
+        """
+        Ask the Oracle if a physical action is possible.
+        Checks precedent first. If not found, consults LLM. Always caches result.
+        Returns: {"possible": bool, "reason": str}
+        """
+        if situation_key in self.precedents:
+            return self.precedents[situation_key]
+
+        default = {"possible": True, "reason": "Default: allowed."}
+
+        if self.llm:
+            system = (
+                "You are the Oracle of a primitive human survival simulation. "
+                "You determine whether physical actions are possible based on the laws of the world. "
+                "Be consistent: your rulings become permanent precedents. "
+                "Respond with JSON: {\"possible\": true/false, \"reason\": \"brief explanation\"}"
+            )
+            result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.2)
+            if self.sim_logger and self.llm.last_call:
+                lc = self.llm.last_call
+                self.sim_logger.log_oracle_llm_call(
+                    tick=tick, context=f"Physical reflection: {situation_key}",
+                    system_prompt=lc.get("system_prompt", ""),
+                    user_prompt=lc.get("user_prompt", ""),
+                    raw_response=lc.get("raw_response", ""),
+                    parsed_result=result,
+                )
+            if result and "possible" in result:
+                self.precedents[situation_key] = result
+                logger.info(f"Oracle established physical rule: [{situation_key}] → {result}")
+                return result
+
+        self.precedents[situation_key] = default
+        return default
+
     # --- Base actions ---
 
     def _resolve_move(self, agent: Agent, action: dict, tick: int) -> dict:
-        direction = action.get("direction", "north")
-        dx, dy = 0, 0
-        if direction == "north":
-            dy = -1
-        elif direction == "south":
-            dy = 1
-        elif direction == "east":
-            dx = 1
-        elif direction == "west":
-            dx = -1
-        else:
-            return {"success": False, "message": f"Invalid direction: {direction}", "effects": {}}
+        direction = action.get("direction", "north").lower()
+        delta = DIRECTION_DELTAS.get(direction)
+        if delta is None:
+            return {"success": False, "message": f"Unknown direction: {direction}", "effects": {}}
 
-        new_x = agent.x + dx
-        new_y = agent.y + dy
+        dx, dy = delta
+        new_x, new_y = agent.x + dx, agent.y + dy
 
-        if not self.world.is_walkable(new_x, new_y):
-            tile = self.world.get_tile(new_x, new_y)
-            reason = "out of bounds" if tile is None else f"there is {tile}"
+        # Hard boundary check (edge of the simulated world)
+        tile_type = self.world.get_tile(new_x, new_y)
+        if tile_type is None:
+            msg = f"{agent.name} cannot move {direction}: out of bounds."
+            self._log(tick, msg)
+            agent.add_memory(f"I tried to move {direction} but hit the world's edge.")
+            return {"success": False, "message": msg, "effects": {}}
+
+        # Oracle reflects on whether this tile type is traversable
+        situation_key = f"physical:traversal:tile:{tile_type}"
+        reflection_prompt = (
+            f"A human in a primitive survival world tries to walk onto a \"{tile_type}\" tile.\n"
+            f"Tile types in this world: \"land\" (open ground), \"tree\" (forested area), "
+            f"\"water\" (river or lake).\n"
+            f"Is it physically possible for an unaided human to walk onto this terrain?\n"
+            f"Respond with JSON: {{\"possible\": true/false, \"reason\": \"brief explanation\"}}"
+        )
+        judgment = self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
+
+        if not judgment["possible"]:
+            reason = judgment.get("reason", f"cannot walk on {tile_type}")
             msg = f"{agent.name} cannot move {direction}: {reason}."
             self._log(tick, msg)
             agent.add_memory(f"I tried to move {direction} but couldn't: {reason}.")
             return {"success": False, "message": msg, "effects": {}}
 
-        # Success
-        agent.x = new_x
-        agent.y = new_y
+        # Move succeeds
+        agent.x, agent.y = new_x, new_y
         agent.modify_energy(-ENERGY_COST_MOVE)
-
-        tile_type = self.world.get_tile(new_x, new_y)
         msg = f"{agent.name} moved {direction} → ({new_x},{new_y}) [tile: {tile_type}]."
         self._log(tick, msg)
-        agent.add_memory(f"I moved {direction} to ({new_x},{new_y}). There is {tile_type}. Energy: {agent.energy}.")
-
+        agent.add_memory(
+            f"I moved {direction} to ({new_x},{new_y}). There is {tile_type}. Energy: {agent.energy}."
+        )
         return {"success": True, "message": msg, "effects": {"energy": -ENERGY_COST_MOVE}}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
-        # Look for food at current or adjacent tiles
+        situation_key = "physical:eat:fruit"
+        if situation_key not in self.precedents:
+            reflection_prompt = (
+                "In a primitive survival world, a human picks and eats a fruit from a nearby tree. "
+                "Is this physically possible? "
+                "Respond with JSON: {\"possible\": true, \"reason\": \"brief explanation\"}"
+            )
+            self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
+
+        # Food-presence check is pure world state (not a physical law)
         positions_to_check = [
             (agent.x, agent.y),
             (agent.x + 1, agent.y), (agent.x - 1, agent.y),
@@ -114,21 +184,15 @@ class Oracle:
             if resource and resource["type"] == "fruit":
                 consumed = self.world.consume_resource(x, y, 1)
                 if consumed > 0:
-                    # Look up precedent for how much a fruit reduces hunger
                     hunger_reduction = self._get_fruit_effect(tick)
                     agent.modify_hunger(-hunger_reduction)
                     agent.modify_energy(-ENERGY_COST_EAT)
-
                     msg = f"{agent.name} ate fruit at ({x},{y}). Hunger -{hunger_reduction} → {agent.hunger}."
                     self._log(tick, msg)
                     agent.add_memory(
                         f"I ate a fruit. My hunger decreased by {hunger_reduction} to {agent.hunger}. Energy: {agent.energy}."
                     )
-                    return {
-                        "success": True,
-                        "message": msg,
-                        "effects": {"hunger": -hunger_reduction, "energy": -ENERGY_COST_EAT},
-                    }
+                    return {"success": True, "message": msg, "effects": {"hunger": -hunger_reduction, "energy": -ENERGY_COST_EAT}}
 
         msg = f"{agent.name} tried to eat but there's no food nearby."
         self._log(tick, msg)
@@ -136,15 +200,21 @@ class Oracle:
         return {"success": False, "message": msg, "effects": {}}
 
     def _resolve_rest(self, agent: Agent, action: dict, tick: int) -> dict:
+        situation_key = "physical:rest"
+        if situation_key not in self.precedents:
+            reflection_prompt = (
+                "In a primitive survival world, a human chooses to stop and rest. "
+                "Is resting physically possible regardless of terrain? "
+                "Respond with JSON: {\"possible\": true, \"reason\": \"brief explanation\"}"
+            )
+            self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
+
+        # Rest is always possible (precedent establishes this)
         agent.modify_energy(ENERGY_RECOVERY_REST)
         msg = f"{agent.name} rested. Energy +{ENERGY_RECOVERY_REST} → {agent.energy}."
         self._log(tick, msg)
         agent.add_memory(f"I rested and recovered energy. Energy: {agent.energy}.")
-        return {
-            "success": True,
-            "message": msg,
-            "effects": {"energy": ENERGY_RECOVERY_REST},
-        }
+        return {"success": True, "message": msg, "effects": {"energy": ENERGY_RECOVERY_REST}}
 
     def _resolve_innovate(self, agent: Agent, action: dict, tick: int) -> dict:
         new_action_name = action.get("new_action_name", "").strip().lower()

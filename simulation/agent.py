@@ -207,7 +207,7 @@ You must choose actions wisely to stay alive.
 Available actions: {', '.join(self.actions)}
 
 Action format - respond with a JSON object:
-- move: {{"action": "move", "direction": "north|south|east|west", "reason": "..."}}
+- move: {{"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}}
 - eat: {{"action": "eat", "reason": "..."}} (eat food at your current tile or adjacent tile)
 - rest: {{"action": "rest", "reason": "..."}} (recover energy, skip this turn)
 - innovate: {{"action": "innovate", "new_action_name": "...", "description": "...", "reason": "..."}}
@@ -215,7 +215,7 @@ Action format - respond with a JSON object:
 
 GRID LEGEND:
   @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds
-DIRECTIONS: north=up, south=down, west=left, east=right
+DIRECTIONS: north=up, south=down, west=left, east=right, northeast=up-right, northwest=up-left, southeast=down-right, southwest=down-left
 
 EXAMPLES:
 Example 1 - Food nearby, move toward it:
