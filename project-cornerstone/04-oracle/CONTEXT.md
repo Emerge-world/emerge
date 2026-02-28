@@ -1,5 +1,22 @@
 # 04 — Oracle System
 
+## Implemented
+
+The following oracle methods are live:
+
+- **`_oracle_reflect_physical()`**: LLM judges traversability once per novel tile-type/action context, then caches the result as a precedent. Subsequent calls for the same context are fully LLM-free.
+- **`_get_fruit_effect()`**: LLM determines hunger reduction for eating fruit (temperature=0.2, baseline ~20 hunger points). Result cached as a precedent.
+- **`_validate_innovation()`**: LLM approves or rejects proposed new action names (temperature=0.3). Approved actions are registered; rejected ones return failure.
+- **`_oracle_judge_custom_action()`**: LLM determines the effects of an approved custom action (temperature=0.3). Result cached as a precedent.
+- **8-direction movement**: Move action supports N, NE, E, SE, S, SW, W, NW.
+- **Precedents**: Currently plain string-keyed dicts in memory (not `PrecedentKey`/`PrecedentValue` dataclasses).
+
+**Pending for Phase 1:**
+- `PrecedentKey`/`PrecedentValue` dataclasses (planned structured keys, currently plain strings)
+- JSON persistence (`data/precedents_{seed}.json`) — in-memory only right now
+
+---
+
 ## Current State (Phase 0)
 
 The oracle is the world's arbiter. It validates actions, determines results, and maintains consistency via precedents.

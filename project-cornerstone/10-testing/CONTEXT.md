@@ -1,5 +1,41 @@
 # 10 — Testing Strategy
 
+## Current Status
+
+**0 tests currently exist.** `pytest>=9.0.2` is declared in `pyproject.toml` but no test files have been written yet.
+
+Priority order:
+1. Unit tests (no LLM) — `test_world.py`, `test_agent.py`, `test_oracle.py`
+2. MockLLM integration tests — `test_integration.py`
+3. Behavioral tests (real LLM, slow) — `test_behavioral.py`
+
+### MockLLM skeleton to implement
+
+```python
+# tests/conftest.py
+class MockLLM:
+    def __init__(self, responses: list[dict]):
+        self._responses = iter(responses)
+
+    def generate_json(self, *args, **kwargs) -> dict | None:
+        return next(self._responses, {"action": "rest", "reason": "mock"})
+
+    def generate(self, *args, **kwargs) -> str:
+        import json
+        return json.dumps(self.generate_json())
+
+    def is_available(self) -> bool:
+        return True
+```
+
+### First concrete unit tests to write
+
+- **`test_world.py`**: generation determinism (same seed → same world), walkability (water not walkable), resource consumption reduces quantity
+- **`test_agent.py`**: stat clamping (life/hunger/energy never out of [0, max]), memory cap at 50, dead agent `decide_action()` returns `{"action": "none", ...}`
+- **`test_oracle.py`**: move into water fails (`success=False`), eat with no nearby food fails, same input → same precedent output (determinism)
+
+---
+
 ## Philosophy
 
 This project has an unusual enemy: **LLM non-determinism**. Most bugs won't be crashes but "dumb behavior". The testing strategy must reflect this.

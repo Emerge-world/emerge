@@ -3,9 +3,11 @@
 ## Current State (Phase 0)
 
 The world is a 50x50 2D tile matrix randomly generated with three types:
-- **water** (15%): intransitable
-- **land** (65%): transitable, sin recursos
-- **tree** (20%): transitable, contiene fruta (1-5 unidades)
+- **water** (~15%): impassable — controlled by `WATER_RATIO = 0.15` in `config.py`
+- **land** (~76.5%): passable, no resources — remaining tiles after water and trees
+- **tree** (~8.5%): passable, contains fruit (1–5 units) — `TREE_DENSITY = 0.10` of land tiles
+
+> **Note**: Previous docs listed 65% land and 20% trees, which was a planning target. The actual config values are `WATER_RATIO=0.15` and `TREE_DENSITY=0.10` (10% of land tiles), yielding ~8.5% trees overall.
 
 ### Known Issues
 

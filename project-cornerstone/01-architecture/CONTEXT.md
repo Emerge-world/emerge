@@ -85,10 +85,21 @@ project-root/
 │   ├── world.py               # 2D grid + resources
 │   ├── agent.py               # Agent class + LLM decision
 │   ├── oracle.py              # Action validation + precedents
-│   └── engine.py              # Tick loop orchestration
-├── tests/                     # (Phase 1: add)
-├── data/                      # (Phase 1: simulation logs)
-└── project-cornerstone/             # This knowledge base
+│   ├── engine.py              # Tick loop orchestration
+│   ├── sim_logger.py          # Per-run markdown logging (logs/ dir)
+│   └── prompt_loader.py       # string.Template loader, cached
+├── prompts/
+│   ├── agent/
+│   │   ├── system.txt         # Fixed system prompt (name, actions, grid legend, few-shot examples)
+│   │   └── decision.txt       # Variable user prompt (tick, stats, grid, resources, memory)
+│   └── oracle/
+│       ├── physical_system.txt
+│       ├── innovation_system.txt
+│       ├── custom_action_system.txt
+│       └── fruit_effect.txt
+├── tests/                     # (Phase 1 pending — not yet created)
+├── data/                      # (Phase 1 pending — not yet created)
+└── project-cornerstone/       # This knowledge base
 ```
 
 ## File Structure (target Phase 2+)

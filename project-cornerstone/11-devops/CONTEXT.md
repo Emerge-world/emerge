@@ -4,7 +4,8 @@
 
 ### Requirements
 ```
-Python 3.11+
+Python 3.12+
+uv (package manager — replaces pip/venv)
 Ollama (with qwen2.5:3b downloaded)
 Git
 ```
@@ -15,44 +16,47 @@ Git
 # 1. Clone repo
 git clone <repo-url> && cd emerge
 
-# 2. Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
+# 2. Install uv if not present
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Run (uv manages the virtualenv automatically from pyproject.toml)
+uv run main.py --no-llm --ticks 5 --agents 1
 
 # 4. Verify Ollama
 ollama list  # must show qwen2.5:3b
 # If not: ollama pull qwen2.5:3b
 
-# 5. Verify it works
-python main.py --no-llm --ticks 5 --agents 1
-python main.py --ticks 5 --agents 1  # with Ollama
+# 5. Full run with LLM
+uv run main.py --ticks 5 --agents 1
+
+# Add a runtime dependency
+uv add <package>
+
+# Add a dev dependency
+uv add --dev <package>
 ```
 
-### requirements.txt (current)
+> **Note**: There is no `requirements.txt`. All dependencies are declared in `pyproject.toml` and locked in `uv.lock`.
 
-```
-requests>=2.31.0
+### pyproject.toml dependencies (current)
+
+```toml
+# Runtime
+requests>=2.32.5
+
+# Dev
+pytest>=9.0.2
 ```
 
-### requirements.txt (Phase 1+)
+### pyproject.toml dependencies (Phase 1+)
 
-```
-requests>=2.31.0
-structlog>=24.0.0
-pytest>=8.0.0
+```toml
+# Runtime additions
+structlog>=24.0.0      # Structured JSON logging (planned)
+noise>=1.2.2           # Perlin noise for world gen (Phase 2)
+
+# Dev additions
 pytest-cov>=5.0.0
-hypothesis>=6.100.0
-noise>=1.2.2           # Perlin noise for world gen
-pydantic>=2.5.0        # Data validation
-```
-
-### requirements-dev.txt
-
-```
 ruff>=0.3.0            # Linter + formatter
 mypy>=1.8.0            # Type checking
 pre-commit>=3.6.0      # Git hooks
@@ -95,7 +99,7 @@ repos:
     hooks:
       - id: pytest-fast
         name: Run fast tests
-        entry: pytest -m "not slow" --tb=short -q
+        entry: uv run pytest -m "not slow" --tb=short -q
         language: system
         pass_filenames: false
 ```
@@ -113,50 +117,59 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: pytest -m "not slow" --cov=simulation --cov-fail-under=70
+          python-version: '3.12'
+      - run: pip install uv
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -m "not slow" --cov=simulation --cov-fail-under=70
 ```
 
 ## Monitoring & Logging
 
-### Structured Logging (Phase 1)
+### Current: Markdown logging (sim_logger.py)
+
+`simulation/sim_logger.py` writes human-readable markdown files to `logs/sim_<timestamp>/`. See DEC-006.
+
+```
+logs/
+└── sim_<timestamp>/
+    ├── tick_001.md        # Per-tick summary (all agents, actions, results)
+    ├── agent_Ada.md       # Per-agent log (all decisions across ticks)
+    └── oracle_calls.md    # Per-oracle-call log (input, precedent hit/miss, result)
+```
+
+Enable with `--save-log` flag: `uv run main.py --save-log --ticks 30 --agents 3`
+
+### Planned: structlog JSON lines (Phase 1)
+
+Once core behavior is stable, `sim_logger.py` will be supplemented or replaced with structlog JSON lines for machine-parseability:
 
 ```python
 import structlog
-
 logger = structlog.get_logger()
 
-# Instead of:
-logger.info(f"Agent Ada moved to (5, 3)")
-
-# Use:
-logger.info("agent_action", 
-    agent="Ada", 
-    action="move", 
-    from_pos=(4, 3), 
+logger.info("agent_action",
+    agent="Ada",
+    action="move",
+    from_pos=(4, 3),
     to_pos=(5, 3),
     tick=42,
     energy=85
 )
-
-# Output (JSON lines):
-# {"event":"agent_action","agent":"Ada","action":"move","from_pos":[4,3],"to_pos":[5,3],"tick":42,"energy":85,"timestamp":"2026-02-27T14:30:00"}
+# Output: {"event":"agent_action","agent":"Ada","action":"move","from_pos":[4,3],"to_pos":[5,3],"tick":42,"energy":85,"timestamp":"..."}
 ```
 
-### Log Files
-
+Target log files (JSON lines format):
 ```
 data/logs/
-├── sim_{timestamp}_events.jsonl    # World events (JSON lines)
+├── sim_{timestamp}_events.jsonl    # World events
 ├── sim_{timestamp}_decisions.jsonl # LLM decisions with prompts/responses
-├── sim_{timestamp}_console.log     # Console output
+└── sim_{timestamp}_console.log     # Console output
 ```
 
 ## Considerations for Claude Code
 
-- The first PR of Phase 1 should be: requirements.txt + pytest + pre-commit + CI/CD.
-- Never break `python main.py --no-llm` — it's the fastest smoke test.
-- LLM logs (prompts + responses) are gold for debugging. Save them always.
+- The first PR of Phase 1 should be: `pyproject.toml` dev deps + pytest setup + pre-commit + CI/CD.
+- Never break `uv run main.py --no-llm` — it's the fastest smoke test.
+- LLM logs (prompts + responses) are gold for debugging. Save them with `--save-log`.
+- All commands use `uv run` — never call `python` directly.

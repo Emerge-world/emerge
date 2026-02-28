@@ -1,5 +1,21 @@
 # 03 — Agent System
 
+## Implemented in Phase 1
+
+The following prompt improvements are already live:
+
+- **Compact 7×7 ASCII grid**: Nearby tiles are rendered as a compact ASCII grid (`@`=agent, `F`=fruit, `t`=tree, `W`=water, `.`=land, `#`=obstacle) instead of a JSON list.
+- **Directional resource hints**: The decision prompt includes natural-language hints like `"fruit 2 tiles NORTH"` so the agent can act without parsing the full grid.
+- **Few-shot examples**: `prompts/agent/system.txt` contains 2–3 worked examples of good decisions baked into the system prompt.
+- **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
+- **Memory in prompts**: The last 15 memory entries (of a max-50 cap) are included in the decision prompt.
+
+**Pending for Phase 1:**
+- Dual memory system (episodic + semantic compression)
+- Personality traits dataclass + system prompt inclusion
+
+---
+
 ## Current State (Phase 0)
 
 Each agent has:
@@ -18,7 +34,7 @@ Each agent has:
 
 ## Phase 1 — Intelligence
 
-### Dual memory system
+### Dual memory system *(pending)*
 
 ```
 MEMORY
@@ -62,7 +78,7 @@ class Memory:
         return f"KNOWLEDGE:\n{sem}\n\nRECENT EVENTS:\n{epi}"
 ```
 
-### Personality system
+### Personality system *(pending)*
 
 Each agent is born with traits that influence their decisions:
 
@@ -78,9 +94,9 @@ PERSONALITY_TRAITS = {
 #  You tend to explore new areas rather than stay in safe zones."
 ```
 
-### Prompt improvements
+### Prompt improvements *(implemented — see "Implemented in Phase 1" above)*
 
-The current prompt is functional but not optimal for a 3B model. Improvements:
+The following improvements have been applied. Details for reference:
 
 1. **Reduce tokens**: Nearby tiles as compact grid, not list.
    ```
