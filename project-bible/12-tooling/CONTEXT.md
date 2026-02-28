@@ -22,17 +22,17 @@ Use for **concrete implementation tasks** that touch code:
 **Tips para Claude Code en este proyecto:**
 ```bash
 # Siempre iniciar sesiones con contexto:
-claude "Read project-bible/00-master-plan/MASTER_PLAN.md and 
-        project-bible/01-architecture/CONTEXT.md. 
+claude "Read project-cornerstone/00-master-plan/MASTER_PLAN.md and 
+        project-cornerstone/01-architecture/CONTEXT.md. 
         Then implement X."
 
 # Para features grandes, dar el contexto específico:
-claude "Read project-bible/03-agents/CONTEXT.md section 'Sistema de memoria dual'.
+claude "Read project-cornerstone/03-agents/CONTEXT.md section 'Sistema de memoria dual'.
         Implement the Memory class. Write tests. Run them."
 
 # Para bugs, dar logs:
 claude "Here's the error log: [paste]. 
-        Read project-bible/04-oracle/CONTEXT.md and fix the precedent key collision."
+        Read project-cornerstone/04-oracle/CONTEXT.md and fix the precedent key collision."
 ```
 
 ### Claude Project (claude.ai con knowledge base)
@@ -44,7 +44,7 @@ Use for **planning, design, and decisions** that don't directly touch code:
 | Design a new feature                                 | Needs back-and-forth, exploring options      |
 | Define the format of a new module                    | Design before implementation                 |
 | Debate technical trade-offs                          | "SQLite or PostgreSQL for persistence?"      |
-| Update project-bible documents                       | Narrative context, not code                  |
+| Update project-cornerstone documents                       | Narrative context, not code                  |
 | Prompt engineering for agents/oracle                 | Fast iteration, see outputs, adjust          |
 | Analyze simulation logs and extract insights         | Upload logs, ask for analysis                |
 | Plan the next phase                                  | Refine roadmap with real data                |
@@ -54,9 +54,9 @@ Use for **planning, design, and decisions** that don't directly touch code:
 
 **Setup del Project:**
 1. Crear proyecto "Emerge — Life Simulation" en claude.ai
-2. Subir todo el `project-bible/` como knowledge base
+2. Subir todo el `project-cornerstone/` como knowledge base
 3. Subir el código fuente actual
-4. Custom instructions: "You are a co-founder building Emerge. Always reference the project-bible when answering. Suggest updating context docs when decisions are made."
+4. Custom instructions: "You are a co-founder building Emerge. Always reference the project-cornerstone when answering. Suggest updating context docs when decisions are made."
 
 ### Typical combo (daily workflow)
 
@@ -67,7 +67,7 @@ Use for **planning, design, and decisions** that don't directly touch code:
 2. [Project] "Write detailed specs for Claude Code to implement"
    → Output: clear specs with format, invariants, expected tests
 
-3. [Claude Code] "Read project-bible/02-world/CONTEXT.md section 'Day/night cycle'.
+3. [Claude Code] "Read project-cornerstone/02-world/CONTEXT.md section 'Day/night cycle'.
                    Implement the day/night cycle. Write tests. Run them."
    → Implementation, tests, commit
 
@@ -144,7 +144,7 @@ Monthly workflow:
 1. Collect logs from the last 50 simulations
 2. Upload to Claude Project
 3. Ask: "Analyze patterns, anomalies, and suggest improvements"
-4. Update project-bible with findings
+4. Update project-cornerstone with findings
 ```
 
 ---
@@ -223,7 +223,7 @@ Monthly workflow:
 ## Project: Emerge — Life Simulation with LLM Agents
 
 ### Quick Reference
-- Read `project-bible/00-master-plan/MASTER_PLAN.md` for full context
+- Read `project-cornerstone/00-master-plan/MASTER_PLAN.md` for full context
 - Current phase: Phase 1 (Intelligence)
 - Run tests: `pytest -m "not slow"`
 - Run simulation: `python main.py --no-llm --ticks 5` (smoke test)
@@ -232,7 +232,7 @@ Monthly workflow:
 ### Architecture
 - Entry: `main.py`
 - Core: `simulation/` package
-- Knowledge base: `project-bible/`
+- Knowledge base: `project-cornerstone/`
 - Tests: `tests/`
 
 ### Rules

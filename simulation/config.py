@@ -11,7 +11,7 @@ TILE_TREE = "tree"
 
 # World generation probabilities
 WORLD_WATER_PROB = 0.15
-WORLD_TREE_PROB = 0.20  # on land tiles
+WORLD_TREE_PROB = 0.10  # on land tiles
 
 # --- Agents ---
 MAX_AGENTS = 5
@@ -23,13 +23,13 @@ AGENT_START_HUNGER = 0      # 0 = not hungry, 100 = starving
 AGENT_START_ENERGY = 100
 
 # Thresholds and rates
-HUNGER_PER_TICK = 3           # hunger increases each tick
-HUNGER_DAMAGE_THRESHOLD = 70  # above this, hunger damages life
-HUNGER_DAMAGE_PER_TICK = 5    # life damage when hunger > threshold
-ENERGY_COST_MOVE = 5
+HUNGER_PER_TICK = 1           # hunger increases each tick
+HUNGER_DAMAGE_THRESHOLD = 80  # above this, hunger damages life
+HUNGER_DAMAGE_PER_TICK = 3    # life damage when hunger > threshold
+ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 0
-ENERGY_RECOVERY_REST = 15
+ENERGY_RECOVERY_REST = 25
 
 # Perception
 AGENT_VISION_RADIUS = 3  # tiles in each direction

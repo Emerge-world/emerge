@@ -4,20 +4,20 @@
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  SimulationEngine                │
-│  (orchestrates tick loop, manages lifecycle)     │
+│                  SimulationEngine               │
+│  (orchestrates tick loop, manages lifecycle)    │
 ├─────────────┬──────────────┬────────────────────┤
 │             │              │                    │
 │   Agent 1   │   Agent 2    │   Agent N          │
-│  ┌────────┐ │  ┌────────┐  │  ┌────────┐       │
-│  │ LLM    │ │  │ LLM    │  │  │ LLM    │       │
-│  │ Memory │ │  │ Memory │  │  │ Memory │       │
-│  │ Stats  │ │  │ Stats  │  │  │ Stats  │       │
-│  └───┬────┘ │  └───┬────┘  │  └───┬────┘       │
+│  ┌────────┐ │  ┌────────┐  │  ┌────────┐        │
+│  │ LLM    │ │  │ LLM    │  │  │ LLM    │        │
+│  │ Memory │ │  │ Memory │  │  │ Memory │        │
+│  │ Stats  │ │  │ Stats  │  │  │ Stats  │        │
+│  └───┬────┘ │  └───┬────┘  │  └───┬────┘        │
 │      │      │      │       │      │             │
 │      └──────┴──────┴───────┴──────┘             │
-│                    │ action                      │
-│                    ▼                             │
+│                    │ action                     │
+│                    ▼                            │
 │             ┌──────────────┐                    │
 │             │   Oracle     │                    │
 │             │  ┌────────┐  │                    │
@@ -25,8 +25,8 @@
 │             │  │Preceds │  │                    │
 │             │  └────────┘  │                    │
 │             └──────┬───────┘                    │
-│                    │ result                      │
-│                    ▼                             │
+│                    │ result                     │
+│                    ▼                            │
 │             ┌──────────────┐                    │
 │             │   World      │                    │
 │             │  (50x50 grid)│                    │
@@ -69,10 +69,9 @@ FOR each alive agent:
 ## Invariants (must never break)
 
 1. A dead agent NEVER acts.
-2. An agent NEVER moves to water.
-3. Stats NEVER go below 0 or above their maximum.
-4. The oracle ALWAYS produces the same result for the same situation (precedents).
-5. Each tick processes ALL alive agents before moving to the next tick.
+2. Stats NEVER go below 0 or above their maximum.
+3. The oracle ALWAYS produces the same result for the same situation (precedents).
+4. Each tick processes ALL alive agents before moving to the next tick.
 
 ## File Structure (current)
 
@@ -89,7 +88,7 @@ project-root/
 │   └── engine.py              # Tick loop orchestration
 ├── tests/                     # (Phase 1: add)
 ├── data/                      # (Phase 1: simulation logs)
-└── project-bible/             # This knowledge base
+└── project-cornerstone/             # This knowledge base
 ```
 
 ## File Structure (target Phase 2+)
@@ -135,5 +134,5 @@ project-root/
 │   ├── logs/
 │   ├── worlds/
 │   └── replays/
-└── project-bible/
+└── project-cornerstone/
 ```

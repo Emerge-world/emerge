@@ -3,11 +3,11 @@
 ## Current State (Phase 0)
 
 Each agent has:
-- **Stats**: vida (0-100), hambre (0-100, más = peor), energía (0-100)
-- **Posición**: (x, y) en el grid
-- **Memoria**: lista de strings, cap 50, FIFO
-- **Acciones**: lista de strings empezando con `["move", "eat", "rest", "innovate"]`
-- **LLM**: referencia al cliente Ollama compartido
+- **Stats**: health (0-100), hunger (0-100, more = worse), energy (0-100)
+- **Posición**: (x, y) in the grid
+- **Memoria**: string list, cap 50, FIFO
+- **Acciones**: string list starting with `["move", "eat", "rest", "innovate"]`
+- **LLM**: Ollama 
 
 ### Known Issues
 

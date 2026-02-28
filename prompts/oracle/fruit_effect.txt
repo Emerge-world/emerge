@@ -1,0 +1,3 @@
+A human eats a fruit from a tree in a survival world. How much should it reduce their hunger?
+The hunger scale is 0-100 where 0=not hungry and 100=starving.
+Respond with JSON: {"value": <integer between 10 and 30>}
