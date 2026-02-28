@@ -16,6 +16,7 @@ from simulation.agent import Agent
 from simulation.oracle import Oracle
 from simulation.llm_client import LLMClient
 from simulation.sim_logger import SimLogger
+from simulation.audit_recorder import AuditRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class SimulationEngine:
         world_seed: Optional[int] = None,
         use_llm: bool = True,
         max_ticks: int = MAX_TICKS,
+        audit: bool = False,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -59,6 +61,18 @@ class SimulationEngine:
             x, y = self.world.find_spawn_point()
             agent = Agent(x=x, y=y, llm=self.llm)
             self.agents.append(agent)
+
+        # Audit recorder
+        self.recorder: Optional[AuditRecorder] = None
+        if audit:
+            audit_config = {
+                "max_ticks": max_ticks,
+                "num_agents": num_agents,
+                "use_llm": self.use_llm,
+                "world_seed": world_seed,
+                "world_size": f"{WORLD_WIDTH}x{WORLD_HEIGHT}",
+            }
+            self.recorder = AuditRecorder(self.sim_logger.run_dir, audit_config)
 
         logger.info(f"Simulation initialized: {num_agents} agents, world {WORLD_WIDTH}x{WORLD_HEIGHT}")
 
@@ -95,6 +109,11 @@ class SimulationEngine:
             # 1. Get environment perception
             nearby = self.world.get_nearby_tiles(agent.x, agent.y, AGENT_VISION_RADIUS)
 
+            # Audit: snapshot stats before action
+            if self.recorder:
+                stats_before = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
+                position_before = (agent.x, agent.y)
+
             # 2. Agent decides its action
             action = agent.decide_action(nearby, tick)
             action_str = action.get("action", "none")
@@ -102,7 +121,8 @@ class SimulationEngine:
 
             # 3. Log the decision (extract and remove the trace before passing to oracle)
             llm_trace = action.pop("_llm_trace", None)
-            if llm_trace and llm_trace.get("raw_response"):
+            action_source = "llm" if (llm_trace and llm_trace.get("raw_response")) else "fallback"
+            if action_source == "llm":
                 self.sim_logger.log_agent_decision(
                     tick, agent,
                     system_prompt=llm_trace.get("system_prompt", ""),
@@ -136,6 +156,23 @@ class SimulationEngine:
                 effects_parts.append("DIED")
             if effects_parts:
                 self.sim_logger.log_tick_effects(tick, agent, "; ".join(effects_parts))
+
+            # Audit: record event after all effects applied
+            if self.recorder:
+                stats_after = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
+                self.recorder.record_event(
+                    tick=tick,
+                    agent_name=agent.name,
+                    stats_before=stats_before,
+                    position_before=position_before,
+                    action=action_str,
+                    action_source=action_source,
+                    oracle_success=result["success"],
+                    effects=result.get("effects", {}),
+                    stats_after=stats_after,
+                    position_after=(agent.x, agent.y),
+                    nearby_tiles=nearby,
+                )
 
         # Show agent states
         self._print_agent_states()
@@ -267,6 +304,11 @@ class SimulationEngine:
 
         # Write final overview to log folder
         self._log_overview_end()
+
+        # Finalize audit recording
+        if self.recorder:
+            self.recorder.finalize(self.max_ticks)
+            print(f"  📊 Audit data: {self.recorder.audit_dir}/")
 
         print(f"  📂 Detailed logs: {self.sim_logger.run_dir}/")
 

@@ -29,7 +29,9 @@ HUNGER_DAMAGE_PER_TICK = 3    # life damage when hunger > threshold
 ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 0
-ENERGY_RECOVERY_REST = 25
+ENERGY_RECOVERY_REST = 50
+ENERGY_LOW_THRESHOLD = 20    # below this, agent feels tired/dizzy (prompt signal)
+ENERGY_DAMAGE_PER_TICK = 2   # life lost per tick when energy == 0
 
 # Perception
 AGENT_VISION_RADIUS = 3  # tiles in each direction
@@ -46,6 +48,11 @@ TICK_DELAY_SECONDS = 0.5  # pause between ticks for console readability
 
 # --- Logging ---
 LOG_DIR = "logs"
+
+# --- Audit thresholds (for context flags in behavioral analysis) ---
+AUDIT_HUNGER_THRESHOLD = 60     # hunger above this = "was_hungry"
+AUDIT_EXHAUSTION_THRESHOLD = 20 # energy below this = "was_exhausted"
+AUDIT_HUNGER_CRITICAL = 80      # hunger above this = "hunger_critical"
 
 # --- Base actions ---
 BASE_ACTIONS = ["move", "eat", "rest", "innovate"]

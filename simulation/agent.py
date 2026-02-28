@@ -11,7 +11,7 @@ from simulation.config import (
     AGENT_START_LIFE, AGENT_START_HUNGER, AGENT_START_ENERGY,
     HUNGER_PER_TICK, HUNGER_DAMAGE_THRESHOLD, HUNGER_DAMAGE_PER_TICK,
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
-    ENERGY_RECOVERY_REST,
+    ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     BASE_ACTIONS, AGENT_VISION_RADIUS,
 )
 from simulation.llm_client import LLMClient
@@ -70,6 +70,11 @@ class Agent:
         if self.hunger >= HUNGER_DAMAGE_THRESHOLD:
             self.life = max(0, self.life - HUNGER_DAMAGE_PER_TICK)
             self.add_memory(f"I'm very hungry (hunger={self.hunger}). My life drops to {self.life}.")
+
+        # If energy is completely depleted, life decreases
+        if self.energy <= 0:
+            self.life = max(0, self.life - ENERGY_DAMAGE_PER_TICK)
+            self.add_memory(f"I'm completely exhausted (energy=0). My life drops to {self.life}.")
 
         # Check death
         if self.life <= 0:
@@ -213,6 +218,13 @@ class Agent:
         resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
 
+        if self.energy <= 0:
+            status_effects = prompt_loader.load("agent/energy_critical")
+        elif self.energy <= ENERGY_LOW_THRESHOLD:
+            status_effects = prompt_loader.load("agent/energy_low")
+        else:
+            status_effects = ""
+
         return prompt_loader.render(
             "agent/decision",
             tick=tick,
@@ -226,6 +238,7 @@ class Agent:
             ascii_grid=ascii_grid,
             resource_hints=resource_hints,
             memory_text=memory_text,
+            status_effects=status_effects,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
