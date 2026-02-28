@@ -45,16 +45,16 @@ project-cornerstone/
 
 ```bash
 # Smoke test (no LLM needed)
-python main.py --no-llm --ticks 5 --agents 1
+uv run main.py --no-llm --ticks 5 --agents 1
 
 # Full test with LLM
-python main.py --agents 3 --ticks 30 --seed 42
+uv run main.py --agents 3 --ticks 30 --seed 42
 
 # Run tests
 pytest -m "not slow"
 
 # Run with verbose logging
-python main.py --agents 3 --ticks 10 --verbose --save-log --save-state
+uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
 ```
 
 ### Hard Rules

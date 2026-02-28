@@ -1,0 +1,14 @@
+TICK $tick - What do you do next?
+
+YOUR STATS: Life=$life/$max_life, Hunger=$hunger/$max_hunger (danger at ${hunger_threshold}+), Energy=$energy/$max_energy
+
+YOUR VISION (7x7 grid, you are @):
+$ascii_grid
+
+NEARBY RESOURCES:
+$resource_hints
+
+YOUR RECENT MEMORY:
+$memory_text
+
+Respond with a JSON object.

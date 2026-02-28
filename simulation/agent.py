@@ -15,6 +15,7 @@ from simulation.config import (
     BASE_ACTIONS, AGENT_VISION_RADIUS,
 )
 from simulation.llm_client import LLMClient
+from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
 
@@ -201,59 +202,31 @@ class Agent:
         return "\n".join(hints)
 
     def _build_system_prompt(self) -> str:
-        return f"""You are {self.name}, a human trying to survive in a 2D world.
-You must choose actions wisely to stay alive.
-
-Available actions: {', '.join(self.actions)}
-
-Action format - respond with a JSON object:
-- move: {{"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}}
-- eat: {{"action": "eat", "reason": "..."}} (eat food at your current tile or adjacent tile)
-- rest: {{"action": "rest", "reason": "..."}} (recover energy, skip this turn)
-- innovate: {{"action": "innovate", "new_action_name": "...", "description": "...", "reason": "..."}}
-- For any innovated action: {{"action": "<action_name>", "reason": "...", ...extra_params}}
-
-GRID LEGEND:
-  @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds
-DIRECTIONS: north=up, south=down, west=left, east=right, northeast=up-right, northwest=up-left, southeast=down-right, southwest=down-left
-
-EXAMPLES:
-Example 1 - Food nearby, move toward it:
-  Stats: Life=90/100, Hunger=55/100 (danger at 70+), Energy=80/100
-  Resources: fruit 2 tiles NORTH (qty: 3)
-  Response: {{"action": "move", "direction": "north", "reason": "Moving north toward fruit to eat before hunger gets dangerous"}}
-
-Example 2 - Food adjacent, eat it:
-  Stats: Life=85/100, Hunger=62/100 (danger at 70+), Energy=75/100
-  Resources: fruit 1 tile EAST (qty: 2)
-  Response: {{"action": "eat", "reason": "Fruit is right next to me, eating now before hunger hits the danger zone"}}
-
-Example 3 - Low energy, rest first:
-  Stats: Life=80/100, Hunger=45/100 (danger at 70+), Energy=15/100
-  Resources: fruit 2 tiles SOUTH (qty: 4)
-  Response: {{"action": "rest", "reason": "Energy too low to move safely, resting to recover before heading to food"}}
-
-Always respond ONLY with a valid JSON object. Be strategic about survival."""
+        return prompt_loader.render(
+            "agent/system",
+            name=self.name,
+            actions=", ".join(self.actions),
+        )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int) -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
 
-        return f"""TICK {tick} - What do you do next?
-
-YOUR STATS: Life={self.life}/{AGENT_MAX_LIFE}, Hunger={self.hunger}/{AGENT_MAX_HUNGER} (danger at {HUNGER_DAMAGE_THRESHOLD}+), Energy={self.energy}/{AGENT_MAX_ENERGY}
-
-YOUR VISION (7x7 grid, you are @):
-{ascii_grid}
-
-NEARBY RESOURCES:
-{resource_hints}
-
-YOUR RECENT MEMORY:
-{memory_text}
-
-Respond with a JSON object."""
+        return prompt_loader.render(
+            "agent/decision",
+            tick=tick,
+            life=self.life,
+            max_life=AGENT_MAX_LIFE,
+            hunger=self.hunger,
+            max_hunger=AGENT_MAX_HUNGER,
+            hunger_threshold=HUNGER_DAMAGE_THRESHOLD,
+            energy=self.energy,
+            max_energy=AGENT_MAX_ENERGY,
+            ascii_grid=ascii_grid,
+            resource_hints=resource_hints,
+            memory_text=memory_text,
+        )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
         """Basic decision without LLM based on simple rules."""

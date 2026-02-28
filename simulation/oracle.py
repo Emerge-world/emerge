@@ -13,6 +13,7 @@ from simulation.config import (
 from simulation.llm_client import LLMClient
 from simulation.world import World
 from simulation.agent import Agent
+from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +92,7 @@ class Oracle:
         default = {"possible": True, "reason": "Default: allowed."}
 
         if self.llm:
-            system = (
-                "You are the Oracle of a primitive human survival simulation. "
-                "You determine whether physical actions are possible based on the laws of the world. "
-                "Be consistent: your rulings become permanent precedents. "
-                "Respond with JSON: {\"possible\": true/false, \"reason\": \"brief explanation\"}"
-            )
+            system = prompt_loader.load("oracle/physical_system")
             result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.2)
             if self.sim_logger and self.llm.last_call:
                 lc = self.llm.last_call
@@ -137,10 +133,10 @@ class Oracle:
         # Oracle reflects on whether this tile type is traversable
         situation_key = f"physical:traversal:tile:{tile_type}"
         reflection_prompt = (
-            f"A human in a primitive survival world tries to walk onto a \"{tile_type}\" tile.\n"
+            f"A human in a primitive survival world tries to enter a \"{tile_type}\" tile.\n"
             f"Tile types in this world: \"land\" (open ground), \"tree\" (forested area), "
             f"\"water\" (river or lake).\n"
-            f"Is it physically possible for an unaided human to walk onto this terrain?\n"
+            f"Can a human physically attempt to enter this terrain? (dangerous is not the same as impossible)\n"
             f"Respond with JSON: {{\"possible\": true/false, \"reason\": \"brief explanation\"}}"
         )
         judgment = self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
@@ -336,7 +332,7 @@ Is this innovation reasonable and feasible given the context?
 
 Respond with JSON: {{"approved": true/false, "reason": "explanation"}}"""
 
-        system = "You are the Oracle of a survival simulation world. You judge whether new actions invented by agents are reasonable. Be fair but realistic. Simple survival innovations (crafting tools, building shelter, gathering) are usually approved. Impossible or magical actions should be rejected."
+        system = prompt_loader.load("oracle/innovation_system")
 
         result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.3)
 
@@ -386,9 +382,7 @@ Respond with JSON:
     }}
 }}"""
 
-        system = """You are the Oracle of a survival simulation. You determine outcomes of actions fairly and consistently.
-Effects should be reasonable: small actions have small effects (-5 to -10 energy), eating reduces hunger by 15-25, dangerous actions may cost life.
-Be deterministic: similar actions in similar contexts should produce similar results."""
+        system = prompt_loader.load("oracle/custom_action_system")
 
         result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.3)
 
@@ -413,9 +407,7 @@ Be deterministic: similar actions in similar contexts should produce similar res
         # First time: establish the value
         value = 20  # Deterministic base value
         if self.llm:
-            prompt = """A human eats a fruit from a tree in a survival world. How much should it reduce their hunger?
-The hunger scale is 0-100 where 0=not hungry and 100=starving.
-Respond with JSON: {"value": <integer between 10 and 30>}"""
+            prompt = prompt_loader.load("oracle/fruit_effect")
             result = self.llm.generate_json(prompt, temperature=0.2)
             if self.sim_logger and self.llm.last_call:
                 lc = self.llm.last_call
