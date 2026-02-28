@@ -8,11 +8,11 @@ Use for **concrete implementation tasks** that touch code:
 
 | Task                                                | Example command                               |
 |-----------------------------------------------------|---------------------------------------------------|
-| Implement new feature                               | "Implement dual memory system per 03-agents/CONTEXT.md" |
+| Implement new feature                               | "Implement dual memory system per 03-agents/agents_context.md" |
 | Refactor module                                     | "Split oracle.py into oracle.py + precedents.py"  |
-| Write tests                                         | "Write unit tests for world.py, see 10-testing/CONTEXT.md" |
+| Write tests                                         | "Write unit tests for world.py, see 10-testing/testing_context.md" |
 | Fix a bug                                          | "Agents keep moving to water tiles, fix walkability check" |
-| Add dependency and configure                        | "Add structlog, configure JSON logging per 11-devops/CONTEXT.md" |
+| Add dependency and configure                        | "Add structlog, configure JSON logging per 11-devops/devops_context.md" |
 | Code review                                         | "Review this PR for issues, run tests"            |
 | Optimize performance                                | "Parallelize agent decisions with ThreadPool"     |
 | Migrate/update                                      | "Upgrade LLM client to support Anthropic API"     |
@@ -22,17 +22,17 @@ Use for **concrete implementation tasks** that touch code:
 **Tips para Claude Code en este proyecto:**
 ```bash
 # Siempre iniciar sesiones con contexto:
-claude "Read project-cornerstone/00-master-plan/MASTER_PLAN.md and 
-        project-cornerstone/01-architecture/CONTEXT.md. 
+claude "Read project-cornerstone/00-master-plan/MASTER_PLAN.md and
+        project-cornerstone/01-architecture/architecture_context.md.
         Then implement X."
 
 # Para features grandes, dar el contexto específico:
-claude "Read project-cornerstone/03-agents/CONTEXT.md section 'Sistema de memoria dual'.
+claude "Read project-cornerstone/03-agents/agents_context.md section 'Sistema de memoria dual'.
         Implement the Memory class. Write tests. Run them."
 
 # Para bugs, dar logs:
-claude "Here's the error log: [paste]. 
-        Read project-cornerstone/04-oracle/CONTEXT.md and fix the precedent key collision."
+claude "Here's the error log: [paste].
+        Read project-cornerstone/04-oracle/oracle_context.md and fix the precedent key collision."
 ```
 
 ### Claude Project (claude.ai con knowledge base)
@@ -62,12 +62,12 @@ Use for **planning, design, and decisions** that don't directly touch code:
 
 ```
 1. [Project] "I want to implement the day/night cycle. How should it affect agents?"
-   → Discussion, design, update of 02-world/CONTEXT.md
+   → Discussion, design, update of 02-world/world_context.md
 
 2. [Project] "Write detailed specs for Claude Code to implement"
    → Output: clear specs with format, invariants, expected tests
 
-3. [Claude Code] "Read project-cornerstone/02-world/CONTEXT.md section 'Day/night cycle'.
+3. [Claude Code] "Read project-cornerstone/02-world/world_context.md section 'Day/night cycle'.
                    Implement the day/night cycle. Write tests. Run them."
    → Implementation, tests, commit
 
@@ -156,7 +156,7 @@ Monthly workflow:
 | Risk                            | Mitigation                                          |
 |---------------------------------|-----------------------------------------------------|
 | Ollama down                     | Automatic fallback to simple rules                  |
-| Invalid JSON                    | 5 parsing layers (see 05-llm-integration/CONTEXT.md)|
+| Invalid JSON                    | 5 parsing layers (see 05-llm-integration/llm-integration_context.md)|
 | Non-existent action             | Oracle rejects, agent receives feedback             |
 | Absurd action approved          | Effect bounds on innovations, behavioral tests      |
 | Prompt too long                 | Token counting, truncate memory if necessary        |

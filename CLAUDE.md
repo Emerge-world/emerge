@@ -13,20 +13,20 @@ A simulation where human-like agents controlled by LLMs (Qwen 2.5-3B via Ollama)
 ```
 project-cornerstone/
 ├── 00-master-plan/
-│   ├── MASTER_PLAN.md          ← START HERE. Roadmap, phases, metrics.
-│   └── DECISION_LOG.md         ← Architectural decisions. Add new ones here.
-├── 01-architecture/CONTEXT.md  ← System diagram, tick lifecycle, module contracts, invariants.
-├── 02-world/CONTEXT.md         ← Grid system, resources, weather/day-night plans.
-├── 03-agents/CONTEXT.md        ← Memory, personality, prompts, stats.
-├── 04-oracle/CONTEXT.md        ← Validation, precedents, determinism rules.
-├── 05-llm-integration/CONTEXT.md ← Ollama, prompts, optimization, model upgrade path.
-├── 06-innovation-system/CONTEXT.md ← How agents invent new actions, crafting plans.
-├── 07-interaction/CONTEXT.md   ← Social features (Phase 3, don't implement yet).
-├── 08-evolution/CONTEXT.md     ← Reproduction, generations (Phase 4, don't implement yet).
-├── 09-visualization/CONTEXT.md ← Dashboard plans (Phase 5, don't implement yet).
-├── 10-testing/CONTEXT.md       ← Testing strategy, MockLLM, layers.
-├── 11-devops/CONTEXT.md        ← CI/CD, logging, environment setup.
-└── 12-tooling/CONTEXT.md       ← When to use Claude Code vs Project, automations.
+│   ├── MASTER_PLAN.md                          ← START HERE. Roadmap, phases, metrics.
+│   └── DECISION_LOG.md                         ← Architectural decisions. Add new ones here.
+├── 01-architecture/architecture_context.md     ← System diagram, tick lifecycle, module contracts, invariants.
+├── 02-world/world_context.md                   ← Grid system, resources, weather/day-night plans.
+├── 03-agents/agents_context.md                 ← Memory, personality, prompts, stats.
+├── 04-oracle/oracle_context.md                 ← Validation, precedents, determinism rules.
+├── 05-llm-integration/llm-integration_context.md ← Ollama, prompts, optimization, model upgrade path.
+├── 06-innovation-system/innovation-system_context.md ← How agents invent new actions, crafting plans.
+├── 07-interaction/interaction_context.md       ← Social features (Phase 3, don't implement yet).
+├── 08-evolution/evolution_context.md           ← Reproduction, generations (Phase 4, don't implement yet).
+├── 09-visualization/visualization_context.md   ← Dashboard plans (Phase 5, don't implement yet).
+├── 10-testing/testing_context.md               ← Testing strategy, MockLLM, layers.
+├── 11-devops/devops_context.md                 ← CI/CD, logging, environment setup.
+└── 12-tooling/tooling_context.md               ← When to use Claude Code vs Project, automations.
 ```
 
 ### Current Phase: Phase 1 — Intelligence

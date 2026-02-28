@@ -35,6 +35,7 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
     parser.add_argument("--save-log", action="store_true", help="Save log on completion")
     parser.add_argument("--save-state", action="store_true", help="Save world state on completion")
+    parser.add_argument("--audit", action="store_true", help="Record behavioral audit data for prompt A/B testing")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -46,6 +47,7 @@ def main():
         world_seed=args.seed,
         use_llm=not args.no_llm,
         max_ticks=args.ticks,
+        audit=args.audit,
     )
 
     try:

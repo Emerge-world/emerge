@@ -36,6 +36,13 @@
 - **Rejected alternatives**: Database per agent (overengineering), embeddings + RAG (Phase 1+).
 - **Consequences**: Memory is volatile (lost between executions). In Phase 1 it must be persisted. The cap of 50 may be insufficient — monitor.
 
+### DEC-004: Oracle physical reflection replaces hardcoded base-action rules
+- **Date**: 2026-02-27
+- **Context**: Agents were inventing actions (like diagonal movement) that the Oracle rejected programmatically without ever consulting its own LLM reasoning. The Oracle should embody world physics, not hardcode them.
+- **Decision**: Remove hardcoded programmatic rules from base actions (move, eat, rest). All actions route through `_oracle_reflect_physical()`: the Oracle's LLM reasons about physical plausibility once per novel situation, then caches the result as a precedent. Move now supports all 8 compass directions (N/NE/E/SE/S/SW/W/NW).
+- **Rejected alternatives**: Keep hardcoded rules but add diagonal support (doesn't fix the architectural inconsistency; Oracle bypasses its own reasoning).
+- **Consequences**: ~4-6 new LLM calls on first run (one per tile type / action context). After warm-up, all base-action resolution is precedent-driven (no additional LLM calls). Fallback defaults apply when LLM is unavailable.
+
 ### DEC-005: Template-based prompt system
 - **Date**: 2026-02-28
 - **Context**: Prompt text was embedded directly in Python source, making iteration and experimentation slow.
@@ -57,9 +64,10 @@
 - **Rejected alternatives**: `pip` + `venv` (slower installs, no lockfile), `poetry` (heavy), `conda` (overkill for this project).
 - **Consequences**: All commands must be prefixed `uv run`. New runtime deps added via `uv add <pkg>`. Dev deps via `uv add --dev <pkg>`. `requirements.txt` is not used; `pyproject.toml` is the single source of truth.
 
-### DEC-004: Oracle physical reflection replaces hardcoded base-action rules
-- **Date**: 2026-02-27
-- **Context**: Agents were inventing actions (like diagonal movement) that the Oracle rejected programmatically without ever consulting its own LLM reasoning. The Oracle should embody world physics, not hardcode them.
-- **Decision**: Remove hardcoded programmatic rules from base actions (move, eat, rest). All actions route through `_oracle_reflect_physical()`: the Oracle's LLM reasons about physical plausibility once per novel situation, then caches the result as a precedent. Move now supports all 8 compass directions (N/NE/E/SE/S/SW/W/NW).
-- **Rejected alternatives**: Keep hardcoded rules but add diagonal support (doesn't fix the architectural inconsistency; Oracle bypasses its own reasoning).
-- **Consequences**: ~4-6 new LLM calls on first run (one per tile type / action context). After warm-up, all base-action resolution is precedent-driven (no additional LLM calls). Fallback defaults apply when LLM is unavailable.
+### DEC-008: Behavioral audit system for prompt A/B testing
+- **Date**: 2026-02-28
+- **Context**: Iterating on agent prompts requires comparing behavioral outcomes across runs. Existing markdown logs are human-readable but not machine-parseable, making it impossible to quantify the effect of prompt changes.
+- **Decision**: Add a lightweight audit system (`simulation/audit_recorder.py` + `simulation/audit_compare.py`) activated via `--audit` flag. Records structured JSONL events per agent-tick, prompt SHA-256 hashes in `meta.json`, and computed behavioral metrics in `summary.json`. A comparison CLI reads two runs and prints a 4-section terminal report (prompt diff, metrics table, behavioral fingerprint bars, stat sparklines).
+- **Rejected alternatives**: structlog JSON (captures raw data but doesn't compute behavioral metrics), external analytics tools (adds dependencies), manual log reading (doesn't scale).
+- **Consequences**: No new dependencies (stdlib only). Audit data written to `logs/sim_<timestamp>/audit/`. The `--audit` flag is opt-in so there's no performance impact on normal runs.
+
