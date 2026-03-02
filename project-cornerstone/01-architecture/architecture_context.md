@@ -29,7 +29,7 @@
 │                    ▼                            │
 │             ┌──────────────┐                    │
 │             │   World      │                    │
-│             │  (50x50 grid)│                    │
+│             │  (10x10 grid)│                    │
 │             │  resources   │                    │
 │             └──────────────┘                    │
 └─────────────────────────────────────────────────┘
@@ -87,18 +87,26 @@ project-root/
 │   ├── oracle.py              # Action validation + precedents
 │   ├── engine.py              # Tick loop orchestration
 │   ├── sim_logger.py          # Per-run markdown logging (logs/ dir)
-│   └── prompt_loader.py       # string.Template loader, cached
+│   ├── prompt_loader.py       # string.Template loader, cached
+│   ├── memory.py              # Dual memory system (episodic + semantic) — DEC-009
+│   ├── audit_recorder.py      # Behavioral audit recording — DEC-008
+│   └── audit_compare.py       # Audit run comparison CLI
 ├── prompts/
 │   ├── agent/
 │   │   ├── system.txt         # Fixed system prompt (name, actions, grid legend, few-shot examples)
-│   │   └── decision.txt       # Variable user prompt (tick, stats, grid, resources, memory)
+│   │   ├── decision.txt       # Variable user prompt (tick, stats, grid, resources, memory)
+│   │   ├── energy_critical.txt # Status effect prompt (energy critical)
+│   │   ├── energy_low.txt     # Status effect prompt (energy low)
+│   │   └── memory_compression.txt # Memory compression prompt
 │   └── oracle/
 │       ├── physical_system.txt
 │       ├── innovation_system.txt
 │       ├── custom_action_system.txt
 │       └── fruit_effect.txt
-├── tests/                     # (Phase 1 pending — not yet created)
-├── data/                      # (Phase 1 pending — not yet created)
+├── tests/
+│   ├── test_audit.py          # Audit system tests
+│   └── test_memory.py         # Dual memory system tests
+├── data/
 └── project-cornerstone/       # This knowledge base
 ```
 

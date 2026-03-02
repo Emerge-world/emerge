@@ -36,7 +36,7 @@ With 5 agents and Qwen 2.5-3B:
 2. **Compact prompt** (Phase 1)
    - Visual grid instead of JSON list of tiles
    - Compressed memory (semantic) instead of raw events
-   - Target: <300 tokens input per call
+   - Target: <300 tokens input per call (current actual: ~500-750 tokens with dual memory; compact grid + memory compression implemented, token budget enforcement pending)
 
 3. **Ollama keep_alive** (Phase 1)
    ```python
@@ -59,7 +59,7 @@ RULES:
   game rules, JSON format, few-shot examples.
 - User prompt: VARIABLE each tick. Includes: tick number, stats, visual grid, memory.
 - Temperature: 0.7 (creative but not crazy)
-- Max tokens: 256 (a decision doesn't need more)
+- Max tokens: 512 (matches LLM_MAX_TOKENS in config.py)
 ```
 
 ### For the oracle (validation)

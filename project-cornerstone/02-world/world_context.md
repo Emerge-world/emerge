@@ -2,7 +2,7 @@
 
 ## Current State (Phase 0)
 
-The world is a 50x50 2D tile matrix randomly generated with three types:
+The world is a 10x10 2D tile matrix randomly generated with three types:
 - **water** (~15%): impassable — controlled by `WATER_RATIO = 0.15` in `config.py`
 - **land** (~76.5%): passable, no resources — remaining tiles after water and trees
 - **tree** (~8.5%): passable, contains fruit (1–5 units) — `TREE_DENSITY = 0.10` of land tiles

@@ -19,7 +19,7 @@ Build an emergent world where agents controlled by language models learn to surv
 ## Phase Roadmap
 
 ### PHASE 0 — Foundation ✅ (COMPLETED)
-- [x] 2D World 50x50 with tiles (water, land, tree)
+- [x] 2D World (10x10 default, configurable) with tiles (water, land, tree)
 - [x] Agents with life, hunger, energy
 - [x] Base actions: move, eat, rest, innovate
 - [x] Oracle with validation and precedents
@@ -31,9 +31,9 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Improved prompts for smarter decisions (compact ASCII grid, resource hints, few-shot examples, `prompts/` template system)
 - [x] Structured logging (markdown `sim_logger.py`; structlog JSON planned for later in Phase 1)
 - [ ] Personality system per agent — **pending**
-- [x] Short and long-term memory (episodic + semantic) — **pending**
+- [x] Short and long-term memory (episodic + semantic)
 - [ ] Improved innovation system with robust validation — **pending**
-- [ ] Unit and integration tests (MockLLM) — **pending**
+- [ ] Unit and integration tests (MockLLM) — **2 test files exist (`test_audit`, `test_memory`), core unit tests pending**
 - [ ] Precedent persistence (JSON save/load) — **pending**
 - **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
 
@@ -83,7 +83,7 @@ Build an emergent world where agents controlled by language models learn to surv
 | LLM               | Ollama (Qwen 2.5-3B)   | Local, free, fast                  |
 | Future LLM        | Claude API / OpenAI     | When we need more capacity         |
 | Testing           | pytest + hypothesis     | Property-based testing for sim     |
-| Logging           | structlog (JSON lines)  | Parseable, queryable               |
+| Logging           | `sim_logger.py` (markdown per-run); structlog (JSON lines) planned | Parseable, queryable |
 | Visualization     | FastAPI + React/Pixi.js | When we reach Phase 5              |
 | CI/CD             | GitHub Actions          | Automatic tests on each PR         |
 | Data              | SQLite → PostgreSQL     | To persist simulations             |

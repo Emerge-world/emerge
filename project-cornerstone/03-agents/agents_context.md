@@ -8,10 +8,9 @@ The following prompt improvements are already live:
 - **Directional resource hints**: The decision prompt includes natural-language hints like `"fruit 2 tiles NORTH"` so the agent can act without parsing the full grid.
 - **Few-shot examples**: `prompts/agent/system.txt` contains 2–3 worked examples of good decisions baked into the system prompt.
 - **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
-- **Memory in prompts**: The last 15 memory entries (of a max-50 cap) are included in the decision prompt.
+- **Dual memory system**: Episodic (short-term, max 20) + semantic (long-term, max 30) memory. The decision prompt includes 10 semantic + 10 episodic entries via `memory.to_prompt()`. See DEC-009, implemented in `simulation/memory.py`.
 
 **Pending for Phase 1:**
-- Dual memory system (episodic + semantic compression)
 - Personality traits dataclass + system prompt inclusion
 
 ---
@@ -19,22 +18,23 @@ The following prompt improvements are already live:
 ## Current State (Phase 0)
 
 Each agent has:
-- **Stats**: health (0-100), hunger (0-100, more = worse), energy (0-100)
+- **Stats**: life (0-100), hunger (0-100, more = worse), energy (0-100)
 - **Posición**: (x, y) in the grid
-- **Memoria**: string list, cap 50, FIFO
+- **Memoria**: `Memory` class with episodic (max 20, raw events) + semantic (max 30, compressed knowledge)
 - **Acciones**: string list starting with `["move", "eat", "rest", "innovate"]`
 - **LLM**: Ollama 
 
 ### Known Issues
 
-1. **Unstructured memory**: Everything is plain text. Doesn't distinguish between facts, experiences, and knowledge.
-2. **No personality**: All agents are identical except for their position and memory.
-3. **Long prompt**: With 50 memories + nearby tiles, the prompt gets large for a 3B model.
-4. **Too simple fallback**: The mode without LLM always oscillates between two tiles.
+1. **No personality**: All agents are identical except for their position and memory.
+2. **Token budget**: With dual memory + compact grid, prompts are ~500-750 tokens per call vs <300 target. Compression helps but token budget enforcement is not yet implemented.
+3. **Too simple fallback**: The mode without LLM always oscillates between two tiles.
 
 ## Phase 1 — Intelligence
 
-### Dual memory system *(pending)*
+### Dual memory system *(implemented — see DEC-009)*
+
+Code lives in `simulation/memory.py`. Compression prompt in `prompts/agent/memory_compression.txt`.
 
 ```
 MEMORY

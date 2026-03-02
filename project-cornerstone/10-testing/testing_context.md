@@ -2,12 +2,14 @@
 
 ## Current Status
 
-**0 tests currently exist.** `pytest>=9.0.2` is declared in `pyproject.toml` but no test files have been written yet.
+**2 test files exist:** `test_audit.py` (audit system) and `test_memory.py` (dual memory system). `pytest>=9.0.2` is declared in `pyproject.toml`.
 
 Priority order:
-1. Unit tests (no LLM) — `test_world.py`, `test_agent.py`, `test_oracle.py`
-2. MockLLM integration tests — `test_integration.py`
-3. Behavioral tests (real LLM, slow) — `test_behavioral.py`
+1. ~~Audit system tests — `test_audit.py`~~ ✅ done
+2. ~~Dual memory tests — `test_memory.py`~~ ✅ done
+3. Unit tests (no LLM) — `test_world.py`, `test_agent.py`, `test_oracle.py` — **pending**
+4. MockLLM integration tests — `test_integration.py` — **pending**
+5. Behavioral tests (real LLM, slow) — `test_behavioral.py` — **pending**
 
 ### MockLLM skeleton to implement
 
