@@ -5,7 +5,8 @@ Simulation engine: orchestrates the main tick loop.
 import time
 import json
 import logging
-from typing import Optional
+import threading
+from typing import Optional, Callable
 
 from simulation.config import (
     MAX_AGENTS, MAX_TICKS, TICK_DELAY_SECONDS,
@@ -61,6 +62,9 @@ class SimulationEngine:
             x, y = self.world.find_spawn_point()
             agent = Agent(x=x, y=y, llm=self.llm)
             self.agents.append(agent)
+
+        # Web server: per-tick event collector (populated by run_with_callback)
+        self._tick_events: list[dict] = []
 
         # Audit recorder
         self.recorder: Optional[AuditRecorder] = None
@@ -139,6 +143,14 @@ class SimulationEngine:
             result = self.oracle.resolve_action(agent, action, tick)
             status = "✅" if result["success"] else "❌"
             print(f"     {status} {result['message']}")
+
+            # Collect event for web broadcast
+            self._tick_events.append({
+                "agent": agent.name,
+                "action": action_str,
+                "success": result["success"],
+                "message": result["message"],
+            })
 
             # 5. Log oracle resolution
             self.sim_logger.log_oracle_resolution(tick, agent, action, result)
@@ -311,6 +323,93 @@ class SimulationEngine:
             print(f"  📊 Audit data: {self.recorder.audit_dir}/")
 
         print(f"  📂 Detailed logs: {self.sim_logger.run_dir}/")
+
+    # ------------------------------------------------------------------
+    # Web server integration
+    # ------------------------------------------------------------------
+
+    def run_with_callback(
+        self,
+        on_tick: Callable[[dict], None],
+        pause_flag: Optional[threading.Event] = None,
+    ) -> None:
+        """
+        Run the simulation, calling on_tick(msg) after every tick.
+        Designed to be called from a background thread by the web server.
+        The sync run() method is unaffected.
+
+        pause_flag: a threading.Event that, when set, pauses the tick loop.
+        """
+        # Skip emoji console decorations (breaks on Windows cp1252 terminals).
+        # The web server uses structured logging instead.
+        self._log_overview_start()
+
+        for tick in range(1, self.max_ticks + 1):
+            # Honour pause requests
+            if pause_flag is not None:
+                while pause_flag.is_set():
+                    time.sleep(0.05)
+
+            self.current_tick = tick
+            alive_agents = [a for a in self.agents if a.alive]
+
+            if not alive_agents:
+                logger.info("All agents have died — simulation complete")
+                break
+
+            self._tick_events = []
+            self._run_tick(tick, alive_agents)
+
+            on_tick({
+                "type": "tick",
+                "tick": tick,
+                "agents": [self._serialize_agent(a) for a in self.agents],
+                "events": list(self._tick_events),
+                "world_resources": {
+                    f"{x},{y}": res
+                    for (x, y), res in self.world.resources.items()
+                },
+            })
+
+            if TICK_DELAY_SECONDS > 0:
+                time.sleep(TICK_DELAY_SECONDS)
+
+        self._log_overview_end()
+
+    def get_init_message(self) -> dict:
+        """Build the initial state message for a new WebSocket connection."""
+        return {
+            "type": "init",
+            "tick": self.current_tick,
+            "world": {
+                "width": self.world.width,
+                "height": self.world.height,
+                "tiles": [
+                    [self.world.grid[y][x] for x in range(self.world.width)]
+                    for y in range(self.world.height)
+                ],
+                "resources": {
+                    f"{x},{y}": res
+                    for (x, y), res in self.world.resources.items()
+                },
+            },
+            "agents": [self._serialize_agent(a) for a in self.agents],
+        }
+
+    @staticmethod
+    def _serialize_agent(agent) -> dict:
+        return {
+            "id": agent.id,
+            "name": agent.name,
+            "x": agent.x,
+            "y": agent.y,
+            "life": agent.life,
+            "hunger": agent.hunger,
+            "energy": agent.energy,
+            "alive": agent.alive,
+            "actions": list(agent.actions),
+            "memory": list(agent.memory[-10:]),
+        }
 
     def save_world_log(self, filepath: str = "simulation_log.txt"):
         """Save the complete world log to a file."""

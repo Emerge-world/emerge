@@ -1,0 +1,470 @@
+/* ============================================================
+   Global reset + tokens
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* --- Core palette --- */
+  --bg:            #0d1117;
+  --bg-inset:      #111318;
+  --surface:       #161b22;
+  --surface-hover: #1c2128;
+  --surface-active:#21262d;
+  --border:        #30363d;
+  --disabled:      #6b7280;
+
+  /* --- Text --- */
+  --text:          #e6edf3;
+  --muted:         #9da5ae;
+
+  /* --- Semantic --- */
+  --accent:        #58a6ff;
+  --danger:        #ef4444;
+  --green:         #22c55e;
+  --orange:        #f97316;
+  --blue:          #3b82f6;
+
+  /* --- Badge variants --- */
+  --green-dim:     #14532d;
+  --green-bright:  #4ade80;
+  --danger-dim:    #450a0a;
+  --danger-bright: #fca5a5;
+
+  /* --- Misc --- */
+  --fruit:         #facc15;
+
+  /* --- Layout --- */
+  --status-h: 44px;
+  --panel-w:  300px;
+
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Focus indicators
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Status bar
+   ============================================================ */
+.status-bar {
+  height: var(--status-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  gap: 12px;
+}
+
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-section--centre {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.status-section--right {
+  justify-content: flex-end;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conn-dot--on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-dot--off { background: var(--disabled); }
+
+.conn-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+.status-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+
+.tick-label { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.agent-count { color: var(--muted); white-space: nowrap; }
+
+.status-sep { color: var(--border); }
+
+.ctrl-btn {
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.ctrl-btn:hover { background: var(--surface-active); }
+
+.ctrl-btn--resume {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.ctrl-btn--pause {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Panel toggle — hidden on desktop, visible on mobile */
+.ctrl-btn--panel-toggle {
+  display: none;
+}
+
+/* ============================================================
+   Main layout
+   ============================================================ */
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ============================================================
+   World canvas container
+   ============================================================ */
+.world-container {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-inset);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 12px;
+}
+
+.world-container canvas {
+  image-rendering: pixelated;
+}
+
+.world-placeholder {
+  margin: auto;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 40px;
+}
+
+/* ============================================================
+   Agent panel (sidebar)
+   ============================================================ */
+.agent-panel {
+  width: var(--panel-w);
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.panel-empty {
+  color: var(--muted);
+  padding: 20px;
+  text-align: center;
+}
+
+/* ============================================================
+   Agent card
+   ============================================================ */
+.agent-card {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.agent-card:hover { background: var(--surface-hover); }
+
+.agent-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.agent-card--selected { background: var(--surface-hover); }
+
+.agent-card--dead { opacity: 0.45; }
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-name {
+  font-weight: 700;
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.badge-alive { background: var(--green-dim); color: var(--green-bright); }
+.badge-dead  { background: var(--danger-dim); color: var(--danger-bright); }
+
+.agent-pos {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Stat bars
+   ============================================================ */
+.stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-label {
+  width: 40px;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.stat-bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+}
+
+.stat-value {
+  width: 26px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ============================================================
+   Memory list
+   ============================================================ */
+.agent-memory {
+  margin-top: 8px;
+}
+
+.memory-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.memory-list {
+  list-style: none;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.memory-list::-webkit-scrollbar { width: 4px; }
+.memory-list::-webkit-scrollbar-track { background: transparent; }
+.memory-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.memory-entry {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--surface-active);
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.memory-entry:first-child { color: var(--text); }
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+.agent-panel::-webkit-scrollbar { width: 4px; }
+.agent-panel::-webkit-scrollbar-track { background: transparent; }
+.agent-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ============================================================
+   Tablet (768px – 1023px)
+   ============================================================ */
+@media (max-width: 1023px) {
+  :root {
+    --panel-w: 240px;
+  }
+
+  .ctrl-btn {
+    padding: 8px 14px;
+  }
+}
+
+/* ============================================================
+   Mobile (< 768px)
+   ============================================================ */
+@media (max-width: 767px) {
+  :root {
+    --status-h: 48px;
+    --panel-w: 100%;
+  }
+
+  /* --- Status bar: compact --- */
+  .status-bar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .status-title { display: none; }
+  .status-sep   { display: none; }
+  .conn-label   { display: none; }
+
+  .status-section {
+    min-width: 0;
+  }
+
+  .ctrl-btn {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .ctrl-btn--panel-toggle {
+    display: inline-flex;
+    padding: 10px 12px;
+  }
+
+  /* --- Layout: vertical stack --- */
+  .main-layout {
+    flex-direction: column;
+    position: relative;
+  }
+
+  .world-container {
+    flex: 1;
+    padding: 8px;
+  }
+
+  /* --- Agent panel: bottom drawer --- */
+  .agent-panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease-out;
+  }
+
+  .agent-panel--open {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* Horizontal card layout on mobile for better space use */
+  .agent-card {
+    padding: 10px 12px;
+    border-left: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-card-header {
+    margin-bottom: 6px;
+  }
+
+  .memory-list {
+    max-height: 80px;
+  }
+}
