@@ -186,6 +186,11 @@ class SimulationEngine:
                     nearby_tiles=nearby,
                 )
 
+        # Memory compression
+        for agent in alive_agents:
+            if agent.alive and agent.memory_system.should_compress(tick):
+                agent.memory_system.compress(llm=self.llm, tick=tick, agent_name=agent.name)
+
         # Show agent states
         self._print_agent_states()
 

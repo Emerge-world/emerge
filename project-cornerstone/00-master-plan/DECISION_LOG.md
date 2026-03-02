@@ -71,3 +71,10 @@
 - **Rejected alternatives**: structlog JSON (captures raw data but doesn't compute behavioral metrics), external analytics tools (adds dependencies), manual log reading (doesn't scale).
 - **Consequences**: No new dependencies (stdlib only). Audit data written to `logs/sim_<timestamp>/audit/`. The `--audit` flag is opt-in so there's no performance impact on normal runs.
 
+### DEC-009: Dual memory system (episodic + semantic)
+- **Date**: 2026-03-02
+- **Context**: Agents used a flat `list[str]` with 50-entry FIFO cap. Old knowledge was lost, preventing long-term pattern learning. By tick 60, agents had no memory of lessons from tick 5.
+- **Decision**: Split memory into episodic (max 20, raw events) and semantic (max 30, compressed knowledge). Every 10 ticks the LLM compresses recent episodes into reusable lessons stored in semantic memory. Three-layer fallback on compression (null LLM, try/except, result validation). `add_memory()` signature preserved for backward compatibility; a `@property memory` shim handles direct access sites.
+- **Rejected alternatives**: RAG with embeddings (too complex for Phase 1, requires vector DB), single memory with manual tagging (doesn't scale), persistent memory database (overengineering at this stage).
+- **Consequences**: Agents can accumulate survival strategies over time. Prompt now shows `[KNOW]` and `[RECENT]` sections. Compression adds one LLM call per agent every 10 ticks. Memory class in `simulation/memory.py` is the single source of truth.
+

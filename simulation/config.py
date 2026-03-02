@@ -3,8 +3,8 @@ Global simulation configuration.
 """
 
 # --- World ---
-WORLD_WIDTH = 50
-WORLD_HEIGHT = 50
+WORLD_WIDTH = 10
+WORLD_HEIGHT = 10
 TILE_WATER = "water"
 TILE_LAND = "land"
 TILE_TREE = "tree"
@@ -53,6 +53,13 @@ LOG_DIR = "logs"
 AUDIT_HUNGER_THRESHOLD = 60     # hunger above this = "was_hungry"
 AUDIT_EXHAUSTION_THRESHOLD = 20 # energy below this = "was_exhausted"
 AUDIT_HUNGER_CRITICAL = 80      # hunger above this = "hunger_critical"
+
+# --- Memory ---
+MEMORY_EPISODIC_MAX = 20
+MEMORY_SEMANTIC_MAX = 30
+MEMORY_COMPRESSION_INTERVAL = 10
+MEMORY_EPISODIC_IN_PROMPT = 10
+MEMORY_SEMANTIC_IN_PROMPT = 10
 
 # --- Base actions ---
 BASE_ACTIONS = ["move", "eat", "rest", "innovate"]
