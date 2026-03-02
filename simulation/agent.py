@@ -15,6 +15,7 @@ from simulation.config import (
     BASE_ACTIONS, AGENT_VISION_RADIUS,
 )
 from simulation.llm_client import LLMClient
+from simulation.memory import Memory
 from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -44,9 +45,8 @@ class Agent:
         self.energy = AGENT_START_ENERGY
         self.alive = True
 
-        # Memory: list of strings recording what has happened
-        self.memory: list[str] = []
-        self.max_memory = 50  # Last N entries to avoid saturating the prompt
+        # Dual memory system (episodic + semantic)
+        self.memory_system = Memory()
 
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
@@ -110,17 +110,17 @@ class Agent:
     # --- Memory ---
 
     def add_memory(self, entry: str):
-        """Add an entry to the memory log."""
-        self.memory.append(entry)
-        if len(self.memory) > self.max_memory:
-            self.memory = self.memory[-self.max_memory:]
+        """Add an entry to episodic memory."""
+        self.memory_system.add_episode(entry)
 
-    def get_recent_memory(self, n: int = 15) -> str:
-        """Return the last N memory entries as text."""
-        recent = self.memory[-n:]
-        if not recent:
-            return "I have no previous memories. I just arrived in the world."
-        return "\n".join(f"- {m}" for m in recent)
+    def get_recent_memory(self) -> str:
+        """Return formatted memory for the decision prompt."""
+        return self.memory_system.to_prompt()
+
+    @property
+    def memory(self) -> list[str]:
+        """Backward-compatible access to all memory entries."""
+        return self.memory_system.all_entries()
 
     # --- Decision making with LLM ---
 
@@ -281,7 +281,9 @@ class Agent:
             "energy": self.energy,
             "alive": self.alive,
             "actions": self.actions,
-            "memory_entries": len(self.memory),
+            "memory_entries": self.memory_system.total_entries,
+            "memory_episodic": len(self.memory_system.episodic),
+            "memory_semantic": len(self.memory_system.semantic),
         }
 
     def __repr__(self):

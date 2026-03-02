@@ -8,7 +8,7 @@ $ascii_grid
 NEARBY RESOURCES:
 $resource_hints
 
-YOUR RECENT MEMORY:
+YOUR MEMORY:
 $memory_text
 
 Respond with a JSON object.

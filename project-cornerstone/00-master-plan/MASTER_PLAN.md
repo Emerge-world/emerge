@@ -31,7 +31,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Improved prompts for smarter decisions (compact ASCII grid, resource hints, few-shot examples, `prompts/` template system)
 - [x] Structured logging (markdown `sim_logger.py`; structlog JSON planned for later in Phase 1)
 - [ ] Personality system per agent — **pending**
-- [ ] Short and long-term memory (episodic + semantic) — **pending**
+- [x] Short and long-term memory (episodic + semantic) — **pending**
 - [ ] Improved innovation system with robust validation — **pending**
 - [ ] Unit and integration tests (MockLLM) — **pending**
 - [ ] Precedent persistence (JSON save/load) — **pending**
