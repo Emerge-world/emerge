@@ -28,7 +28,7 @@ HUNGER_DAMAGE_THRESHOLD = 80  # above this, hunger damages life
 HUNGER_DAMAGE_PER_TICK = 3    # life damage when hunger > threshold
 ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
-ENERGY_COST_INNOVATE = 0
+ENERGY_COST_INNOVATE = 10
 ENERGY_RECOVERY_REST = 50
 ENERGY_LOW_THRESHOLD = 20    # below this, agent feels tired/dizzy (prompt signal)
 ENERGY_DAMAGE_PER_TICK = 2   # life lost per tick when energy == 0
@@ -38,7 +38,7 @@ AGENT_VISION_RADIUS = 3  # tiles in each direction
 
 # --- LLM / Ollama ---
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen3.5:9b"
+OLLAMA_MODEL = "qwen3.5:4b"
 LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 768
 
@@ -69,6 +69,15 @@ NIGHT_START_HOUR = 21         # hour when night begins
 NIGHT_VISION_REDUCTION = 2    # vision radius reduced by this amount at night (3 → 1)
 SUNSET_VISION_REDUCTION = 1   # vision radius reduced by this amount at sunset (3 → 2)
 NIGHT_ENERGY_MULTIPLIER = 1.5 # energy action costs multiplied by this at night
+
+# --- Innovation ---
+# Safe bounds for stat deltas returned by the oracle when judging custom actions.
+# Any value outside these ranges is clamped. (min, max)
+INNOVATION_EFFECT_BOUNDS = {
+    "hunger": (-30, 10),
+    "energy": (-20, 20),
+    "life":   (-15, 10),
+}
 
 # --- Base actions ---
 BASE_ACTIONS = ["move", "eat", "rest", "innovate"]

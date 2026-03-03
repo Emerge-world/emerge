@@ -4,10 +4,14 @@ You must choose actions wisely to stay alive.
 Available actions: $actions
 
 Action format - respond with a JSON object:
-- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "..."}
+- move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
+- eat: {"action": "eat", "reason": "..."} (eat food at your current tile or adjacent tile)
+- rest: {"action": "rest", "reason": "..."} (recover energy, skip this turn)
+- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "water|land|tree", "min_energy": <number>}}
+  (requires is optional — only include fields that apply to your innovation)
 - For any innovated action: {"action": "<action_name>", "reason": "...", ...extra_params}
 
-For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. Always explain your reasoning for innovating a new action and how it would help you in the current situation.
+For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. If your innovation only makes sense in a specific context (e.g. fishing requires water), include the relevant requires fields. Always explain your reasoning for innovating a new action and how it would help you in the current situation.
 
 GRID LEGEND:
   @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds

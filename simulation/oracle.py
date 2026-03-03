@@ -8,7 +8,7 @@ from typing import Optional
 
 from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
-    ENERGY_RECOVERY_REST,
+    ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
 )
 from simulation.llm_client import LLMClient
 from simulation.world import World
@@ -59,6 +59,14 @@ class Oracle:
         actual_cost = round(base_cost * multiplier)
         agent.modify_energy(-actual_cost)
         return actual_cost
+
+    def _clamp_innovation_effects(self, effects: dict) -> dict:
+        """Clamp custom-action stat deltas to the configured safe bounds."""
+        clamped = dict(effects)
+        for stat, (lo, hi) in INNOVATION_EFFECT_BOUNDS.items():
+            if stat in clamped:
+                clamped[stat] = max(lo, min(hi, int(clamped[stat])))
+        return clamped
 
     def resolve_action(self, agent: Agent, action: dict, tick: int) -> dict:
         """
@@ -235,7 +243,37 @@ class Oracle:
             self._log(tick, msg)
             return {"success": False, "message": msg, "effects": {}}
 
+        # Validate prerequisites declared by the agent (no LLM call needed)
+        requires = action.get("requires")
+        if isinstance(requires, dict):
+            required_tile = requires.get("tile")
+            if required_tile:
+                current_tile = self.world.get_tile(agent.x, agent.y)
+                if current_tile != required_tile:
+                    msg = (
+                        f"{agent.name} cannot innovate '{new_action_name}': "
+                        f"requires {required_tile} tile but is on {current_tile}."
+                    )
+                    self._log(tick, msg)
+                    agent.add_memory(
+                        f"I tried to innovate '{new_action_name}' but I need to be on {required_tile} (I'm on {current_tile})."
+                    )
+                    return {"success": False, "message": msg, "effects": {}}
+
+            min_energy = requires.get("min_energy")
+            if min_energy is not None and agent.energy < int(min_energy):
+                msg = (
+                    f"{agent.name} cannot innovate '{new_action_name}': "
+                    f"requires {min_energy} energy but has {agent.energy}."
+                )
+                self._log(tick, msg)
+                agent.add_memory(
+                    f"I tried to innovate '{new_action_name}' but I need at least {min_energy} energy."
+                )
+                return {"success": False, "message": msg, "effects": {}}
+
         # Ask the oracle LLM to validate if the innovation makes sense
+        category = "SURVIVAL"
         if self.llm:
             validation = self._validate_innovation(agent, new_action_name, description, tick)
             if not validation["approved"]:
@@ -243,6 +281,7 @@ class Oracle:
                 self._log(tick, msg)
                 agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {validation['reason']}.")
                 return {"success": False, "message": msg, "effects": {}}
+            category = validation.get("category", "SURVIVAL")
 
         # Approve innovation
         agent.actions.append(new_action_name)
@@ -253,9 +292,10 @@ class Oracle:
             "creator": agent.name,
             "description": description,
             "tick_created": tick,
+            "category": category,
         }
 
-        msg = f"🆕 {agent.name} innovated a new action: '{new_action_name}' - {description}."
+        msg = f"🆕 {agent.name} innovated '{new_action_name}' [{category}]: {description}."
         self._log(tick, msg)
         agent.add_memory(
             f"I invented a new action: '{new_action_name}'! {description}. Energy: {agent.energy}."
@@ -330,16 +370,18 @@ class Oracle:
 
     def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0) -> dict:
         """Use the oracle LLM to validate whether an innovation is reasonable."""
+        existing = ", ".join(f'"{a}"' for a in agent.actions)
         prompt = f"""An agent named {agent.name} wants to invent a new action called "{action_name}".
 Description: "{description}"
 
 The agent is at position ({agent.x}, {agent.y}) on a tile of type "{self.world.get_tile(agent.x, agent.y)}".
 The agent's stats: Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energy}.
+The agent already knows these actions: {existing}.
 
 The world is a primitive survival setting (think early human civilization).
-Is this innovation reasonable and feasible given the context?
+Is this innovation reasonable, feasible, and meaningfully different from existing actions?
 
-Respond with JSON: {{"approved": true/false, "reason": "explanation"}}"""
+Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}"""
 
         system = prompt_loader.load("oracle/innovation_system")
 
@@ -357,7 +399,7 @@ Respond with JSON: {{"approved": true/false, "reason": "explanation"}}"""
 
         if result and "approved" in result:
             return result
-        return {"approved": True, "reason": "Oracle could not decide, defaulting to approved."}
+        return {"approved": True, "reason": "Oracle could not decide, defaulting to approved.", "category": "SURVIVAL"}
 
     def _oracle_judge_custom_action(self, agent: Agent, action: dict, description: str, tick: int = 0) -> Optional[dict]:
         """Use the LLM to determine the outcome of a custom action."""
@@ -404,6 +446,9 @@ Respond with JSON:
                 raw_response=lc.get("raw_response", ""),
                 parsed_result=result,
             )
+
+        if result and "effects" in result:
+            result["effects"] = self._clamp_innovation_effects(result["effects"])
 
         return result
 
