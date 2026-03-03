@@ -3,6 +3,7 @@ Client for communicating with Ollama (Qwen 2.5-3B).
 """
 
 import json
+import re
 import requests
 import logging
 
@@ -30,6 +31,7 @@ class LLMClient:
             "prompt": prompt,
             "system": system_prompt,
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": temperature,
                 "num_predict": LLM_MAX_TOKENS,
@@ -38,10 +40,14 @@ class LLMClient:
 
         try:
             logger.debug(f"LLM request to {self.model}: {prompt[:120]}...")
-            response = requests.post(url, json=payload, timeout=120)
+            response = requests.post(url, json=payload, timeout=250)
+            # write the request in a log for debugging
+            logger.debug(f"LLM request payload: {payload}")
             response.raise_for_status()
             data = response.json()
-            result = data.get("response", "").strip()
+            raw = data.get("response", "")
+            # Qwen3 CoT: strip <think>...</think> blocks before returning
+            result = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
             logger.debug(f"LLM response: {result[:200]}...")
             self.last_call = {
                 "system_prompt": system_prompt,
