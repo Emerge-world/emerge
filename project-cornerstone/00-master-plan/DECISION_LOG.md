@@ -78,3 +78,11 @@
 - **Rejected alternatives**: RAG with embeddings (too complex for Phase 1, requires vector DB), single memory with manual tagging (doesn't scale), persistent memory database (overengineering at this stage).
 - **Consequences**: Agents can accumulate survival strategies over time. Prompt now shows `[KNOW]` and `[RECENT]` sections. Compression adds one LLM call per agent every 10 ticks. Memory class in `simulation/memory.py` is the single source of truth.
 
+### DEC-010: Day/night cycle with 1 tick = 1 hour
+- **Date**: 2026-03-03
+- **Context**: Ticks had no semantic meaning beyond sequence number. Giving each tick a real-world duration grounds the simulation in human intuition, enables time-based survival mechanics, and sets up resource regeneration timing and weather for future phases.
+- **Decision**: 1 tick = 1 in-world hour. 24-tick day split into 3 periods: day (hours 0–15, full vision, normal costs), sunset (hours 16–20, vision −1), night (hours 21–23, vision −2, energy action costs ×1.5). `DayCycle` class in `simulation/day_cycle.py` encapsulates all time logic. Start hour is configurable via `WORLD_START_HOUR = 6` (config) and `--start-hour` (CLI). `MAX_TICKS` bumped to 72 (3 full days). Time description injected into the agent decision prompt via `$time_info`.
+- **Rejected alternatives**: 4-period cycle (dawn/day/dusk/night) — added complexity without proportional benefit at this stage; circadian sleep-debt mechanics — full sleep system deferred to Phase 2+; emergent-only (no mechanical effects, just tell agents the time) — no actual survival pressure without vision/energy changes; baking time logic into engine — violates single-responsibility.
+- **Consequences**: `world.get_nearby_tiles()` receives a dynamic radius per tick (engine computes it). Oracle holds a `day_cycle` reference to scale energy costs on move/eat. Rest recovery is NOT multiplied (incentivises resting at night without penalising it). Resource regeneration timing (dawn-triggered) deferred to next PR.
+
+

@@ -39,10 +39,12 @@ class Oracle:
     Validates actions, determines outcomes, and maintains consistency.
     """
 
-    def __init__(self, world: World, llm: Optional[LLMClient] = None, sim_logger=None):
+    def __init__(self, world: World, llm: Optional[LLMClient] = None, sim_logger=None,
+                 day_cycle=None):
         self.world = world
         self.llm = llm
         self.sim_logger = sim_logger
+        self.day_cycle = day_cycle  # Optional DayCycle for time-based energy costs
 
         # Oracle memory: stores precedents for determinism
         # Key: descriptive string of the situation -> result
@@ -50,6 +52,13 @@ class Oracle:
 
         # Log of everything that has happened in the world
         self.world_log: list[str] = []
+
+    def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:
+        """Apply an energy cost with the day/night multiplier. Returns actual cost spent."""
+        multiplier = self.day_cycle.get_energy_multiplier(tick) if self.day_cycle else 1.0
+        actual_cost = round(base_cost * multiplier)
+        agent.modify_energy(-actual_cost)
+        return actual_cost
 
     def resolve_action(self, agent: Agent, action: dict, tick: int) -> dict:
         """
@@ -150,13 +159,13 @@ class Oracle:
 
         # Move succeeds
         agent.x, agent.y = new_x, new_y
-        agent.modify_energy(-ENERGY_COST_MOVE)
+        cost = self._apply_energy_cost(agent, ENERGY_COST_MOVE, tick)
         msg = f"{agent.name} moved {direction} → ({new_x},{new_y}) [tile: {tile_type}]."
         self._log(tick, msg)
         agent.add_memory(
             f"I moved {direction} to ({new_x},{new_y}). There is {tile_type}. Energy: {agent.energy}."
         )
-        return {"success": True, "message": msg, "effects": {"energy": -ENERGY_COST_MOVE}}
+        return {"success": True, "message": msg, "effects": {"energy": -cost}}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
         situation_key = "physical:eat:fruit"
@@ -182,13 +191,13 @@ class Oracle:
                 if consumed > 0:
                     hunger_reduction = self._get_fruit_effect(tick)
                     agent.modify_hunger(-hunger_reduction)
-                    agent.modify_energy(-ENERGY_COST_EAT)
+                    cost = self._apply_energy_cost(agent, ENERGY_COST_EAT, tick)
                     msg = f"{agent.name} ate fruit at ({x},{y}). Hunger -{hunger_reduction} → {agent.hunger}."
                     self._log(tick, msg)
                     agent.add_memory(
                         f"I ate a fruit. My hunger decreased by {hunger_reduction} to {agent.hunger}. Energy: {agent.energy}."
                     )
-                    return {"success": True, "message": msg, "effects": {"hunger": -hunger_reduction, "energy": -ENERGY_COST_EAT}}
+                    return {"success": True, "message": msg, "effects": {"hunger": -hunger_reduction, "energy": -cost}}
 
         msg = f"{agent.name} tried to eat but there's no food nearby."
         self._log(tick, msg)

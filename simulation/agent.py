@@ -124,7 +124,8 @@ class Agent:
 
     # --- Decision making with LLM ---
 
-    def decide_action(self, nearby_tiles: list[dict], tick: int) -> dict:
+    def decide_action(self, nearby_tiles: list[dict], tick: int,
+                      time_description: str = "") -> dict:
         """
         Ask the LLM to decide what action to take.
         Returns a dict with the action and its parameters.
@@ -137,7 +138,7 @@ class Agent:
             return self._fallback_decision(nearby_tiles)
 
         system_prompt = self._build_system_prompt()
-        user_prompt = self._build_decision_prompt(nearby_tiles, tick)
+        user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description)
 
         result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
 
@@ -213,7 +214,8 @@ class Agent:
             actions=", ".join(self.actions),
         )
 
-    def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int) -> str:
+    def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
+                               time_description: str = "") -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
@@ -239,6 +241,7 @@ class Agent:
             resource_hints=resource_hints,
             memory_text=memory_text,
             status_effects=status_effects,
+            time_info=time_description,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
