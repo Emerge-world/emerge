@@ -46,6 +46,46 @@ RESOURCE_REGEN_AMOUNT = (1, 3)
 - Ability to load a world from JSON to reproduce simulations.
 - Format: `data/worlds/world_{seed}_{timestamp}.json`
 
+## Implemented in Phase 1/2 (Day/Night Cycle)
+
+### Day/Night cycle *(implemented — see DEC-010)*
+
+1 tick = 1 in-world hour. The simulation starts at a configurable hour (default 06:00).
+
+**Periods and effects:**
+
+| Period  | Hours   | Vision radius | Energy cost multiplier |
+|---------|---------|---------------|------------------------|
+| Day     | 00–15   | 3 tiles       | ×1.0 (normal)          |
+| Sunset  | 16–20   | 2 tiles       | ×1.0                   |
+| Night   | 21–23   | 1 tile        | ×1.5 (move & eat only) |
+
+**Constants (`simulation/config.py`):**
+```python
+DAY_LENGTH = 24               # ticks per in-world day
+WORLD_START_HOUR = 6          # configurable via --start-hour CLI flag
+SUNSET_START_HOUR = 16
+NIGHT_START_HOUR = 21
+NIGHT_VISION_REDUCTION = 2    # AGENT_VISION_RADIUS - this at night
+SUNSET_VISION_REDUCTION = 1   # AGENT_VISION_RADIUS - this at sunset
+NIGHT_ENERGY_MULTIPLIER = 1.5
+```
+
+**Code:** `simulation/day_cycle.py` — `DayCycle` class.
+- `get_hour(tick)`: returns 0–23
+- `get_day(tick)`: returns 1-indexed day number
+- `get_period(tick)`: `"day"`, `"sunset"`, or `"night"`
+- `get_vision_radius(tick)`: used by engine to fetch world tiles
+- `get_energy_multiplier(tick)`: used by oracle to scale move/eat costs
+- `get_prompt_line(tick)`: one-line time description injected into decision prompt
+
+**Prompt integration:** `prompts/agent/decision.txt` includes `$time_info` as the first line.
+Example: `TIME: Night (21:00, day 1). Vision severely reduced to 1 tile. Energy costs 50% higher.`
+
+**Resource regeneration** tied to dawn: deferred to next PR.
+
+---
+
 ## Phase 2 — Survival Depth
 
 ### New tiles
@@ -60,16 +100,7 @@ RESOURCE_REGEN_AMOUNT = (1, 3)
 | cave     | Yes         | shelter, minerals      | Protects from weather          |
 | river    | No*         | drinking water, fish   | *Crossable with bridge         |
 
-### Day/night cycle
-```python
-# Every 24 ticks = 1 day
-# Ticks 0-15: day (normal)
-# Ticks 16-20: sunset (reduced vision: radius - 1)
-# Ticks 21-23: night (vision radius - 2, energy spent 50% more)
-DAY_LENGTH = 24
-NIGHT_START = 16
-DEEP_NIGHT_START = 21
-```
+### Day/night cycle *(implemented — see "Implemented in Phase 1/2" above)*
 
 ### Weather system
 ```python

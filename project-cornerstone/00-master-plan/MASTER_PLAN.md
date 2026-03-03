@@ -38,7 +38,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
 
 ### PHASE 2 — Survival Depth
-- [ ] Day/night cycle with effects on agents
+- [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
 - [ ] Weather (rain, drought) affecting resources
 - [ ] Resource regeneration (trees give fruit periodically)
 - [ ] New tile types and resources (stone, rivers, caves)

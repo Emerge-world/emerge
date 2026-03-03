@@ -10,7 +10,7 @@ from typing import Optional, Callable
 
 from simulation.config import (
     MAX_AGENTS, MAX_TICKS, TICK_DELAY_SECONDS,
-    AGENT_VISION_RADIUS, WORLD_WIDTH, WORLD_HEIGHT,
+    AGENT_VISION_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, WORLD_START_HOUR,
 )
 from simulation.world import World
 from simulation.agent import Agent
@@ -18,6 +18,7 @@ from simulation.oracle import Oracle
 from simulation.llm_client import LLMClient
 from simulation.sim_logger import SimLogger
 from simulation.audit_recorder import AuditRecorder
+from simulation.day_cycle import DayCycle
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class SimulationEngine:
         use_llm: bool = True,
         max_ticks: int = MAX_TICKS,
         audit: bool = False,
+        start_hour: int = WORLD_START_HOUR,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -46,6 +48,9 @@ class SimulationEngine:
                 self.llm = None
                 self.use_llm = False
 
+        # Day/night cycle
+        self.day_cycle = DayCycle(start_hour=start_hour)
+
         # Create world
         self.world = World(seed=world_seed)
 
@@ -53,7 +58,8 @@ class SimulationEngine:
         self.sim_logger = SimLogger()
 
         # Create oracle
-        self.oracle = Oracle(self.world, llm=self.llm, sim_logger=self.sim_logger)
+        self.oracle = Oracle(self.world, llm=self.llm, sim_logger=self.sim_logger,
+                             day_cycle=self.day_cycle)
 
         # Create agents
         num_agents = min(num_agents, MAX_AGENTS)
@@ -103,15 +109,18 @@ class SimulationEngine:
 
     def _run_tick(self, tick: int, alive_agents: list[Agent]):
         """Execute a complete tick."""
-        self._print_tick_header(tick, alive_agents)
+        vision_radius = self.day_cycle.get_vision_radius(tick)
+        time_description = self.day_cycle.get_prompt_line(tick)
+
+        self._print_tick_header(tick, alive_agents, time_description)
         self.sim_logger.log_tick_start(tick, alive_agents)
 
         for agent in alive_agents:
             if not agent.alive:
                 continue
 
-            # 1. Get environment perception
-            nearby = self.world.get_nearby_tiles(agent.x, agent.y, AGENT_VISION_RADIUS)
+            # 1. Get environment perception (radius varies by time of day)
+            nearby = self.world.get_nearby_tiles(agent.x, agent.y, vision_radius)
 
             # Audit: snapshot stats before action
             if self.recorder:
@@ -119,7 +128,7 @@ class SimulationEngine:
                 position_before = (agent.x, agent.y)
 
             # 2. Agent decides its action
-            action = agent.decide_action(nearby, tick)
+            action = agent.decide_action(nearby, tick, time_description)
             action_str = action.get("action", "none")
             reason = action.get("reason", "")
 
@@ -227,11 +236,17 @@ class SimulationEngine:
 
         print("=" * 70)
 
-    def _print_tick_header(self, tick: int, alive_agents: list[Agent]):
+    def _print_tick_header(self, tick: int, alive_agents: list[Agent], time_description: str = ""):
         self._print_separator()
         alive_count = len(alive_agents)
         dead_count = len(self.agents) - alive_count
-        print(f"\n⏱️  TICK {tick:04d}  |  Alive: {alive_count}  |  Dead: {dead_count}")
+        hour = self.day_cycle.get_hour(tick)
+        day = self.day_cycle.get_day(tick)
+        period = self.day_cycle.get_period(tick)
+        period_icons = {"day": "☀️ ", "sunset": "🌅", "night": "🌙"}
+        period_icon = period_icons.get(period, "")
+        print(f"\n⏱️  TICK {tick:04d}  |  {period_icon} Day {day}, {hour:02d}:00  |  "
+              f"Alive: {alive_count}  |  Dead: {dead_count}")
         print("-" * 50)
 
     def _print_agent_states(self):

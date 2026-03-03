@@ -43,7 +43,7 @@ LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 512
 
 # --- Simulation ---
-MAX_TICKS = 100  # maximum ticks per run
+MAX_TICKS = 72   # maximum ticks per run (3 full in-world days)
 TICK_DELAY_SECONDS = 0.5  # pause between ticks for console readability
 
 # --- Logging ---
@@ -60,6 +60,15 @@ MEMORY_SEMANTIC_MAX = 30
 MEMORY_COMPRESSION_INTERVAL = 10
 MEMORY_EPISODIC_IN_PROMPT = 10
 MEMORY_SEMANTIC_IN_PROMPT = 10
+
+# --- Day/Night cycle ---
+DAY_LENGTH = 24               # ticks per in-world day (1 tick = 1 hour)
+WORLD_START_HOUR = 6          # hour at which the simulation starts (0–23)
+SUNSET_START_HOUR = 16        # hour when sunset begins
+NIGHT_START_HOUR = 21         # hour when night begins
+NIGHT_VISION_REDUCTION = 2    # vision radius reduced by this amount at night (3 → 1)
+SUNSET_VISION_REDUCTION = 1   # vision radius reduced by this amount at sunset (3 → 2)
+NIGHT_ENERGY_MULTIPLIER = 1.5 # energy action costs multiplied by this at night
 
 # --- Base actions ---
 BASE_ACTIONS = ["move", "eat", "rest", "innovate"]
