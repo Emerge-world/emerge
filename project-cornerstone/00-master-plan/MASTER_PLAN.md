@@ -32,8 +32,8 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Structured logging (markdown `sim_logger.py`; structlog JSON planned for later in Phase 1)
 - [ ] Personality system per agent — **pending**
 - [x] Short and long-term memory (episodic + semantic)
-- [ ] Improved innovation system with robust validation — **pending**
-- [ ] Unit and integration tests (MockLLM) — **2 test files exist (`test_audit`, `test_memory`), core unit tests pending**
+- [x] Improved innovation system with robust validation (`requires` prerequisites, effect bounds, categories, redundancy via LLM prompt — see DEC-011)
+- [x] Unit and integration tests (MockLLM) — `test_audit`, `test_memory`, `test_day_cycle`, `test_innovation` (20 tests)
 - [ ] Precedent persistence (JSON save/load) — **pending**
 - **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
 

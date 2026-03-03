@@ -1,0 +1,417 @@
+"""
+Unit tests for the innovation system in Oracle.
+
+Covers:
+- Prerequisites (tile, min_energy) rejected without LLM call
+- Already-known action rejected without LLM call
+- LLM approves → action added to agent.actions, precedent saved with category
+- LLM rejects → action not added
+- LLM fallback (no LLM) → innovation approved in no-llm mode
+- Effect bounds clamping via _clamp_innovation_effects
+- Out-of-bounds effects from LLM are clamped when resolving custom actions
+"""
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from simulation.agent import Agent
+from simulation.oracle import Oracle
+from simulation.world import World
+from simulation.config import (
+    INNOVATION_EFFECT_BOUNDS,
+    ENERGY_COST_INNOVATE,
+    BASE_ACTIONS,
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_world(seed: int = 42) -> World:
+    return World(width=5, height=5, seed=seed)
+
+
+def _make_agent(world: World, name: str = "Ada") -> Agent:
+    """Place agent on a land tile (guaranteed by seed=42 at 0,0 or scan)."""
+    agent = Agent(name=name, x=0, y=0)
+    # Find the first land tile and put the agent there
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == "land":
+                agent.x, agent.y = x, y
+                return agent
+    return agent  # fallback: stay at (0,0)
+
+
+def _make_oracle(world: World, llm=None) -> Oracle:
+    return Oracle(world=world, llm=llm)
+
+
+def _mock_llm(response: dict):
+    """Return a MagicMock LLM whose generate_json always returns response."""
+    llm = MagicMock()
+    llm.generate_json.return_value = response
+    llm.last_call = None
+    return llm
+
+
+# ---------------------------------------------------------------------------
+# No-LLM fallback
+# ---------------------------------------------------------------------------
+
+class TestInnovationNoLLM:
+    def test_innovation_approved_without_llm(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)  # no LLM
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+        assert result["success"] is True
+        assert "fish" in agent.actions
+
+    def test_innovation_costs_energy_without_llm(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        energy_before = agent.energy
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "craft_spear", "description": "make a spear"},
+            tick=1,
+        )
+        assert agent.energy == energy_before - ENERGY_COST_INNOVATE
+
+    def test_custom_action_fallback_without_llm(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        # First innovate the action
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "gather_wood", "description": "collect wood"},
+            tick=1,
+        )
+        # Then use it
+        result = oracle.resolve_action(agent, {"action": "gather_wood"}, tick=2)
+        assert result["success"] is True
+        assert result["effects"].get("energy") == -5  # generic fallback cost
+
+
+# ---------------------------------------------------------------------------
+# Already-known action
+# ---------------------------------------------------------------------------
+
+class TestInnovationAlreadyKnown:
+    def test_base_action_rejected(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        for base in BASE_ACTIONS:
+            result = oracle.resolve_action(
+                agent,
+                {"action": "innovate", "new_action_name": base, "description": "..."},
+                tick=1,
+            )
+            assert result["success"] is False, f"Should reject re-innovating base action '{base}'"
+
+    def test_previously_innovated_action_rejected(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+        # Try to innovate the same action again
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish again"},
+            tick=2,
+        )
+        assert result["success"] is False
+
+
+# ---------------------------------------------------------------------------
+# Prerequisites (requires field)
+# ---------------------------------------------------------------------------
+
+class TestInnovationRequires:
+    def test_wrong_tile_rejected(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        # Agent is on land; innovation requires water
+        assert world.get_tile(agent.x, agent.y) != "water", "Test setup: agent must not be on water"
+        oracle = _make_oracle(world)
+
+        result = oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "fish",
+                "description": "catch fish in water",
+                "requires": {"tile": "water"},
+            },
+            tick=1,
+        )
+        assert result["success"] is False
+        assert "fish" not in agent.actions
+
+    def test_correct_tile_passes(self):
+        world = _make_world(seed=0)
+        # Find a water tile and place agent there
+        agent = Agent(name="Ada", x=0, y=0)
+        placed = False
+        for y in range(world.height):
+            for x in range(world.width):
+                if world.get_tile(x, y) == "water":
+                    agent.x, agent.y = x, y
+                    placed = True
+                    break
+            if placed:
+                break
+
+        if not placed:
+            pytest.skip("No water tile found in this seed")
+
+        oracle = _make_oracle(world)
+
+        result = oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "fish",
+                "description": "catch fish in water",
+                "requires": {"tile": "water"},
+            },
+            tick=1,
+        )
+        assert result["success"] is True
+        assert "fish" in agent.actions
+
+    def test_insufficient_energy_rejected(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.energy = 15  # below the requirement
+        oracle = _make_oracle(world)
+
+        result = oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "craft_shelter",
+                "description": "build a basic shelter",
+                "requires": {"min_energy": 30},
+            },
+            tick=1,
+        )
+        assert result["success"] is False
+        assert "craft_shelter" not in agent.actions
+
+    def test_sufficient_energy_passes(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.energy = 50  # above the requirement
+        oracle = _make_oracle(world)
+
+        result = oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "craft_shelter",
+                "description": "build a basic shelter",
+                "requires": {"min_energy": 30},
+            },
+            tick=1,
+        )
+        assert result["success"] is True
+        assert "craft_shelter" in agent.actions
+
+    def test_missing_requires_field_is_ignored(self):
+        """requires=None or absent must not cause errors."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        for req in [None, {}, "not_a_dict"]:
+            agent2 = _make_agent(world, name="Bruno")
+            result = oracle.resolve_action(
+                agent2,
+                {
+                    "action": "innovate",
+                    "new_action_name": f"gather_wood_{id(req)}",
+                    "description": "collect wood",
+                    "requires": req,
+                },
+                tick=1,
+            )
+            assert result["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# LLM validation (approved / rejected)
+# ---------------------------------------------------------------------------
+
+class TestInnovationLLMValidation:
+    def test_llm_approves_innovation(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        llm = _mock_llm({"approved": True, "reason": "Makes sense.", "category": "CRAFTING"})
+        oracle = _make_oracle(world, llm=llm)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "craft_spear", "description": "sharpen a stick"},
+            tick=1,
+        )
+        assert result["success"] is True
+        assert "craft_spear" in agent.actions
+        assert llm.generate_json.called
+
+    def test_llm_stores_category_in_precedent(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        llm = _mock_llm({"approved": True, "reason": "Good idea.", "category": "CRAFTING"})
+        oracle = _make_oracle(world, llm=llm)
+
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "craft_spear", "description": "sharpen a stick"},
+            tick=1,
+        )
+        precedent = oracle.precedents.get("innovation:craft_spear", {})
+        assert precedent.get("category") == "CRAFTING"
+
+    def test_llm_rejects_innovation(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        llm = _mock_llm({"approved": False, "reason": "Too magical.", "category": "SURVIVAL"})
+        oracle = _make_oracle(world, llm=llm)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "teleport", "description": "move instantly"},
+            tick=1,
+        )
+        assert result["success"] is False
+        assert "teleport" not in agent.actions
+
+    def test_requires_checked_before_llm(self):
+        """If prerequisites fail, the LLM must NOT be called."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.energy = 5  # too low
+        llm = _mock_llm({"approved": True, "reason": "Sure.", "category": "SURVIVAL"})
+        oracle = _make_oracle(world, llm=llm)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "build_wall",
+                "description": "heavy construction",
+                "requires": {"min_energy": 50},
+            },
+            tick=1,
+        )
+        llm.generate_json.assert_not_called()
+
+    def test_llm_fallback_on_missing_approved_key(self):
+        """If LLM returns unexpected JSON, default to approved."""
+        world = _make_world()
+        agent = _make_agent(world)
+        llm = _mock_llm({"error": "confused"})  # missing "approved" key
+        oracle = _make_oracle(world, llm=llm)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "craft_net", "description": "weave a net"},
+            tick=1,
+        )
+        assert result["success"] is True
+        assert "craft_net" in agent.actions
+
+
+# ---------------------------------------------------------------------------
+# Effect bounds clamping
+# ---------------------------------------------------------------------------
+
+class TestEffectBoundsClamping:
+    def _oracle_with_agent(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        return oracle, agent  # type: ignore  # will be replaced below
+
+    def test_clamp_helper_within_bounds(self):
+        oracle = _make_oracle(_make_world())
+        effects = {"hunger": -10, "energy": -5, "life": 0}
+        clamped = oracle._clamp_innovation_effects(effects)
+        assert clamped == effects  # no change needed
+
+    def test_clamp_helper_overflow(self):
+        oracle = _make_oracle(_make_world())
+        effects = {"hunger": -999, "energy": 999, "life": 999}
+        clamped = oracle._clamp_innovation_effects(effects)
+        h_lo, h_hi = INNOVATION_EFFECT_BOUNDS["hunger"]
+        e_lo, e_hi = INNOVATION_EFFECT_BOUNDS["energy"]
+        l_lo, l_hi = INNOVATION_EFFECT_BOUNDS["life"]
+        assert clamped["hunger"] == h_lo
+        assert clamped["energy"] == e_hi
+        assert clamped["life"] == l_hi
+
+    def test_clamp_helper_underflow(self):
+        oracle = _make_oracle(_make_world())
+        effects = {"hunger": 999, "energy": -999, "life": -999}
+        clamped = oracle._clamp_innovation_effects(effects)
+        h_lo, h_hi = INNOVATION_EFFECT_BOUNDS["hunger"]
+        e_lo, e_hi = INNOVATION_EFFECT_BOUNDS["energy"]
+        l_lo, l_hi = INNOVATION_EFFECT_BOUNDS["life"]
+        assert clamped["hunger"] == h_hi
+        assert clamped["energy"] == e_lo
+        assert clamped["life"] == l_lo
+
+    def test_clamp_helper_ignores_unknown_keys(self):
+        oracle = _make_oracle(_make_world())
+        effects = {"hunger": -5, "gold": 1000}
+        clamped = oracle._clamp_innovation_effects(effects)
+        assert clamped["gold"] == 1000  # untouched
+
+    def test_custom_action_effects_are_clamped(self):
+        """When the LLM returns extreme effects for a custom action, they should be clamped."""
+        world = _make_world()
+        agent = _make_agent(world)
+
+        # LLM: first call approves innovation, second call judges the action effect
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_json.side_effect = [
+            {"approved": True, "reason": "OK", "category": "SURVIVAL"},      # innovation validation
+            {"success": True, "message": "worked", "effects": {"energy": -500, "hunger": -500}},  # custom action
+        ]
+        oracle = _make_oracle(world, llm=llm)
+
+        # Innovate first
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "super_forage", "description": "forage intensely"},
+            tick=1,
+        )
+        energy_before = agent.energy
+
+        # Use the custom action
+        oracle.resolve_action(agent, {"action": "super_forage"}, tick=2)
+
+        # energy change must be within the clamped bound
+        e_lo, _ = INNOVATION_EFFECT_BOUNDS["energy"]
+        energy_spent = energy_before - agent.energy
+        assert energy_spent <= -e_lo  # energy_spent should not exceed abs(lower bound)

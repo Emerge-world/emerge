@@ -4,68 +4,48 @@
 
 Innovation is the heart of emergence. Agents can invent new actions that didn't exist in the original code. The oracle validates whether they make sense and establishes their effects.
 
-## Current State (Phase 0)
+## Current State (Phase 1 — Implemented ✅)
 
-1. Agent decides `{"action": "innovate", "new_action_name": "fish", "description": "catch fish from water"}`
-2. Oracle validates with LLM: is it reasonable?
-3. If yes: `"fish"` is added to the agent's repertoire
-4. When the agent uses `"fish"`, the oracle determines the effect with LLM
-5. The effect is saved as a precedent for future times
+### Flow
 
-### Known issues
-
-1. **Redundant innovations**: An agent can invent "gather_fruit" when "eat" already exists.
-2. **No requirements**: Inventing "build_house" without having wood doesn't make sense.
-3. **Unbalanced effects**: The LLM can give effects that are too powerful or useless.
-4. **No material cost**: Innovating only costs energy, not resources.
-
-## Phase 1 — Structured Innovation
+1. Agent decides `{"action": "innovate", "new_action_name": "fish", "description": "catch fish from water", "requires": {"tile": "water"}}`
+2. Oracle checks `requires` prerequisites (tile, min_energy) — **without LLM call**; fails fast if unmet
+3. Oracle validates with LLM: is it reasonable? Is it different from existing actions? Returns `approved` + `category`
+4. If approved: action added to `agent.actions`, precedent stored with `category` and `tick_created`
+5. When the agent uses `"fish"`, oracle determines effect with LLM
+6. Effect is **clamped** by `_clamp_innovation_effects()` before being stored as a precedent
+7. All subsequent uses of the same action on the same tile type use the cached (clamped) precedent
 
 ### Innovation Request Format
 
 ```json
 {
     "action": "innovate",
-    "new_action_name": "build_shelter",
-    "description": "Build a basic shelter using nearby materials for protection",
+    "new_action_name": "fish",
+    "description": "catch fish from the river",
+    "reason": "I'm hungry and near water",
     "requires": {
-        "tile": "forest",
-        "nearby_resource": "wood",
-        "min_energy": 30
-    },
-    "expected_effect": "protection from weather, place to rest safely"
+        "tile": "water",
+        "min_energy": 20
+    }
 }
 ```
 
-### Oracle Validation Checklist
+`requires` is optional. Only include fields that apply. Missing or non-dict `requires` is ignored.
 
-El oráculo verifica antes de llamar al LLM:
+### Oracle Validation (pre-LLM checks in `_resolve_innovate`)
 
-```python
-def validate_innovation_prereqs(agent, action, world):
-    checks = []
-    
-    # 1. Is the name unique?
-    if action["new_action_name"] in agent.actions:
-        return False, "Action already exists"
-    
-    # 2. Does it have enough energy?
-    if agent.energy < ENERGY_COST_INNOVATE:
-        return False, "Not enough energy"
-    
-    # 3. Is the name reasonable? (not empty, not too long, alphanumeric)
-    name = action["new_action_name"]
-    if not name or len(name) > 30 or not name.replace("_", "").isalnum():
-        return False, "Invalid action name"
-    
-    return True, "Prereqs OK"
 ```
-
-Then the LLM validates the semantic part (is it physically possible? does it make sense?).
+1. new_action_name must be non-empty
+2. new_action_name must not already be in agent.actions (base or innovated)
+3. If requires.tile set → current tile must match
+4. If requires.min_energy set → agent.energy must be >= min_energy
+5. Then: LLM validates semantic plausibility + redundancy (existing actions passed in prompt)
+```
 
 ### Innovation Categories
 
-To guide the LLM, we classify innovations into categories:
+The oracle LLM assigns a category to every approved innovation:
 
 ```
 SURVIVAL    → fish, gather_berries, find_water, hunt
@@ -74,23 +54,34 @@ EXPLORATION → climb_tree (see farther), scout_area, mark_trail
 SOCIAL      → signal, call_for_help, share_food (Phase 3)
 ```
 
-### Effect Bounds
+Category is stored in the `innovation:<name>` precedent and shown in the 🆕 log line.
 
-The oracle limits the effects of any innovated action:
+### Effect Bounds (enforced by `Oracle._clamp_innovation_effects`)
+
+Defined in `simulation/config.py` as `INNOVATION_EFFECT_BOUNDS`:
 
 ```python
-EFFECT_BOUNDS = {
+INNOVATION_EFFECT_BOUNDS = {
     "hunger": (-30, 10),    # max -30 hunger (very good food), max +10
     "energy": (-20, 20),    # max -20 (very tired), max +20 (very rested)
-    "life": (-15, 10),      # max -15 damage, max +10 healing
+    "life":   (-15, 10),    # max -15 damage, max +10 healing
 }
-
-def clamp_effects(effects: dict) -> dict:
-    for key, (min_val, max_val) in EFFECT_BOUNDS.items():
-        if key in effects:
-            effects[key] = max(min_val, min(max_val, effects[key]))
-    return effects
 ```
+
+Applied after every `_oracle_judge_custom_action()` call, before the result is cached. Unknown keys (e.g. future `gold`) are passed through unchanged.
+
+### Key config values
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ENERGY_COST_INNOVATE` | 10 | Energy spent when innovation is approved |
+| `INNOVATION_EFFECT_BOUNDS` | see above | Safe stat-delta ranges for custom actions |
+
+### Known remaining issues
+
+1. **No `nearby_resource` prerequisite**: `requires` supports `tile` and `min_energy` only. Item prerequisites deferred to Phase 2 (inventory system required).
+2. **No material cost**: Innovating costs energy only, not resources. Deferred to Phase 2.
+3. **No precedent persistence**: Innovation precedents are lost between runs. Planned for Phase 1 (JSON save/load).
 
 ## Phase 2 — Crafting & Prerequisites
 

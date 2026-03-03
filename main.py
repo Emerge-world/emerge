@@ -30,7 +30,7 @@ def setup_logging(verbose: bool = False):
 def main():
     parser = argparse.ArgumentParser(description="Autonomous agent life simulation (LLM)")
     parser.add_argument("--agents", type=int, default=3, help="Number of agents (max 5)")
-    parser.add_argument("--ticks", type=int, default=30, help="Maximum number of ticks")
+    parser.add_argument("--ticks", type=int, default=100, help="Maximum number of ticks")
     parser.add_argument("--seed", type=int, default=None, help="Seed for the world (reproducibility)")
     parser.add_argument("--no-llm", action="store_true", help="Run without LLM (rule-based fallback mode)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")

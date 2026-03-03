@@ -85,4 +85,15 @@
 - **Rejected alternatives**: 4-period cycle (dawn/day/dusk/night) — added complexity without proportional benefit at this stage; circadian sleep-debt mechanics — full sleep system deferred to Phase 2+; emergent-only (no mechanical effects, just tell agents the time) — no actual survival pressure without vision/energy changes; baking time logic into engine — violates single-responsibility.
 - **Consequences**: `world.get_nearby_tiles()` receives a dynamic radius per tick (engine computes it). Oracle holds a `day_cycle` reference to scale energy costs on move/eat. Rest recovery is NOT multiplied (incentivises resting at night without penalising it). Resource regeneration timing (dawn-triggered) deferred to next PR.
 
+### DEC-011: Structured innovation with prerequisites, effect bounds, and categories
+- **Date**: 2026-03-03
+- **Context**: Phase 0 innovation had no guardrails: agents could invent "build_house" with 5 energy on water, `ENERGY_COST_INNOVATE` was 0 (free spam), the LLM could return unbounded stat deltas (e.g. `hunger: -1000`), and there was no mechanism to detect redundant innovations.
+- **Decision**: Four changes shipped together as Phase 1 structured innovation:
+  1. **`requires` field** — optional dict in the innovate action JSON (`{"tile": "...", "min_energy": N}`). Oracle checks prerequisites before the LLM call; failure is immediate and free.
+  2. **Effect bounds clamping** — `INNOVATION_EFFECT_BOUNDS` in `config.py` defines safe stat-delta ranges (hunger: −30/+10, energy: −20/+20, life: −15/+10). Applied by `Oracle._clamp_innovation_effects()` after every `_oracle_judge_custom_action()` call.
+  3. **Category classification** — Oracle LLM now returns `"category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"` in the validation response. Stored in the innovation precedent, shown in the 🆕 log line.
+  4. **Redundancy prevention via prompt** — existing action list passed to the validation LLM so it can reject semantically duplicate innovations. `ENERGY_COST_INNOVATE` raised from 0 → 10.
+- **Rejected alternatives**: Keyword-based redundancy heuristics (too brittle — "gather_food" vs "forage" are the same concept but share no tokens); `nearby_resource` prerequisite (deferred to Phase 2 when inventory exists); material consumption (deferred to Phase 2).
+- **Consequences**: `_validate_innovation()` prompt is longer (includes existing action list). Prerequisites fail silently before the LLM is consulted (no wasted calls). Effect clamping is applied at precedent-write time, so all future uses of the same cached result are also safe. `tests/test_innovation.py` covers all new paths with MockLLM.
+
 
