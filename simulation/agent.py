@@ -140,7 +140,9 @@ class Agent:
         user_prompt = self._build_decision_prompt(nearby_tiles, tick)
 
         result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
-
+        
+        logger.debug(f"[{self.name}] LLM raw response: {result}")
+        
         # Capture LLM trace for the sim logger (uses the underlying generate() call's last_call)
         llm_trace = dict(self.llm.last_call) if self.llm.last_call else {}
 

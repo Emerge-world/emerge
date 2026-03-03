@@ -3,8 +3,8 @@ Global simulation configuration.
 """
 
 # --- World ---
-WORLD_WIDTH = 10
-WORLD_HEIGHT = 10
+WORLD_WIDTH = 15
+WORLD_HEIGHT = 15
 TILE_WATER = "water"
 TILE_LAND = "land"
 TILE_TREE = "tree"
@@ -38,9 +38,9 @@ AGENT_VISION_RADIUS = 3  # tiles in each direction
 
 # --- LLM / Ollama ---
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:3b"
+OLLAMA_MODEL = "qwen3.5:9b"
 LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 512
+LLM_MAX_TOKENS = 768
 
 # --- Simulation ---
 MAX_TICKS = 100  # maximum ticks per run
