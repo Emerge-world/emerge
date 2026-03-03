@@ -55,6 +55,10 @@ pytest -m "not slow"
 
 # Run with verbose logging
 uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
+
+# Generate devlog post after merging a PR (run before starting next feature)
+/blog         # most recent merged PR
+/blog 11      # specific PR number
 ```
 
 ### Hard Rules

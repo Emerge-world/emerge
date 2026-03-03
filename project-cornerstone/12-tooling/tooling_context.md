@@ -81,6 +81,46 @@ Use for **planning, design, and decisions** that don't directly touch code:
 
 ---
 
+## Devlog System
+
+After every merged PR, generate a developer diary post using the `/blog` Claude Code skill.
+
+### Invoke
+
+```bash
+/blog          # generates post for the most recent merged PR
+/blog 11       # generates post for a specific PR number
+```
+
+### What it does
+
+The skill reads the git diff, commit log, and relevant `project-cornerstone/` context files, then writes a first-person English diary entry to `blog/posts/YYYY-MM-DD-<slug>.md`. The post covers:
+- **What I built** — the feature in plain language
+- **Why it matters** — connection to Emerge's vision
+- **Things to consider** — open questions and implications
+- **What's next** — reflection on what this opens up
+
+### Standard
+
+Run `/blog` **before starting the next feature** after a PR is merged. Commit the post with:
+
+```bash
+git add blog/posts/<filename>.md
+git commit -m "docs(blog): add devlog post for PR #N"
+```
+
+Posts live in `blog/posts/`. Serve locally with Quartz:
+
+```bash
+cd blog && npx quartz create && npx quartz build --serve
+```
+
+### Skill file
+
+`~/.claude/skills/blog/SKILL.md` — globally available in Claude Code.
+
+---
+
 ## Recommended automations
 
 ### 1. Simulation Runner (script)

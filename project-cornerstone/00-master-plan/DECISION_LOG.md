@@ -85,6 +85,13 @@
 - **Rejected alternatives**: 4-period cycle (dawn/day/dusk/night) — added complexity without proportional benefit at this stage; circadian sleep-debt mechanics — full sleep system deferred to Phase 2+; emergent-only (no mechanical effects, just tell agents the time) — no actual survival pressure without vision/energy changes; baking time logic into engine — violates single-responsibility.
 - **Consequences**: `world.get_nearby_tiles()` receives a dynamic radius per tick (engine computes it). Oracle holds a `day_cycle` reference to scale energy costs on move/eat. Rest recovery is NOT multiplied (incentivises resting at night without penalising it). Resource regeneration timing (dawn-triggered) deferred to next PR.
 
+### DEC-012: Automated devlog via /blog Claude Code skill
+- **Date**: 2026-03-03
+- **Context**: As features accumulated through PRs, there was no human-readable narrative of how the project evolved. Internal documentation (project-cornerstone/) covers design intent but not the lived experience of building it.
+- **Decision**: Automated developer diary using a `/blog [PR-number]` Claude Code skill. The skill reads git diff, commit log, and relevant cornerstone context files, then generates a first-person English diary post in `blog/posts/YYYY-MM-DD-<slug>.md`. Post format: opening paragraph + 4 sections (What I built / Why it matters / Things to consider / What's next). Tone: diary-like, not a changelog. The skill is defined at `~/.claude/skills/blog/SKILL.md` and referenced in `CLAUDE.md` Quick Commands as a standard step after every PR.
+- **Rejected alternatives**: GitHub Actions (no CI/CD yet; adds complexity), git hooks (only fires locally; fragile), fully automated (manual invocation preferred for quality control).
+- **Consequences**: Running `/blog` after every PR is a project standard. Back-fill required for PRs #1–#11. Posts are Obsidian-compatible markdown, ready to serve with Quartz when desired.
+
 ### DEC-011: Structured innovation with prerequisites, effect bounds, and categories
 - **Date**: 2026-03-03
 - **Context**: Phase 0 innovation had no guardrails: agents could invent "build_house" with 5 energy on water, `ENERGY_COST_INNOVATE` was 0 (free spam), the LLM could return unbounded stat deltas (e.g. `hunger: -1000`), and there was no mechanism to detect redundant innovations.

@@ -158,6 +158,10 @@ The server exposes a small REST + WebSocket API:
 | `/api/control/resume` | POST | Resume the simulation |
 | `/ws` | WebSocket | Live stream of `init`, `tick`, and `control` messages |
 
+## Devlog
+
+Development is tracked as a personal diary in [`blog/posts/`](blog/posts/). Each merged PR gets a post written in first-person English — the reasoning, the tricky parts, and what it opens up. See [`blog/README.md`](blog/README.md) for how to read it with Quartz.
+
 ## Configuration
 
 Edit `simulation/config.py` to tune world generation, agent stats, LLM settings, and tick speed.
