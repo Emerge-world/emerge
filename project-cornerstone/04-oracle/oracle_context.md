@@ -10,10 +10,10 @@ The following oracle methods are live:
 - **`_oracle_judge_custom_action()`**: LLM determines the effects of an approved custom action (temperature=0.3). Result cached as a precedent.
 - **8-direction movement**: Move action supports N, NE, E, SE, S, SW, W, NW.
 - **Precedents**: Currently plain string-keyed dicts in memory (not `PrecedentKey`/`PrecedentValue` dataclasses).
+- **Persistence**: Implemented. Precedents are saved to `data/precedents_{seed}.json` at the end of every run and auto-loaded on engine init. Unseeded runs use `data/precedents_unseeded.json`. `save_precedents` never raises — it catches `OSError`/`TypeError`/`ValueError` so a disk error in a `finally` block cannot mask a simulation exception.
 
 **Pending for Phase 1:**
-- `PrecedentKey`/`PrecedentValue` dataclasses (planned structured keys, currently plain strings)
-- JSON persistence (`data/precedents_{seed}.json`) — in-memory only right now
+- `PrecedentKey`/`PrecedentValue` dataclasses (planned structured keys, currently plain strings — deferred as YAGNI)
 
 ---
 
@@ -40,7 +40,7 @@ Agent decides action → Oracle.resolve_action()
 ### Known issues
 
 1. **Precedents too generic**: `"custom_action:fish:tile:water"` doesn't distinguish if the agent has tools or not.
-2. **No persistence**: Precedents are lost between executions.
+2. **Persistence**: Implemented — precedents are saved to `data/precedents_{seed}.json` and reloaded on next run with the same seed. Cross-run consistency is now maintained without redundant LLM calls.
 3. **Fragile keys**: Manual strings, easy for two "equal" situations to have different keys.
 4. **No versioning**: If we adjust an effect, old precedents become inconsistent.
 
@@ -74,11 +74,7 @@ class PrecedentValue:
 
 ### Persistence
 
-```python
-# Save precedents as JSON at the end of each simulation
-# Load them at the start of the next to maintain cross-run consistency
-# File: data/precedents_{world_seed}.json
-```
+**Implemented.** Precedents are persisted as `data/precedents_{seed}.json` with a minimal JSON schema (`version`, `seed`, `tick`, `precedents` dict). The engine auto-loads the file on init and auto-saves it in `run()` / `run_with_callback()` `finally` blocks. Per-seed isolation prevents cross-contamination between different world configurations. `save_precedents` is exception-safe (catches `OSError`/`TypeError`/`ValueError`).
 
 ### Oracle Decision Tree
 
