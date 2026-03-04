@@ -81,3 +81,41 @@ def test_load_file_wins_on_collision(tmp_path):
     receiver.load_precedents(path)
 
     assert receiver.precedents["physical:rest"] == {"possible": True, "reason": "original"}
+
+
+# ── save_precedents ──────────────────────────────────────────────────────────
+
+def test_save_creates_file(tmp_path):
+    oracle = _oracle_with_precedents()
+    path = tmp_path / "out.json"
+    oracle.save_precedents(str(path), tick=10, world_seed=42)
+    assert path.exists()
+
+
+def test_save_schema(tmp_path):
+    oracle = _oracle_with_precedents()
+    path = tmp_path / "out.json"
+    oracle.save_precedents(str(path), tick=10, world_seed=42)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["version"] == 1
+    assert data["world_seed"] == 42
+    assert data["saved_at_tick"] == 10
+    assert "precedents" in data
+
+
+def test_save_creates_parent_dirs(tmp_path):
+    oracle = _oracle_with_precedents()
+    nested = tmp_path / "deeply" / "nested" / "prec.json"
+    oracle.save_precedents(str(nested), tick=1, world_seed=0)
+    assert nested.exists()
+
+
+def test_save_round_trip(tmp_path):
+    original = _oracle_with_precedents()
+    path = str(tmp_path / "round.json")
+    original.save_precedents(path, tick=7, world_seed=99)
+
+    restored = _make_oracle()
+    restored.load_precedents(path)
+    assert restored.precedents == original.precedents

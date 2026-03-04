@@ -74,6 +74,25 @@ class Oracle:
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Could not load precedents from %s: %s", filepath, exc)
 
+    def save_precedents(
+        self, filepath: str, tick: int = 0, world_seed: Optional[int] = None
+    ) -> None:
+        """Save current precedents to a JSON file.
+
+        Creates parent directories as needed.
+        """
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "version": 1,
+            "world_seed": world_seed,
+            "saved_at_tick": tick,
+            "precedents": self.precedents,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        logger.info("Saved %d precedents to %s", len(self.precedents), filepath)
+
     def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:
         """Apply an energy cost with the day/night multiplier. Returns actual cost spent."""
         multiplier = self.day_cycle.get_energy_multiplier(tick) if self.day_cycle else 1.0
