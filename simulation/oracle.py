@@ -80,18 +80,22 @@ class Oracle:
         """Save current precedents to a JSON file.
 
         Creates parent directories as needed.
+        Logs a warning on I/O or serialisation failure; does not raise.
         """
         path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "version": 1,
-            "world_seed": world_seed,
-            "saved_at_tick": tick,
-            "precedents": self.precedents,
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info("Saved %d precedents to %s", len(self.precedents), filepath)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "version": 1,
+                "world_seed": world_seed,
+                "saved_at_tick": tick,
+                "precedents": self.precedents,
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info("Saved %d precedents to %s", len(self.precedents), filepath)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not save precedents to %s: %s", filepath, exc)
 
     def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:
         """Apply an energy cost with the day/night multiplier. Returns actual cost spent."""

@@ -101,7 +101,7 @@ def test_save_schema(tmp_path):
     assert data["version"] == 1
     assert data["world_seed"] == 42
     assert data["saved_at_tick"] == 10
-    assert "precedents" in data
+    assert data["precedents"] == oracle.precedents
 
 
 def test_save_creates_parent_dirs(tmp_path):
@@ -119,3 +119,12 @@ def test_save_round_trip(tmp_path):
     restored = _make_oracle()
     restored.load_precedents(path)
     assert restored.precedents == original.precedents
+
+
+def test_save_failure_does_not_raise(tmp_path):
+    """save_precedents must not raise even when the path is invalid (silent failure)."""
+    oracle = _oracle_with_precedents()
+    # Passing a directory path (not a file) causes IsADirectoryError on Linux
+    oracle.save_precedents(str(tmp_path), tick=1, world_seed=0)
+    # No exception — the directory itself is unchanged
+    assert tmp_path.is_dir()
