@@ -103,4 +103,10 @@
 - **Rejected alternatives**: Keyword-based redundancy heuristics (too brittle — "gather_food" vs "forage" are the same concept but share no tokens); `nearby_resource` prerequisite (deferred to Phase 2 when inventory exists); material consumption (deferred to Phase 2).
 - **Consequences**: `_validate_innovation()` prompt is longer (includes existing action list). Prerequisites fail silently before the LLM is consulted (no wasted calls). Effect clamping is applied at precedent-write time, so all future uses of the same cached result are also safe. `tests/test_innovation.py` covers all new paths with MockLLM.
 
+## DEC-013 — Precedent Persistence Strategy
+
+**Date:** 2026-03-04
+**Decision:** Persist oracle precedents as `data/precedents_{seed}.json`. Auto-load on engine init, auto-save in `run()` / `run_with_callback()` finally blocks. Minimal JSON schema (version, seed, tick, precedents dict). No dataclass refactor (PrecedentKey/PrecedentValue deferred).
+**Rationale:** Keeps runs deterministic across restarts and avoids redundant LLM calls for already-validated actions. Per-seed isolation prevents cross-contamination between different world configurations. Unseeded runs use `precedents_unseeded.json`. `save_precedents` does not raise (catches OSError/TypeError/ValueError) so a disk error in finally cannot mask a simulation exception.
+**Alternatives considered:** Global single file (contamination risk across seeds); PrecedentKey/Value dataclasses (deferred — YAGNI until needed).
 

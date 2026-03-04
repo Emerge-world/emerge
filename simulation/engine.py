@@ -38,6 +38,9 @@ class SimulationEngine:
         self.max_ticks = max_ticks
         self.current_tick = 0
         self.use_llm = use_llm
+        self._world_seed = world_seed
+        seed_str = str(world_seed) if world_seed is not None else "unseeded"
+        self._precedents_path = f"data/precedents_{seed_str}.json"
 
         # Initialize LLM
         self.llm: Optional[LLMClient] = None
@@ -60,6 +63,9 @@ class SimulationEngine:
         # Create oracle
         self.oracle = Oracle(self.world, llm=self.llm, sim_logger=self.sim_logger,
                              day_cycle=self.day_cycle)
+
+        # Auto-load precedents from previous runs
+        self.oracle.load_precedents(self._precedents_path)
 
         # Create agents
         num_agents = min(num_agents, MAX_AGENTS)
@@ -91,19 +97,24 @@ class SimulationEngine:
         self._print_header()
         self._log_overview_start()
 
-        for tick in range(1, self.max_ticks + 1):
-            self.current_tick = tick
-            alive_agents = [a for a in self.agents if a.alive]
+        try:
+            for tick in range(1, self.max_ticks + 1):
+                self.current_tick = tick
+                alive_agents = [a for a in self.agents if a.alive]
 
-            if not alive_agents:
-                self._print_separator()
-                print("\n☠️  ALL AGENTS HAVE DIED. End of simulation.")
-                break
+                if not alive_agents:
+                    self._print_separator()
+                    print("\n☠️  ALL AGENTS HAVE DIED. End of simulation.")
+                    break
 
-            self._run_tick(tick, alive_agents)
+                self._run_tick(tick, alive_agents)
 
-            if TICK_DELAY_SECONDS > 0:
-                time.sleep(TICK_DELAY_SECONDS)
+                if TICK_DELAY_SECONDS > 0:
+                    time.sleep(TICK_DELAY_SECONDS)
+        finally:
+            self.oracle.save_precedents(
+                self._precedents_path, self.current_tick, self._world_seed
+            )
 
         self._print_summary()
 
@@ -364,35 +375,40 @@ class SimulationEngine:
         # The web server uses structured logging instead.
         self._log_overview_start()
 
-        for tick in range(1, self.max_ticks + 1):
-            # Honour pause requests
-            if pause_flag is not None:
-                while pause_flag.is_set():
-                    time.sleep(0.05)
+        try:
+            for tick in range(1, self.max_ticks + 1):
+                # Honour pause requests
+                if pause_flag is not None:
+                    while pause_flag.is_set():
+                        time.sleep(0.05)
 
-            self.current_tick = tick
-            alive_agents = [a for a in self.agents if a.alive]
+                self.current_tick = tick
+                alive_agents = [a for a in self.agents if a.alive]
 
-            if not alive_agents:
-                logger.info("All agents have died — simulation complete")
-                break
+                if not alive_agents:
+                    logger.info("All agents have died — simulation complete")
+                    break
 
-            self._tick_events = []
-            self._run_tick(tick, alive_agents)
+                self._tick_events = []
+                self._run_tick(tick, alive_agents)
 
-            on_tick({
-                "type": "tick",
-                "tick": tick,
-                "agents": [self._serialize_agent(a) for a in self.agents],
-                "events": list(self._tick_events),
-                "world_resources": {
-                    f"{x},{y}": res
-                    for (x, y), res in self.world.resources.items()
-                },
-            })
+                on_tick({
+                    "type": "tick",
+                    "tick": tick,
+                    "agents": [self._serialize_agent(a) for a in self.agents],
+                    "events": list(self._tick_events),
+                    "world_resources": {
+                        f"{x},{y}": res
+                        for (x, y), res in self.world.resources.items()
+                    },
+                })
 
-            if TICK_DELAY_SECONDS > 0:
-                time.sleep(TICK_DELAY_SECONDS)
+                if TICK_DELAY_SECONDS > 0:
+                    time.sleep(TICK_DELAY_SECONDS)
+        finally:
+            self.oracle.save_precedents(
+                self._precedents_path, self.current_tick, self._world_seed
+            )
 
         self._log_overview_end()
 

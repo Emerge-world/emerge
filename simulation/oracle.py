@@ -3,7 +3,9 @@ Oracle: validates and resolves agent actions.
 Maintains a decision memory for determinism (consistency).
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 from simulation.config import (
@@ -52,6 +54,48 @@ class Oracle:
 
         # Log of everything that has happened in the world
         self.world_log: list[str] = []
+
+    def load_precedents(self, filepath: str) -> None:
+        """Load precedents from a JSON file and merge into self.precedents.
+
+        Silently skips if the file does not exist.
+        Logs a warning and leaves existing precedents unchanged if the file is corrupt.
+        """
+        path = Path(filepath)
+        if not path.exists():
+            logger.debug("No precedent file at %s, starting fresh.", filepath)
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            loaded = data.get("precedents", {})
+            self.precedents.update(loaded)
+            logger.info("Loaded %d precedents from %s", len(loaded), filepath)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Could not load precedents from %s: %s", filepath, exc)
+
+    def save_precedents(
+        self, filepath: str, tick: int = 0, world_seed: Optional[int] = None
+    ) -> None:
+        """Save current precedents to a JSON file.
+
+        Creates parent directories as needed.
+        Logs a warning on I/O or serialisation failure; does not raise.
+        """
+        path = Path(filepath)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "version": 1,
+                "world_seed": world_seed,
+                "saved_at_tick": tick,
+                "precedents": self.precedents,
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info("Saved %d precedents to %s", len(self.precedents), filepath)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not save precedents to %s: %s", filepath, exc)
 
     def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:
         """Apply an energy cost with the day/night multiplier. Returns actual cost spent."""
