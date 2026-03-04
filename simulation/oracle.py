@@ -55,6 +55,25 @@ class Oracle:
         # Log of everything that has happened in the world
         self.world_log: list[str] = []
 
+    def load_precedents(self, filepath: str) -> None:
+        """Load precedents from a JSON file and merge into self.precedents.
+
+        Silently skips if the file does not exist.
+        Logs a warning and leaves existing precedents unchanged if the file is corrupt.
+        """
+        path = Path(filepath)
+        if not path.exists():
+            logger.debug("No precedent file at %s, starting fresh.", filepath)
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            loaded = data.get("precedents", {})
+            self.precedents.update(loaded)
+            logger.info("Loaded %d precedents from %s", len(loaded), filepath)
+        except (json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
+            logger.warning("Could not load precedents from %s: %s", filepath, exc)
+
     def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:
         """Apply an energy cost with the day/night multiplier. Returns actual cost spent."""
         multiplier = self.day_cycle.get_energy_multiplier(tick) if self.day_cycle else 1.0
