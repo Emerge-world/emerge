@@ -3,7 +3,9 @@ Oracle: validates and resolves agent actions.
 Maintains a decision memory for determinism (consistency).
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 from simulation.config import (
