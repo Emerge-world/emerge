@@ -34,6 +34,9 @@ Thumbs.db
 # Simulation logs
 logs/
 
+# Runtime data (oracle precedents, world state snapshots)
+data/
+
 # Environment variables
 .env
 .env.local
