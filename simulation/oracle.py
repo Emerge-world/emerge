@@ -71,7 +71,7 @@ class Oracle:
             loaded = data.get("precedents", {})
             self.precedents.update(loaded)
             logger.info("Loaded %d precedents from %s", len(loaded), filepath)
-        except (json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
+        except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Could not load precedents from %s: %s", filepath, exc)
 
     def _apply_energy_cost(self, agent: Agent, base_cost: int, tick: int) -> int:

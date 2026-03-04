@@ -2,7 +2,6 @@
 Tests for Oracle precedent persistence (save/load to JSON).
 """
 import json
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -67,4 +66,18 @@ def test_load_merges_without_overwriting_existing(tmp_path):
     receiver.load_precedents(path)
 
     assert receiver.precedents["pre_existing"] == {"value": 99}
-    assert "physical:rest" in receiver.precedents
+    assert receiver.precedents["physical:rest"] == oracle.precedents["physical:rest"]
+
+
+def test_load_file_wins_on_collision(tmp_path):
+    """When a key exists in both file and memory, the file's value wins (update semantics)."""
+    oracle = _make_oracle()
+    oracle.precedents["physical:rest"] = {"possible": True, "reason": "original"}
+    path = str(tmp_path / "p.json")
+    oracle.save_precedents(path, tick=1, world_seed=42)
+
+    receiver = _make_oracle()
+    receiver.precedents["physical:rest"] = {"possible": True, "reason": "pre-loaded"}
+    receiver.load_precedents(path)
+
+    assert receiver.precedents["physical:rest"] == {"possible": True, "reason": "original"}
