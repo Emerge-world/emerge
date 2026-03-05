@@ -235,7 +235,7 @@ class Oracle:
         self._log(tick, msg)
         memory_parts = [f"I moved {direction} to ({new_x},{new_y}). Tile: {tile_type}. Energy: {agent.energy}."]
         if life_damage > 0:
-            memory_parts.append(f"The {tile_type} crossing cost me {life_damage} life!")
+            memory_parts.append(f"The {tile_type} crossing cost me {actual_damage} life!")
         agent.add_memory(" ".join(memory_parts))
 
         effects = {"energy": -cost}
