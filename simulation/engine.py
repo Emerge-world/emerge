@@ -206,6 +206,11 @@ class SimulationEngine:
                     nearby_tiles=nearby,
                 )
 
+        # World update: resource regeneration at dawn
+        regenerated = self.world.update_resources(tick)
+        if regenerated:
+            logger.info("[tick %d] %d tree(s) regenerated fruit at dawn", tick, len(regenerated))
+
         # Memory compression
         for agent in alive_agents:
             if agent.alive and agent.memory_system.should_compress(tick):
