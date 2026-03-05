@@ -471,38 +471,94 @@ class Oracle:
         precedent_key = f"innovation:{action_type}"
 
         # Look up information about this action
-        precedent = self.precedents.get(precedent_key, {})
-        description = precedent.get("description", "unknown action")
+        innovation = self.precedents.get(precedent_key, {})
+        description = innovation.get("description", "unknown action")
+
+        # Extract crafting recipe from stored innovation data
+        required_items: dict = {}
+        stored_requires = innovation.get("requires")
+        if isinstance(stored_requires, dict):
+            ri = stored_requires.get("items", {})
+            if isinstance(ri, dict):
+                required_items = ri
+        produces: dict = innovation.get("produces") or {}
+
+        # Fail fast if crafting items are missing — generic message, no item names revealed
+        if required_items:
+            for item, qty in required_items.items():
+                try:
+                    qty_int = int(qty)
+                except (ValueError, TypeError):
+                    qty_int = 1
+                if not agent.inventory.has(item, qty_int):
+                    msg = f"{agent.name} tried '{action_type}' but lacked the required materials."
+                    self._log(tick, msg)
+                    agent.add_memory(
+                        f"I tried to '{action_type}' but I was missing materials. "
+                        f"I need to gather more resources first."
+                    )
+                    return {"success": False, "message": msg, "effects": {}}
 
         # Check if there's already a precedent result for this specific situation
         situation_key = f"custom_action:{action_type}:tile:{self.world.get_tile(agent.x, agent.y)}"
         existing_result = self.precedents.get(situation_key)
 
         if existing_result:
-            # Use precedent result (determinism)
-            return self._apply_custom_result(agent, action_type, existing_result, tick)
+            result = self._apply_custom_result(agent, action_type, existing_result, tick)
+            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            return result
 
         if not self.llm:
-            # Without LLM, generic effect
             result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
             agent.modify_energy(-5)
             self._log(tick, result["message"])
+            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
             return result
 
         # Ask the oracle to determine the outcome
         oracle_result = self._oracle_judge_custom_action(agent, action, description, tick)
 
         if oracle_result:
-            # Save as precedent for determinism
             self.precedents[situation_key] = oracle_result
-            return self._apply_custom_result(agent, action_type, oracle_result, tick)
+            result = self._apply_custom_result(agent, action_type, oracle_result, tick)
+            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            return result
 
         # Fallback
         agent.modify_energy(-5)
         msg = f"{agent.name} tried '{action_type}' with uncertain results."
         self._log(tick, msg)
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
+        self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
         return {"success": True, "message": msg, "effects": {"energy": -5}}
+
+    def _apply_crafting_recipe(
+        self,
+        agent: Agent,
+        action_type: str,
+        required_items: dict,
+        produces: dict,
+        tick: int,
+    ) -> None:
+        """Consume required items and add produced items for a crafting action."""
+        for item, qty in required_items.items():
+            try:
+                qty_int = int(qty)
+            except (ValueError, TypeError):
+                qty_int = 1
+            agent.inventory.remove(item, qty_int)
+
+        for item, qty in produces.items():
+            try:
+                qty_int = int(qty)
+            except (ValueError, TypeError):
+                qty_int = 1
+            added = agent.inventory.add(item, qty_int)
+            if added > 0:
+                agent.add_memory(
+                    f"I crafted {added}x {item} via '{action_type}'. "
+                    f"Inventory: {agent.inventory.to_prompt()}."
+                )
 
     def _apply_custom_result(self, agent: Agent, action_type: str, result: dict, tick: int) -> dict:
         effects = result.get("effects", {})
