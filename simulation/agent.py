@@ -10,12 +10,13 @@ from simulation.config import (
     AGENT_MAX_LIFE, AGENT_MAX_HUNGER, AGENT_MAX_ENERGY,
     AGENT_START_LIFE, AGENT_START_HUNGER, AGENT_START_ENERGY,
     HUNGER_PER_TICK, HUNGER_DAMAGE_THRESHOLD, HUNGER_DAMAGE_PER_TICK,
-    ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
+    ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
-    BASE_ACTIONS, AGENT_VISION_RADIUS,
+    BASE_ACTIONS, AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
 )
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
+from simulation.inventory import Inventory
 from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ class Agent:
 
         # Dual memory system (episodic + semantic)
         self.memory_system = Memory()
+
+        # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
+        self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
 
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
@@ -102,6 +106,7 @@ class Agent:
             "move": ENERGY_COST_MOVE,
             "eat": ENERGY_COST_EAT,
             "rest": 0,
+            "pickup": ENERGY_COST_PICKUP,
             "innovate": ENERGY_COST_INNOVATE,
         }
         cost = costs.get(action, 5)  # innovated actions: default cost 5
@@ -229,6 +234,8 @@ class Agent:
         else:
             status_effects = ""
 
+        inventory_info = self.inventory.to_prompt()  # empty string if empty
+
         return prompt_loader.render(
             "agent/decision",
             tick=tick,
@@ -244,6 +251,7 @@ class Agent:
             memory_text=memory_text,
             status_effects=status_effects,
             time_info=time_description,
+            inventory_info=inventory_info,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
@@ -289,6 +297,7 @@ class Agent:
             "memory_entries": self.memory_system.total_entries,
             "memory_episodic": len(self.memory_system.episodic),
             "memory_semantic": len(self.memory_system.semantic),
+            "inventory": self.inventory.to_dict(),
         }
 
     def __repr__(self):

@@ -9,6 +9,7 @@ Action format - respond with a JSON object:
 - rest: {"action": "rest", "reason": "..."} (recover energy, skip this turn)
 - innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "water|land|tree", "min_energy": <number>}}
   (requires is optional — only include fields that apply to your innovation)
+- pickup: {"action": "pickup", "reason": "..."} (collect 1 item from your current tile into inventory)
 - For any innovated action: {"action": "<action_name>", "reason": "...", ...extra_params}
 
 For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. If your innovation only makes sense in a specific context (e.g. fishing requires water), include the relevant requires fields. Always explain your reasoning for innovating a new action and how it would help you in the current situation.

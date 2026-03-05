@@ -157,3 +157,22 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 ### Alternatives considered
 - Making rivers impassable (like water): rejected — user wanted all tiles walkable with emergent risk.
 - Using Python's `noise` library: rejected — Python 3.12 compatibility issues; `opensimplex` chosen instead.
+
+## DEC-017 — Agent Inventory System (Phase 2)
+
+**Date:** 2026-03-05
+**Status:** Implemented
+
+**Decision:** Add a quantity-based inventory system to agents so they can carry world resources for future crafting.
+
+**Key choices:**
+- **Quantity-based capacity** (not slot-based): max 10 total items. `{fruit: 3, stone: 7}` = full.
+- **Gather-then-consume model**: `eat` is unchanged. New `pickup` base action stores items.
+- **`pickup` as base action**: All agents start with it (not innovatable). No energy cost.
+- **Prompt-efficient**: Inventory line only appears in agent's decision prompt when non-empty.
+- **Separate `Inventory` class** (`simulation/inventory.py`): mirrors the `Memory` pattern.
+- **`requires.items` in innovations**: Oracle checks item prerequisites before LLM call. Items are verified but NOT consumed (crafting is a separate Phase 2 feature).
+- **Input validation**: `add()` and `remove()` guard against negative quantities and empty item names (LLM is a caller).
+
+**Files added:** `simulation/inventory.py`, `tests/test_inventory.py`, `tests/test_oracle_pickup.py`
+**Files modified:** `simulation/agent.py`, `simulation/oracle.py`, `simulation/config.py`, `prompts/agent/decision.txt`, `prompts/agent/system.txt`

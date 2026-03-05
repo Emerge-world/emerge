@@ -130,6 +130,8 @@ class Oracle:
             return self._resolve_rest(agent, action, tick)
         elif action_type == "innovate":
             return self._resolve_innovate(agent, action, tick)
+        elif action_type == "pickup":
+            return self._resolve_pickup(agent, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -362,6 +364,27 @@ class Oracle:
                 )
                 return {"success": False, "message": msg, "effects": {}}
 
+            # Check item prerequisites (inventory)
+            required_items = requires.get("items")
+            if isinstance(required_items, dict):
+                for item, qty in required_items.items():
+                    try:
+                        qty_int = int(qty)
+                    except (ValueError, TypeError):
+                        qty_int = 1  # safe fallback: treat malformed qty as requiring 1
+                    if not agent.inventory.has(item, qty_int):
+                        msg = (
+                            f"{agent.name} cannot innovate '{new_action_name}': "
+                            f"requires {qty_int}x {item} in inventory "
+                            f"(has {agent.inventory.items.get(item, 0)})."
+                        )
+                        self._log(tick, msg)
+                        agent.add_memory(
+                            f"I tried to innovate '{new_action_name}' but I need "
+                            f"{qty_int}x {item} (I have {agent.inventory.items.get(item, 0)})."
+                        )
+                        return {"success": False, "message": msg, "effects": {}}
+
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
         if self.llm:
@@ -397,6 +420,42 @@ class Oracle:
             "message": msg,
             "effects": {"energy": -ENERGY_COST_INNOVATE, "new_action": new_action_name},
         }
+
+    def _resolve_pickup(self, agent: Agent, tick: int) -> dict:
+        """Agent picks up 1 item from their current tile."""
+        x, y = agent.x, agent.y
+        resource = self.world.get_resource(x, y)
+
+        if not resource or resource.get("quantity", 0) <= 0:
+            msg = f"{agent.name} tried to pick up but there's nothing here."
+            self._log(tick, msg)
+            agent.add_memory("I tried to pick something up but there was nothing on this tile.")
+            return {"success": False, "message": msg, "effects": {}}
+
+        if agent.inventory.free_space() <= 0:
+            msg = (
+                f"{agent.name} tried to pick up but inventory is full "
+                f"({agent.inventory.total()}/{agent.inventory.capacity})."
+            )
+            self._log(tick, msg)
+            agent.add_memory(
+                f"I tried to pick something up but my inventory is full "
+                f"({agent.inventory.total()}/{agent.inventory.capacity})."
+            )
+            return {"success": False, "message": msg, "effects": {}}
+
+        item_type = resource["type"]
+        self.world.consume_resource(x, y, 1)
+        agent.inventory.add(item_type, 1)
+
+        total = agent.inventory.total()
+        cap = agent.inventory.capacity
+        msg = f"{agent.name} picked up 1 {item_type} (inventory: {total}/{cap})."
+        self._log(tick, msg)
+        agent.add_memory(
+            f"I picked up 1 {item_type} from this tile. Inventory: {agent.inventory.to_prompt()}."
+        )
+        return {"success": True, "message": msg, "effects": {"item_added": item_type}}
 
     # --- Innovated (custom) actions ---
 

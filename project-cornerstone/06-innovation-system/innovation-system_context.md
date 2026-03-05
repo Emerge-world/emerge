@@ -21,17 +21,20 @@ Innovation is the heart of emergence. Agents can invent new actions that didn't 
 ```json
 {
     "action": "innovate",
-    "new_action_name": "fish",
-    "description": "catch fish from the river",
-    "reason": "I'm hungry and near water",
+    "new_action_name": "make_knife",
+    "description": "carve stone into a knife",
+    "reason": "I have stone and need a tool",
     "requires": {
-        "tile": "water",
-        "min_energy": 20
+        "tile": "cave",
+        "min_energy": 20,
+        "items": {"stone": 2}
     }
 }
 ```
 
 `requires` is optional. Only include fields that apply. Missing or non-dict `requires` is ignored.
+
+`requires.items` is checked deterministically before any LLM call. Items are verified but NOT consumed on innovation approval (item consumption = crafting, next PR).
 
 ### Oracle Validation (pre-LLM checks in `_resolve_innovate`)
 
@@ -40,7 +43,8 @@ Innovation is the heart of emergence. Agents can invent new actions that didn't 
 2. new_action_name must not already be in agent.actions (base or innovated)
 3. If requires.tile set → current tile must match
 4. If requires.min_energy set → agent.energy must be >= min_energy
-5. Then: LLM validates semantic plausibility + redundancy (existing actions passed in prompt)
+5. If requires.items set → agent.inventory must have all required items (verified, not consumed)
+6. Then: LLM validates semantic plausibility + redundancy (existing actions passed in prompt)
 ```
 
 ### Innovation Categories
@@ -79,21 +83,21 @@ Applied after every `_oracle_judge_custom_action()` call, before the result is c
 
 ### Known remaining issues
 
-1. **No `nearby_resource` prerequisite**: `requires` supports `tile` and `min_energy` only. Item prerequisites deferred to Phase 2 (inventory system required).
-2. **No material cost**: Innovating costs energy only, not resources. Deferred to Phase 2.
+1. **No `nearby_resource` prerequisite**: `requires` supports `tile`, `min_energy`, and `items`. ~~Item prerequisites deferred to Phase 2 (inventory system required).~~ ✅ Resolved — `requires.items` implemented (DEC-017).
+2. **No material cost**: Innovating costs energy only, not resources. Item prerequisites are checked but items are NOT consumed on innovation approval. Crafting (item consumption) is deferred to the next Phase 2 PR.
 3. **No precedent persistence**: Innovation precedents are lost between runs. Planned for Phase 1 (JSON save/load).
 
 ## Phase 2 — Crafting & Prerequisites
 
-### Inventory
+### Inventory *(implemented — see DEC-017)*
 
-For innovations like "build_shelter" to work, agents need inventory:
+Agents now carry a quantity-based inventory. Implemented in `simulation/inventory.py`:
 
 ```python
 class Inventory:
     items: dict[str, int]  # {"wood": 3, "stone": 1, "fruit": 2}
-    max_slots: int = 10
-    
+    capacity: int = 10     # total item quantity, not slots
+
     def add(self, item: str, qty: int): ...
     def remove(self, item: str, qty: int): ...
     def has(self, item: str, qty: int) -> bool: ...
