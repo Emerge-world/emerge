@@ -77,6 +77,19 @@ class Memory:
         return f"KNOWLEDGE:\n{sem}\n\nRECENT EVENTS:\n{epi}"
 ```
 
+### Inventory *(implemented — see DEC-017)*
+
+```python
+agent.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)  # default 10
+# items: {"fruit": 2, "stone": 1} — quantity-based (not slot-based)
+```
+
+- **Capacity**: measured by total item quantity (e.g., `{fruit: 3, stone: 7}` = full at capacity 10)
+- **Prompt**: appears in decision prompt only when non-empty: `INVENTORY: fruit x2, stone x1 (3/10)`
+- **Serialized** in `get_status()` → `{"items": {...}, "capacity": 10}`
+- **`pickup` base action**: agents start with it — pick up 1 item per tick from their current tile (no energy cost)
+- **Source**: `simulation/inventory.py` — `Inventory` class
+
 ### Personality system *(Phase 3 — deferred, see DEC-014)*
 
 Each agent will be born with traits that influence their decisions. All four traits are implemented together in Phase 3 alongside social mechanics, where they can meaningfully affect agent behavior:
