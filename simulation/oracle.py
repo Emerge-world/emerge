@@ -509,7 +509,8 @@ class Oracle:
 
         if existing_result:
             result = self._apply_custom_result(agent, action_type, existing_result, tick)
-            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            if result.get("success"):
+                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
             return result
 
         if not self.llm:
@@ -525,7 +526,8 @@ class Oracle:
         if oracle_result:
             self.precedents[situation_key] = oracle_result
             result = self._apply_custom_result(agent, action_type, oracle_result, tick)
-            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            if result.get("success"):
+                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
             return result
 
         # Fallback
