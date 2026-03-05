@@ -14,7 +14,7 @@ import logging
 import sys
 
 from simulation.engine import SimulationEngine
-from simulation.config import WORLD_START_HOUR
+from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
 
 
 def setup_logging(verbose: bool = False):
@@ -39,6 +39,8 @@ def main():
     parser.add_argument("--audit", action="store_true", help="Record behavioral audit data for prompt A/B testing")
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
                         help=f"In-world hour the simulation starts at (0-23, default: {WORLD_START_HOUR})")
+    parser.add_argument("--width",  type=int, default=WORLD_WIDTH,  help=f"World width in tiles (default: {WORLD_WIDTH})")
+    parser.add_argument("--height", type=int, default=WORLD_HEIGHT, help=f"World height in tiles (default: {WORLD_HEIGHT})")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -52,6 +54,8 @@ def main():
         max_ticks=args.ticks,
         audit=args.audit,
         start_hour=args.start_hour,
+        world_width=args.width,
+        world_height=args.height,
     )
 
     try:
