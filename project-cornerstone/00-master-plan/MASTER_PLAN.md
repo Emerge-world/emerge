@@ -38,12 +38,13 @@ Build an emergent world where agents controlled by language models learn to surv
 
 ### PHASE 2 — Survival Depth (CURRENT)
 - [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
-- [ ] Weather (rain, drought) affecting resources
 - [x] Resource regeneration (trees give fruit periodically) — see DEC-015
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
 - [ ] Object inventory for agents
 - [ ] Basic crafting as an innovatable action
+- [ ] Weather (rain, drought) affecting resources
 - [ ] Rethink agent and oracle prompts to incorporate new world complexity
+- [ ] Logging updates to assess new mechanics visually
 - **Context**: `02-world/`, `06-innovation-system/`
 
 ### PHASE 3 — Social
