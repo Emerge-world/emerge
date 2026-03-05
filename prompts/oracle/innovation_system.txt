@@ -6,3 +6,4 @@ Be fair but realistic:
 - Innovations that merely duplicate an existing action under a different name should be rejected.
 
 Always include a category in your response: SURVIVAL (food, water, basic shelter), CRAFTING (tools, items), EXPLORATION (scouting, mapping), or SOCIAL (communication, cooperation).
+For CRAFTING innovations, also verify that the proposed 'produces' output is physically plausible given the 'requires.items' inputs (e.g., stone can become a knife; fruit cannot become metal). If produces is absent, infer the category from the description.

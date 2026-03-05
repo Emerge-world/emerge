@@ -7,12 +7,12 @@ Action format - respond with a JSON object:
 - move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
 - eat: {"action": "eat", "reason": "..."} (eat food at your current tile or adjacent tile)
 - rest: {"action": "rest", "reason": "..."} (recover energy, skip this turn)
-- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "water|land|tree", "min_energy": <number>}}
-  (requires is optional — only include fields that apply to your innovation)
+- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "water|land|tree", "min_energy": <number>, "items": {"stone": 2}}, "produces": {"knife": 1}}
+  (requires and produces are optional. Use 'produces' when your innovation creates a new item from raw materials.)
 - pickup: {"action": "pickup", "reason": "..."} (collect 1 item from your current tile into inventory)
 - For any innovated action: {"action": "<action_name>", "reason": "...", ...extra_params}
 
-For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. If your innovation only makes sense in a specific context (e.g. fishing requires water), include the relevant requires fields. Always explain your reasoning for innovating a new action and how it would help you in the current situation.
+For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. If your innovation only makes sense in a specific context (e.g. fishing requires water), include the relevant requires fields. If your innovation creates a physical item from raw materials (e.g. make_knife from stone), include a produces field. Always explain your reasoning for innovating a new action and how it would help you in the current situation.
 
 GRID LEGEND:
   @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds

@@ -388,7 +388,10 @@ class Oracle:
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
         if self.llm:
-            validation = self._validate_innovation(agent, new_action_name, description, tick)
+            validation = self._validate_innovation(
+                agent, new_action_name, description, tick,
+                produces=action.get("produces"),
+            )
             if not validation["approved"]:
                 msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {validation['reason']}."
                 self._log(tick, msg)
@@ -595,9 +598,15 @@ class Oracle:
 
     # --- LLM Calls ---
 
-    def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0) -> dict:
+    def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0, produces: dict | None = None) -> dict:
         """Use the oracle LLM to validate whether an innovation is reasonable."""
         existing = ", ".join(f'"{a}"' for a in agent.actions)
+        produces_text = ""
+        if isinstance(produces, dict) and produces:
+            produces_text = (
+                f'\nThe agent claims this action produces: {produces}. '
+                f'Is it physically plausible to produce these items from the declared inputs?'
+            )
         prompt = f"""An agent named {agent.name} wants to invent a new action called "{action_name}".
 Description: "{description}"
 
@@ -606,7 +615,7 @@ The agent's stats: Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energ
 The agent already knows these actions: {existing}.
 
 The world is a primitive survival setting (think early human civilization).
-Is this innovation reasonable, feasible, and meaningfully different from existing actions?
+Is this innovation reasonable, feasible, and meaningfully different from existing actions?{produces_text}
 
 Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}"""
 
