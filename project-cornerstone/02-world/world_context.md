@@ -82,7 +82,18 @@ NIGHT_ENERGY_MULTIPLIER = 1.5
 **Prompt integration:** `prompts/agent/decision.txt` includes `$time_info` as the first line.
 Example: `TIME: Night (21:00, day 1). Vision severely reduced to 1 tile. Energy costs 50% higher.`
 
-**Resource regeneration** tied to dawn: deferred to next PR.
+### Resource Regeneration (DEC-015)
+
+At each dawn (`tick % DAY_LENGTH == 0`, skipping tick 0), each depleted tree tile
+rolls for fruit regeneration:
+
+- **Trigger:** Dawn (every 24 ticks, starting tick 24)
+- **Eligibility:** Only tree tiles with no active resource entry (depleted trees)
+- **Probability:** `RESOURCE_REGEN_CHANCE = 0.3` (30% per eligible tree)
+- **Quantity:** `random.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)` → 1–3 fruit
+- **Determinism:** Uses `World._rng = random.Random(seed)`, a dedicated instance
+  separate from the global `random` module used during world generation.
+- **Implementation:** `World.update_resources(tick)` called from `SimulationEngine._run_tick`
 
 ---
 

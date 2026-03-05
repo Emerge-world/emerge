@@ -12,6 +12,8 @@ from simulation.config import (
     WORLD_WIDTH, WORLD_HEIGHT,
     TILE_WATER, TILE_LAND, TILE_TREE,
     WORLD_WATER_PROB, WORLD_TREE_PROB,
+    DAY_LENGTH,
+    RESOURCE_REGEN_CHANCE, RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,8 @@ class World:
         self.height = height
         self.grid: list[list[str]] = []
         self.resources: dict[tuple[int, int], dict] = {}  # (x,y) -> resource info
+        self._rng = random.Random(seed)       # dedicated RNG for regeneration (deterministic)
+        self._tree_positions: list[tuple[int, int]] = []  # cached at generation time
         self._generate(seed)
 
     def _generate(self, seed: Optional[int] = None):
@@ -33,6 +37,7 @@ class World:
             random.seed(seed)
 
         self.grid = []
+        self._tree_positions = []  # reset before populating
         for y in range(self.height):
             row = []
             for x in range(self.width):
@@ -43,6 +48,7 @@ class World:
                     tile = TILE_TREE
                     # Trees have harvestable fruit
                     self.resources[(x, y)] = {"type": "fruit", "quantity": random.randint(1, 5)}
+                    self._tree_positions.append((x, y))  # cache for fast regen iteration
                 else:
                     tile = TILE_LAND
                 row.append(tile)
@@ -76,6 +82,27 @@ class World:
                 del self.resources[(x, y)]
             return consumed
         return 0
+
+    def update_resources(self, tick: int) -> list[tuple[int, int]]:
+        """
+        At each dawn (tick % DAY_LENGTH == 0, skipping tick 0), depleted trees
+        have a chance to regrow fruit. Trees that still have fruit are skipped.
+        Uses self._rng for determinism.
+
+        Returns list of (x, y) positions where fruit regenerated this tick.
+        """
+        if not (tick != 0 and tick % DAY_LENGTH == 0):
+            return []
+
+        regenerated = []
+        for (x, y) in self._tree_positions:
+            if (x, y) not in self.resources:  # tree is depleted
+                if self._rng.random() < RESOURCE_REGEN_CHANCE:
+                    qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
+                    self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
+                    regenerated.append((x, y))
+
+        return regenerated
 
     def get_nearby_tiles(self, x: int, y: int, radius: int) -> list[dict]:
         """

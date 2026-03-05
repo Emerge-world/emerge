@@ -81,3 +81,8 @@ INNOVATION_EFFECT_BOUNDS = {
 
 # --- Base actions ---
 BASE_ACTIONS = ["move", "eat", "rest", "innovate"]
+
+# --- Resource regeneration ---
+RESOURCE_REGEN_CHANCE = 0.3          # probability per depleted tree at each dawn
+RESOURCE_REGEN_AMOUNT_MIN = 1        # minimum fruit spawned on regeneration
+RESOURCE_REGEN_AMOUNT_MAX = 3        # maximum fruit spawned on regeneration
