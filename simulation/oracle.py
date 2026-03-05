@@ -11,6 +11,7 @@ from typing import Optional
 from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
+    TILE_RISKS, TILE_REST_BONUS,  # new
 )
 from simulation.llm_client import LLMClient
 from simulation.world import World
@@ -195,10 +196,13 @@ class Oracle:
         situation_key = f"physical:traversal:tile:{tile_type}"
         reflection_prompt = (
             f"A human in a primitive survival world tries to enter a \"{tile_type}\" tile.\n"
-            f"Tile types in this world: \"land\" (open ground), \"tree\" (forested area), "
-            f"\"water\" (river or lake).\n"
-            f"Can a human physically attempt to enter this terrain? (dangerous is not the same as impossible)\n"
-            f"Respond with JSON: {{\"possible\": true/false, \"reason\": \"brief explanation\"}}"
+            f"Tile types: land (open ground), tree (scattered trees with fruit), sand (beach or shoreline), "
+            f"forest (dense forest with mushrooms), mountain (steep rocky peaks), cave (underground cavern), "
+            f"river (flowing water channel of varying strength), water (deep lake or ocean — impassable).\n"
+            f"Can a human physically attempt to enter this terrain? "
+            f"If the terrain is dangerous, estimate life_damage (integer 0–20; 0 = safe). "
+            f"River crossings may have current-based damage. Mountains are exhausting but not directly lethal.\n"
+            f"Respond with JSON: {{\"possible\": true/false, \"reason\": \"brief explanation\", \"life_damage\": 0}}"
         )
         judgment = self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
 
@@ -213,11 +217,31 @@ class Oracle:
         agent.x, agent.y = new_x, new_y
         cost = self._apply_energy_cost(agent, ENERGY_COST_MOVE, tick)
         msg = f"{agent.name} moved {direction} → ({new_x},{new_y}) [tile: {tile_type}]."
+
+        # Apply Oracle-determined life damage (e.g., river current)
+        life_damage = judgment.get("life_damage", 0)
+        if isinstance(life_damage, (int, float)) and life_damage > 0:
+            actual_damage = int(life_damage)
+            agent.modify_life(-actual_damage)
+            msg += f" Took {actual_damage} damage crossing {tile_type}!"
+
+        # Apply hardcoded extra energy cost for exhausting terrain
+        risk = TILE_RISKS.get(tile_type, {})
+        extra_energy = risk.get("energy_cost_add", 0)
+        if extra_energy > 0:
+            agent.modify_energy(-extra_energy)
+            cost += extra_energy
+
         self._log(tick, msg)
-        agent.add_memory(
-            f"I moved {direction} to ({new_x},{new_y}). There is {tile_type}. Energy: {agent.energy}."
-        )
-        return {"success": True, "message": msg, "effects": {"energy": -cost}}
+        memory_parts = [f"I moved {direction} to ({new_x},{new_y}). Tile: {tile_type}. Energy: {agent.energy}."]
+        if life_damage > 0:
+            memory_parts.append(f"The {tile_type} crossing cost me {life_damage} life!")
+        agent.add_memory(" ".join(memory_parts))
+
+        effects = {"energy": -cost}
+        if life_damage > 0:
+            effects["life"] = -life_damage
+        return {"success": True, "message": msg, "effects": effects}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
         situation_key = "physical:eat:fruit"
@@ -267,11 +291,18 @@ class Oracle:
             self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
 
         # Rest is always possible (precedent establishes this)
-        agent.modify_energy(ENERGY_RECOVERY_REST)
-        msg = f"{agent.name} rested. Energy +{ENERGY_RECOVERY_REST} → {agent.energy}."
+        tile = self.world.get_tile(agent.x, agent.y)
+        bonus = TILE_REST_BONUS.get(tile, {}).get("energy_add", 0)
+        total_recovery = ENERGY_RECOVERY_REST + bonus
+        agent.modify_energy(total_recovery)
+        if bonus > 0:
+            msg = f"{agent.name} rested in a {tile}. Energy +{total_recovery} (+{bonus} shelter bonus) → {agent.energy}."
+            agent.add_memory(f"I rested in a {tile} and recovered {total_recovery} energy ({bonus} bonus from shelter). Energy: {agent.energy}.")
+        else:
+            msg = f"{agent.name} rested. Energy +{ENERGY_RECOVERY_REST} → {agent.energy}."
+            agent.add_memory(f"I rested and recovered energy. Energy: {agent.energy}.")
         self._log(tick, msg)
-        agent.add_memory(f"I rested and recovered energy. Energy: {agent.energy}.")
-        return {"success": True, "message": msg, "effects": {"energy": ENERGY_RECOVERY_REST}}
+        return {"success": True, "message": msg, "effects": {"energy": total_recovery}}
 
     def _resolve_innovate(self, agent: Agent, action: dict, tick: int) -> dict:
         new_action_name = action.get("new_action_name", "").strip().lower()
