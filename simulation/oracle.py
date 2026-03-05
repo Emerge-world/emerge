@@ -11,7 +11,7 @@ from typing import Optional
 from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
-    TILE_RISKS, TILE_REST_BONUS,  # new
+    TILE_RISKS, TILE_REST_BONUS,
 )
 from simulation.llm_client import LLMClient
 from simulation.world import World
@@ -218,9 +218,9 @@ class Oracle:
         cost = self._apply_energy_cost(agent, ENERGY_COST_MOVE, tick)
         msg = f"{agent.name} moved {direction} → ({new_x},{new_y}) [tile: {tile_type}]."
 
-        # Apply Oracle-determined life damage (e.g., river current)
-        life_damage = judgment.get("life_damage", 0)
-        if isinstance(life_damage, (int, float)) and life_damage > 0:
+        # Apply Oracle-determined life damage (e.g., river current); clamp to [0, 20]
+        life_damage = max(0, round(float(judgment.get("life_damage", 0) or 0)))
+        if life_damage > 0:
             actual_damage = int(life_damage)
             agent.modify_life(-actual_damage)
             msg += f" Took {actual_damage} damage crossing {tile_type}!"
@@ -240,7 +240,7 @@ class Oracle:
 
         effects = {"energy": -cost}
         if life_damage > 0:
-            effects["life"] = -life_damage
+            effects["life"] = -actual_damage
         return {"success": True, "message": msg, "effects": effects}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
