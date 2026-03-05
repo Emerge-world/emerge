@@ -117,3 +117,20 @@
 - **Rejected alternatives**: Implement individual traits only in Phase 1 and defer sociability to Phase 3 (split implementation adds fragmentation and maintenance cost across phases). Implement personality in Phase 2 (Phase 2 is survival-depth focused; personality doesn't affect resource gathering or crafting meaningfully).
 - **Consequences**: Phase 1 is now complete. Phase 2 focuses entirely on survival depth (resources, inventory, crafting, weather). Phase 3 gains personality as its first item, making it the foundation for all social mechanics.
 
+## DEC-015 — Resource Regeneration: Dawn-Triggered with Probability (2026-03-05)
+
+**Context:** Trees deplete without regenerating, causing agents to starve mid-simulation.
+This makes long-run testing of Phase 2 features (inventory, crafting) impractical.
+
+**Decision:** At each dawn (`tick % DAY_LENGTH == 0`, skip tick 0), each depleted
+tree tile has a 30% chance to regrow 1–3 fruit. Uses `World._rng = random.Random(seed)`,
+a dedicated RNG instance seeded identically to world generation but independent of the
+global `random` module.
+
+**Alternatives considered:**
+- Every-N-ticks (simpler): rejected — ignores the day/night system we just built.
+- DayCycle event system: rejected — YAGNI; adds pub/sub complexity with no other subscribers.
+
+**Constants:** `RESOURCE_REGEN_CHANCE=0.3`, `RESOURCE_REGEN_AMOUNT_MIN=1`, `RESOURCE_REGEN_AMOUNT_MAX=3`
+
+**Files:** `simulation/config.py`, `simulation/world.py`, `simulation/engine.py`, `tests/test_world.py`
