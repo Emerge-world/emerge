@@ -4,15 +4,32 @@ A developer diary tracking the evolution of the Emerge simulation project — a 
 
 Posts are written in Obsidian-compatible Markdown and live in `posts/`. Each post covers one merged PR.
 
+Quartz is already bootstrapped in this directory. The Quartz `content/` folder is a symlink to `posts/`, so editing a post updates the local site directly.
+
 ## Reading the blog
 
 Open the `posts/` folder in Obsidian, or serve locally with [Quartz](https://quartz.jzhao.xyz/):
 
 ```bash
 # From this directory (emerge/blog/)
-npx quartz create      # one-time setup: bootstrap Quartz
-npx quartz build --serve   # serves at http://localhost:8080
+npm ci
+node ./quartz/bootstrap-cli.mjs build --serve
 ```
+
+The preview server runs at `http://localhost:8080` and rebuilds automatically when files under `posts/` change.
+
+## Blog structure
+
+- `posts/`: the source markdown files for the devlog
+- `content/`: Quartz content entrypoint, symlinked to `posts/`
+- `public/`: generated local build output
+- `quartz.config.ts`: site configuration
+
+## Local Quartz notes
+
+- The local preview command does not need `npx quartz create`; setup is already done.
+- `posts/index.md` is the Quartz home page.
+- `CustomOgImages` is disabled in `quartz.config.ts` for local preview because it fetches remote fonts during build.
 
 ## Post format
 
