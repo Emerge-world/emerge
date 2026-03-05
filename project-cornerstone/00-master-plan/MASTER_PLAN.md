@@ -43,6 +43,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
 - [ ] Object inventory for agents
 - [ ] Basic crafting as an innovatable action
+- [ ] Rethink agent and oracle prompts to incorporate new world complexity
 - **Context**: `02-world/`, `06-innovation-system/`
 
 ### PHASE 3 — Social
