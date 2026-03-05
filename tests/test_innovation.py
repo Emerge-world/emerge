@@ -347,11 +347,6 @@ class TestInnovationLLMValidation:
 # ---------------------------------------------------------------------------
 
 class TestEffectBoundsClamping:
-    def _oracle_with_agent(self):
-        world = _make_world()
-        agent = _make_agent(world)
-        return oracle, agent  # type: ignore  # will be replaced below
-
     def test_clamp_helper_within_bounds(self):
         oracle = _make_oracle(_make_world())
         effects = {"hunger": -10, "energy": -5, "life": 0}
@@ -415,3 +410,258 @@ class TestEffectBoundsClamping:
         e_lo, _ = INNOVATION_EFFECT_BOUNDS["energy"]
         energy_spent = energy_before - agent.energy
         assert energy_spent <= -e_lo  # energy_spent should not exceed abs(lower bound)
+
+
+# ---------------------------------------------------------------------------
+# Crafting (DEC-018)
+# ---------------------------------------------------------------------------
+
+class TestCraftingPrecedentStorage:
+    """_resolve_innovate must persist requires + produces in the innovation precedent."""
+
+    def _innovate_make_knife(self, oracle, agent, tick=1):
+        """Helper: agent innovates make_knife with requires+produces."""
+        agent.inventory.add("stone", 3)  # agent must have the items to propose
+        return oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve two stones into a sharp blade",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=tick,
+        )
+
+    def test_produces_stored_in_precedent(self):
+        """After approval, precedent contains the produces dict."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        result = self._innovate_make_knife(oracle, agent)
+
+        assert result["success"] is True
+        precedent = oracle.precedents.get("innovation:make_knife", {})
+        assert precedent.get("produces") == {"knife": 1}
+
+    def test_requires_stored_in_precedent(self):
+        """After approval, precedent contains the requires dict."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        self._innovate_make_knife(oracle, agent)
+
+        precedent = oracle.precedents.get("innovation:make_knife", {})
+        assert precedent.get("requires") == {"items": {"stone": 2}}
+
+    def test_innovation_without_produces_stores_no_produces_key(self):
+        """A normal (non-crafting) innovation must not get a produces key."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+        precedent = oracle.precedents.get("innovation:fish", {})
+        assert "produces" not in precedent
+
+    def test_produces_none_not_stored(self):
+        """produces=None must not write a produces key."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "forage",
+                "description": "gather mushrooms",
+                "produces": None,
+            },
+            tick=1,
+        )
+        precedent = oracle.precedents.get("innovation:forage", {})
+        assert "produces" not in precedent
+
+
+class TestCraftingExecution:
+    """_resolve_custom_action must check, consume, and produce items for crafting actions."""
+
+    def _setup_crafting(self):
+        """
+        Return (oracle, agent) with 'make_knife' already innovated.
+        make_knife: requires {items: {stone: 2}}, produces {knife: 1}.
+        LLM mock: first call approves innovation, second judges the action execution.
+        """
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_json.side_effect = [
+            {"approved": True, "reason": "Makes sense.", "category": "CRAFTING"},
+            {"success": True, "message": "You shaped the stones into a blade.", "effects": {"energy": -8}},
+        ]
+
+        oracle = _make_oracle(world, llm=llm)
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve two stones into a blade",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=1,
+        )
+        return oracle, agent
+
+    def test_crafting_fails_without_required_items(self):
+        """Crafting action fails when agent lacks required materials."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        oracle = _make_oracle(world, llm=llm)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve stones",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=1,
+        )
+        agent.inventory.items.clear()
+
+        result = oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert result["success"] is False
+
+    def test_crafting_failure_message_does_not_reveal_item_names(self):
+        """The failure message must be generic — no specific item name like 'stone' revealed."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        oracle = _make_oracle(world, llm=llm)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve stones",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=1,
+        )
+        agent.inventory.items.clear()
+
+        result = oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert "stone" not in result["message"].lower()
+
+    def test_crafting_item_check_before_llm_on_execution(self):
+        """When items are missing at execution time, no extra LLM call is made."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        oracle = _make_oracle(world, llm=llm)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve stones",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=1,
+        )
+        calls_after_innovation = llm.generate_json.call_count
+        agent.inventory.items.clear()
+
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert llm.generate_json.call_count == calls_after_innovation
+
+    def test_crafting_consumes_items_on_success(self):
+        """After successful crafting, required items are removed from inventory."""
+        oracle, agent = self._setup_crafting()
+        stone_before = agent.inventory.items.get("stone", 0)
+
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+
+        assert agent.inventory.items.get("stone", 0) == stone_before - 2
+
+    def test_crafting_produces_item_in_inventory(self):
+        """After successful crafting, the produced item appears in inventory."""
+        oracle, agent = self._setup_crafting()
+
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+
+        assert agent.inventory.items.get("knife", 0) == 1
+
+    def test_crafting_no_llm_consumes_and_produces(self):
+        """Without LLM, crafting still consumes and produces items (energy -5 fallback)."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+        oracle = _make_oracle(world)  # no LLM
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve stones",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=1,
+        )
+        stone_before = agent.inventory.items.get("stone", 0)
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+
+        assert agent.inventory.items.get("stone", 0) == stone_before - 2
+        assert agent.inventory.items.get("knife", 0) == 1
+
+    def test_crafting_via_precedent_cache_also_consumes_produces(self):
+        """The second execution (hits precedent cache) must also consume and produce."""
+        oracle, agent = self._setup_crafting()
+
+        # First execution: sets the situation precedent
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+
+        # Reload materials for second execution
+        agent.inventory.add("stone", 5)
+        knife_before = agent.inventory.items.get("knife", 0)
+        stone_before = agent.inventory.items.get("stone", 0)
+
+        # Second execution: hits precedent cache
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=3)
+
+        assert agent.inventory.items.get("stone", 0) == stone_before - 2
+        assert agent.inventory.items.get("knife", 0) == knife_before + 1

@@ -34,7 +34,7 @@ Innovation is the heart of emergence. Agents can invent new actions that didn't 
 
 `requires` is optional. Only include fields that apply. Missing or non-dict `requires` is ignored.
 
-`requires.items` is checked deterministically before any LLM call. Items are verified but NOT consumed on innovation approval (item consumption = crafting, next PR).
+`requires.items` is checked deterministically before any LLM call. Items are verified but NOT consumed on innovation approval — consumption happens at execution time via `_apply_crafting_recipe` (see DEC-018).
 
 ### Oracle Validation (pre-LLM checks in `_resolve_innovate`)
 
@@ -84,8 +84,8 @@ Applied after every `_oracle_judge_custom_action()` call, before the result is c
 ### Known remaining issues
 
 1. **No `nearby_resource` prerequisite**: `requires` supports `tile`, `min_energy`, and `items`. ~~Item prerequisites deferred to Phase 2 (inventory system required).~~ ✅ Resolved — `requires.items` implemented (DEC-017).
-2. **No material cost**: Innovating costs energy only, not resources. Item prerequisites are checked but items are NOT consumed on innovation approval. Crafting (item consumption) is deferred to the next Phase 2 PR.
-3. **No precedent persistence**: Innovation precedents are lost between runs. Planned for Phase 1 (JSON save/load).
+2. ~~**No material cost**: Crafting (item consumption) is deferred to the next Phase 2 PR.~~ ✅ Resolved — crafting fully implemented (DEC-018). Items are consumed from inventory at execution time; `produces` items are added.
+3. **No precedent persistence**: ~~Innovation precedents are lost between runs.~~ ✅ Resolved — JSON save/load implemented (DEC-013).
 
 ## Phase 2 — Crafting & Prerequisites
 
@@ -103,21 +103,45 @@ class Inventory:
     def has(self, item: str, qty: int) -> bool: ...
 ```
 
-### Recipes as precedents
+### Crafting *(implemented — see DEC-018)*
 
-When an agent innovates something that requires materials, the oracle records the "recipe":
+Crafting is a fully emergent CRAFTING-category innovatable action. Agents propose a `produces` field alongside `requires.items` when innovating.
 
-```python
-# Precedent for "build_shelter":
+#### Innovation request format (with crafting fields)
+
+```json
 {
-    "action": "build_shelter",
-    "requires_items": {"wood": 5},
-    "requires_tile": ["forest", "land"],
-    "effects": {"energy": -15},
-    "world_effect": "creates shelter at (x,y)",  # new: effects on the world
-    "time_cost": 3  # ticks it takes (future)
+    "action": "innovate",
+    "new_action_name": "make_knife",
+    "description": "carve stone into a knife",
+    "reason": "I have stone and need a tool",
+    "requires": {
+        "tile": "cave",
+        "min_energy": 20,
+        "items": {"stone": 2}
+    },
+    "produces": {"knife": 1}
 }
 ```
+
+#### Crafting execution flow
+
+1. Agent executes a previously approved crafting action
+2. `_resolve_custom_action` checks `requires.items` against current inventory — **fail-fast, no LLM call**
+3. If materials missing: generic failure message returned (no item names revealed — preserves emergence)
+4. If materials present: `_apply_crafting_recipe` is called
+   - Consumes `requires.items` from inventory
+   - Applies stat effects (energy cost of labor, clamped)
+   - Adds `produces` items to inventory
+   - Logs any inconsistencies (e.g. remove more than held)
+
+#### Storage in precedent
+
+At innovation approval time (`_resolve_innovate`), both `requires` and `produces` are stored in `precedents["innovation:<name>"]`. Every subsequent execution reads from this cached record — no additional LLM calls.
+
+#### Oracle validation
+
+`_validate_innovation` passes `produces` to the LLM prompt so it can check physical plausibility of the recipe (e.g. "does carving stone produce a knife?" is reasonable; "does eating fruit produce gold?" is not).
 
 ## Considerations for Claude Code
 

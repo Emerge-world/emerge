@@ -388,7 +388,10 @@ class Oracle:
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
         if self.llm:
-            validation = self._validate_innovation(agent, new_action_name, description, tick)
+            validation = self._validate_innovation(
+                agent, new_action_name, description, tick,
+                produces=action.get("produces"),
+            )
             if not validation["approved"]:
                 msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {validation['reason']}."
                 self._log(tick, msg)
@@ -401,12 +404,19 @@ class Oracle:
         agent.modify_energy(-ENERGY_COST_INNOVATE)
 
         # Register the new action as a precedent
-        self.precedents[f"innovation:{new_action_name}"] = {
+        precedent_data = {
             "creator": agent.name,
             "description": description,
             "tick_created": tick,
             "category": category,
         }
+        # Store requires + produces so _resolve_custom_action can handle crafting
+        if isinstance(requires, dict):
+            precedent_data["requires"] = requires
+        produces = action.get("produces")
+        if isinstance(produces, dict) and produces:
+            precedent_data["produces"] = produces
+        self.precedents[f"innovation:{new_action_name}"] = precedent_data
 
         msg = f"🆕 {agent.name} innovated '{new_action_name}' [{category}]: {description}."
         self._log(tick, msg)
@@ -464,38 +474,111 @@ class Oracle:
         precedent_key = f"innovation:{action_type}"
 
         # Look up information about this action
-        precedent = self.precedents.get(precedent_key, {})
-        description = precedent.get("description", "unknown action")
+        innovation = self.precedents.get(precedent_key, {})
+        description = innovation.get("description", "unknown action")
+
+        # Extract crafting recipe from stored innovation data
+        required_items: dict = {}
+        stored_requires = innovation.get("requires")
+        if isinstance(stored_requires, dict):
+            ri = stored_requires.get("items", {})
+            if isinstance(ri, dict):
+                required_items = ri
+        raw_produces = innovation.get("produces")
+        produces: dict = raw_produces if isinstance(raw_produces, dict) else {}
+
+        # Fail fast if crafting items are missing — generic message, no item names revealed
+        if required_items:
+            for item, qty in required_items.items():
+                try:
+                    qty_int = int(qty)
+                except (ValueError, TypeError):
+                    qty_int = 1
+                if not agent.inventory.has(item, qty_int):
+                    msg = f"{agent.name} tried '{action_type}' but lacked the required materials."
+                    self._log(tick, msg)
+                    agent.add_memory(
+                        f"I tried to '{action_type}' but I was missing materials. "
+                        f"I need to gather more resources first."
+                    )
+                    return {"success": False, "message": msg, "effects": {}}
 
         # Check if there's already a precedent result for this specific situation
         situation_key = f"custom_action:{action_type}:tile:{self.world.get_tile(agent.x, agent.y)}"
         existing_result = self.precedents.get(situation_key)
 
         if existing_result:
-            # Use precedent result (determinism)
-            return self._apply_custom_result(agent, action_type, existing_result, tick)
+            result = self._apply_custom_result(agent, action_type, existing_result, tick)
+            if result.get("success"):
+                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            return result
 
         if not self.llm:
-            # Without LLM, generic effect
             result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
             agent.modify_energy(-5)
             self._log(tick, result["message"])
+            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
             return result
 
         # Ask the oracle to determine the outcome
         oracle_result = self._oracle_judge_custom_action(agent, action, description, tick)
 
         if oracle_result:
-            # Save as precedent for determinism
             self.precedents[situation_key] = oracle_result
-            return self._apply_custom_result(agent, action_type, oracle_result, tick)
+            result = self._apply_custom_result(agent, action_type, oracle_result, tick)
+            if result.get("success"):
+                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            return result
 
         # Fallback
         agent.modify_energy(-5)
         msg = f"{agent.name} tried '{action_type}' with uncertain results."
         self._log(tick, msg)
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
+        self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
         return {"success": True, "message": msg, "effects": {"energy": -5}}
+
+    def _apply_crafting_recipe(
+        self,
+        agent: Agent,
+        action_type: str,
+        required_items: dict,
+        produces: dict,
+        tick: int,
+    ) -> None:
+        """Consume required items and add produced items for a crafting action.
+
+        Pre-condition: caller must have already verified items are available via inventory.has().
+        """
+        # Consume materials
+        for item, qty in required_items.items():
+            try:
+                qty_int = int(qty)
+            except (ValueError, TypeError):
+                qty_int = 1
+            removed = agent.inventory.remove(item, qty_int)
+            if not removed:
+                msg = f"{agent.name} lost track of {qty_int}x {item} during '{action_type}' (inventory inconsistency)."
+                self._log(tick, msg)
+
+        # Produce items
+        for item, qty in produces.items():
+            try:
+                qty_int = int(qty)
+            except (ValueError, TypeError):
+                qty_int = 1
+            added = agent.inventory.add(item, qty_int)
+            if added > 0:
+                agent.add_memory(
+                    f"I crafted {added}x {item} via '{action_type}'. "
+                    f"Inventory: {agent.inventory.to_prompt()}."
+                )
+            else:
+                msg = f"{agent.name} crafted '{action_type}' but inventory is full — {item} was lost."
+                self._log(tick, msg)
+                agent.add_memory(
+                    f"I crafted '{action_type}' but my inventory is full. I lost the {item} I made."
+                )
 
     def _apply_custom_result(self, agent: Agent, action_type: str, result: dict, tick: int) -> dict:
         effects = result.get("effects", {})
@@ -517,9 +600,15 @@ class Oracle:
 
     # --- LLM Calls ---
 
-    def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0) -> dict:
+    def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0, produces: dict | None = None) -> dict:
         """Use the oracle LLM to validate whether an innovation is reasonable."""
         existing = ", ".join(f'"{a}"' for a in agent.actions)
+        produces_text = ""
+        if isinstance(produces, dict) and produces:
+            produces_text = (
+                f'\nThe agent claims this action produces: {produces}. '
+                f'Is it physically plausible to produce these items from the declared inputs?'
+            )
         prompt = f"""An agent named {agent.name} wants to invent a new action called "{action_name}".
 Description: "{description}"
 
@@ -528,7 +617,7 @@ The agent's stats: Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energ
 The agent already knows these actions: {existing}.
 
 The world is a primitive survival setting (think early human civilization).
-Is this innovation reasonable, feasible, and meaningfully different from existing actions?
+Is this innovation reasonable, feasible, and meaningfully different from existing actions?{produces_text}
 
 Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}"""
 
