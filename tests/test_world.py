@@ -22,6 +22,7 @@ from simulation.config import (
     RESOURCE_REGEN_AMOUNT_MIN,
     RESOURCE_REGEN_AMOUNT_MAX,
     TILE_TREE,
+    TILE_FOREST,
 )
 
 
@@ -95,52 +96,68 @@ def test_regen_only_affects_depleted_trees(world):
 
 
 def test_regen_quantity_in_range(world):
-    """Every regenerated fruit quantity must be within [MIN, MAX]."""
+    """Every regenerated resource quantity must be within [MIN, MAX]."""
     _deplete_all(world)
 
     with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
-        world.update_resources(DAY_LENGTH)
+        regenerated = world.update_resources(DAY_LENGTH)
 
-    for pos, info in world.resources.items():
-        qty = info["quantity"]
+    # Only check positions that were actually regenerated (not pre-existing resources
+    # like river water that are non-depletable and use a different quantity range).
+    for pos in regenerated:
+        qty = world.resources[pos]["quantity"]
         assert RESOURCE_REGEN_AMOUNT_MIN <= qty <= RESOURCE_REGEN_AMOUNT_MAX, (
             f"Quantity {qty} at {pos} is out of range"
         )
 
 
-def test_regen_positions_are_tree_tiles(world):
-    """Regenerated resources only appear on tree tiles."""
+def test_regen_positions_are_resource_tiles(world):
+    """Regenerated resources only appear on tree or forest tiles."""
     _deplete_all(world)
 
     with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
         regenerated = world.update_resources(DAY_LENGTH)
 
+    REGEN_TILES = {TILE_TREE, TILE_FOREST}
     for (x, y) in regenerated:
-        assert world.get_tile(x, y) == TILE_TREE, (
-            f"Regenerated resource at ({x},{y}) but tile is {world.get_tile(x, y)}"
+        tile = world.get_tile(x, y)
+        assert tile in REGEN_TILES, (
+            f"Regenerated resource at ({x},{y}) but tile is {tile}"
         )
 
 
-def test_all_depleted_trees_regen_when_chance_is_100(world):
-    """With 100% chance, every depleted tree must regenerate."""
+def test_all_depleted_regen_tiles_regen_when_chance_is_100(world):
+    """With 100% chance, every depleted tree and forest tile must regenerate."""
     _deplete_all(world)
-    tree_count = len(world._tree_positions)
+    regen_tile_count = len(world._tree_positions) + len(world._forest_positions)
 
     with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
         regenerated = world.update_resources(DAY_LENGTH)
 
-    assert len(regenerated) == tree_count
-    assert len(world.resources) == tree_count
+    assert len(regenerated) == regen_tile_count
 
 
-def test_regen_returns_coords_that_got_fruit(world):
-    """Returned (x, y) list must exactly match newly added resources."""
+def test_regen_returns_coords_that_got_resources(world):
+    """Returned (x, y) list must be a subset of resource positions after regen.
+
+    Non-depletable tiles (e.g., rivers with permanent water) may also be in
+    world.resources, so we check that all regenerated positions are present
+    and that regenerated positions are a subset (not necessarily equal) of all
+    resource positions.
+    """
     _deplete_all(world)
 
     with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
         regenerated = world.update_resources(DAY_LENGTH)
 
-    assert set(regenerated) == set(world.resources.keys())
+    regen_set = set(regenerated)
+    resource_set = set(world.resources.keys())
+    assert regen_set.issubset(resource_set), (
+        f"Regenerated positions not all in resources: {regen_set - resource_set}"
+    )
+    # All regenerated positions should actually have a resource entry
+    for pos in regenerated:
+        assert pos in world.resources, f"Regenerated {pos} missing from resources"
 
 
 # ---------------------------------------------------------------------------

@@ -241,7 +241,9 @@ class SimulationEngine:
         print(f"  Tiles: 🌊 Water={summary['tile_counts'].get('water', 0)} | "
               f"🟫 Land={summary['tile_counts'].get('land', 0)} | "
               f"🌳 Trees={summary['tile_counts'].get('tree', 0)}")
-        print(f"  Available fruit: {summary['total_fruit_available']} in {summary['fruit_locations']} trees")
+        fruit_qty = summary["resources_by_type"].get("fruit", 0)
+        fruit_locs = sum(1 for r in self.world.resources.values() if r["type"] == "fruit")
+        print(f"  Available fruit: {fruit_qty} in {fruit_locs} trees")
         print(f"  Agents: {len(self.agents)}")
         print(f"  LLM: {'✅ ' + self.llm.model if self.llm else '❌ Fallback mode (no LLM)'}")
         print(f"  Max ticks: {self.max_ticks}")
@@ -346,7 +348,9 @@ class SimulationEngine:
         # World summary
         summary = self.world.get_summary()
         print(f"\n  🌍 Final world state:")
-        print(f"    Remaining fruit: {summary['total_fruit_available']} in {summary['fruit_locations']} trees")
+        remaining_fruit_qty = summary["resources_by_type"].get("fruit", 0)
+        remaining_fruit_locs = sum(1 for r in self.world.resources.values() if r["type"] == "fruit")
+        print(f"    Remaining fruit: {remaining_fruit_qty} in {remaining_fruit_locs} trees")
 
         print("\n" + "=" * 70)
 

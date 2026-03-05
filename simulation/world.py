@@ -1,6 +1,6 @@
 """
 2D world represented by a tile matrix.
-Each tile can be: water, land, tree.
+Each tile can be: water, land, tree, sand, forest, mountain, cave, river.
 """
 
 import json
@@ -8,12 +8,19 @@ import random
 import logging
 from typing import Optional
 
+from opensimplex import OpenSimplex
+
 from simulation.config import (
     WORLD_WIDTH, WORLD_HEIGHT,
     TILE_WATER, TILE_LAND, TILE_TREE,
-    WORLD_WATER_PROB, WORLD_TREE_PROB,
+    TILE_SAND, TILE_FOREST, TILE_MOUNTAIN, TILE_CAVE, TILE_RIVER,
+    WORLD_WATER_PROB, WORLD_TREE_PROB,  # keep for backwards compat but won't use in generation
     DAY_LENGTH,
     RESOURCE_REGEN_CHANCE, RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX,
+    TILE_RESOURCE_SPAWN,
+    WORLD_NOISE_SCALE, WORLD_RIVER_NOISE_SCALE, WORLD_RIVER_THRESHOLD,
+    WORLD_HEIGHT_WATER, WORLD_HEIGHT_SAND, WORLD_HEIGHT_LAND,
+    WORLD_HEIGHT_FOREST, WORLD_HEIGHT_MOUNTAIN, WORLD_HEIGHT_CAVE,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,32 +36,57 @@ class World:
         self.resources: dict[tuple[int, int], dict] = {}  # (x,y) -> resource info
         self._rng = random.Random(seed)       # dedicated RNG for regeneration (deterministic)
         self._tree_positions: list[tuple[int, int]] = []  # cached at generation time
+        self._forest_positions: list[tuple[int, int]] = []  # cached at generation time
+        self._resource_positions: dict[str, list[tuple[int, int]]] = {}
         self._generate(seed)
 
-    def _generate(self, seed: Optional[int] = None):
-        """Generate the world procedurally."""
-        if seed is not None:
-            random.seed(seed)
+    def _generate(self, seed=None):
+        """Generate world using Perlin noise for geographic coherence."""
+        gen_primary = OpenSimplex(seed if seed is not None else 0)
+        gen_river   = OpenSimplex((seed if seed is not None else 0) + 1)
 
         self.grid = []
-        self._tree_positions = []  # reset before populating
+        self.resources = {}
+        self._resource_positions: dict[str, list[tuple[int, int]]] = {}
+
         for y in range(self.height):
             row = []
             for x in range(self.width):
-                r = random.random()
-                if r < WORLD_WATER_PROB:
+                h = (gen_primary.noise2(x / WORLD_NOISE_SCALE, y / WORLD_NOISE_SCALE) + 1) / 2
+
+                if h < WORLD_HEIGHT_WATER:
                     tile = TILE_WATER
-                elif r < WORLD_WATER_PROB + WORLD_TREE_PROB:
-                    tile = TILE_TREE
-                    # Trees have harvestable fruit
-                    self.resources[(x, y)] = {"type": "fruit", "quantity": random.randint(1, 5)}
-                    self._tree_positions.append((x, y))  # cache for fast regen iteration
+                elif h < WORLD_HEIGHT_SAND:
+                    r = (gen_river.noise2(x / WORLD_RIVER_NOISE_SCALE, y / WORLD_RIVER_NOISE_SCALE) + 1) / 2
+                    tile = TILE_RIVER if r < WORLD_RIVER_THRESHOLD else TILE_SAND
+                elif h < WORLD_HEIGHT_LAND:
+                    r = (gen_river.noise2(x / WORLD_RIVER_NOISE_SCALE, y / WORLD_RIVER_NOISE_SCALE) + 1) / 2
+                    tile = TILE_RIVER if r < WORLD_RIVER_THRESHOLD else TILE_LAND
+                elif h < WORLD_HEIGHT_FOREST:
+                    tile = TILE_FOREST
+                elif h < WORLD_HEIGHT_MOUNTAIN:
+                    tile = TILE_MOUNTAIN
+                elif h < WORLD_HEIGHT_CAVE:
+                    tile = TILE_CAVE
                 else:
-                    tile = TILE_LAND
+                    tile = TILE_MOUNTAIN  # mountain peak, same type
+
                 row.append(tile)
+
+                # Spawn resources for resource-bearing tiles
+                spawn = TILE_RESOURCE_SPAWN.get(tile)
+                if spawn:
+                    qty = self._rng.randint(spawn["min"], spawn["max"])
+                    self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
+                    self._resource_positions.setdefault(tile, []).append((x, y))
+
             self.grid.append(row)
 
-        logger.info(f"World generated: {self.width}x{self.height}")
+        # Back-compat aliases used by existing regen logic
+        self._tree_positions = self._resource_positions.get(TILE_TREE, [])
+        self._forest_positions = self._resource_positions.get(TILE_FOREST, [])
+
+        logger.info(f"World generated: {self.width}x{self.height} (Perlin noise, seed={seed})")
 
     def get_tile(self, x: int, y: int) -> Optional[str]:
         """Return the tile type at (x, y) or None if out of bounds."""
@@ -78,7 +110,7 @@ class World:
             consumed = min(amount, res["quantity"])
             res["quantity"] -= consumed
             if res["quantity"] <= 0:
-                # The tree runs out of fruit but remains a tree
+                # The tile runs out of resource but the tile type remains
                 del self.resources[(x, y)]
             return consumed
         return 0
@@ -87,9 +119,11 @@ class World:
         """
         At each dawn (tick % DAY_LENGTH == 0, skipping tick 0), depleted trees
         have a chance to regrow fruit. Trees that still have fruit are skipped.
+        Also regrows mushrooms on depleted forest tiles.
+        Stone (mountain/cave) does NOT regenerate — finite resource.
         Uses self._rng for determinism.
 
-        Returns list of (x, y) positions where fruit regenerated this tick.
+        Returns list of (x, y) positions where resources regenerated this tick.
         """
         if not (tick != 0 and tick % DAY_LENGTH == 0):
             return []
@@ -100,6 +134,14 @@ class World:
                 if self._rng.random() < RESOURCE_REGEN_CHANCE:
                     qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
                     self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
+                    regenerated.append((x, y))
+
+        # Mushroom regen for depleted forest tiles (same dawn trigger)
+        for (x, y) in self._forest_positions:
+            if (x, y) not in self.resources:
+                if self._rng.random() < RESOURCE_REGEN_CHANCE:
+                    qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
+                    self.resources[(x, y)] = {"type": "mushroom", "quantity": qty}
                     regenerated.append((x, y))
 
         return regenerated
@@ -128,20 +170,21 @@ class World:
         return tiles
 
     def find_spawn_point(self) -> tuple[int, int]:
-        """Find a random land tile to spawn an agent."""
+        """Find a random safe tile to spawn an agent (land, sand, or forest)."""
+        SPAWN_TILES = {TILE_LAND, TILE_SAND, TILE_FOREST}
         attempts = 0
         while attempts < 1000:
-            x = random.randint(0, self.width - 1)
-            y = random.randint(0, self.height - 1)
-            if self.grid[y][x] == TILE_LAND:
+            x = self._rng.randint(0, self.width - 1)
+            y = self._rng.randint(0, self.height - 1)
+            if self.grid[y][x] in SPAWN_TILES:
                 return (x, y)
             attempts += 1
         # Fallback: linear search
         for y in range(self.height):
             for x in range(self.width):
-                if self.grid[y][x] == TILE_LAND:
+                if self.grid[y][x] in SPAWN_TILES:
                     return (x, y)
-        raise RuntimeError("No land tile found for spawning")
+        raise RuntimeError("No safe spawn tile found")
 
     def to_json(self) -> str:
         """Export the complete world as JSON."""
@@ -161,14 +204,19 @@ class World:
 
     def get_summary(self) -> dict:
         """Statistical summary of the world."""
-        counts = {TILE_WATER: 0, TILE_LAND: 0, TILE_TREE: 0}
+        counts: dict[str, int] = {}
         for row in self.grid:
             for tile in row:
                 counts[tile] = counts.get(tile, 0) + 1
-        total_fruit = sum(r["quantity"] for r in self.resources.values() if r["type"] == "fruit")
+
+        resource_summary: dict[str, int] = {}
+        for res in self.resources.values():
+            rtype = res["type"]
+            resource_summary[rtype] = resource_summary.get(rtype, 0) + res["quantity"]
+
         return {
             "dimensions": f"{self.width}x{self.height}",
             "tile_counts": counts,
-            "total_fruit_available": total_fruit,
-            "fruit_locations": len(self.resources),
+            "resources_by_type": resource_summary,
+            "resource_locations": len(self.resources),
         }
