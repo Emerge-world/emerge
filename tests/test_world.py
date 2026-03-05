@@ -193,3 +193,203 @@ def test_different_seeds_run_without_error():
     # At least the test runs without error; outcomes may differ
     assert isinstance(result_a, list)
     assert isinstance(result_b, list)
+
+
+# ---------------------------------------------------------------------------
+# New tile types (Phase 2)
+# ---------------------------------------------------------------------------
+
+from simulation.config import (  # noqa: E402
+    TILE_WATER, TILE_LAND,
+    TILE_SAND, TILE_MOUNTAIN, TILE_CAVE, TILE_RIVER,
+)
+
+
+def test_perlin_determinism():
+    """Two worlds with the same seed produce identical tile grids."""
+    world_a = World(width=20, height=20, seed=99)
+    world_b = World(width=20, height=20, seed=99)
+
+    for y in range(20):
+        for x in range(20):
+            assert world_a.grid[y][x] == world_b.grid[y][x], (
+                f"Tile mismatch at ({x},{y}): {world_a.grid[y][x]} vs {world_b.grid[y][x]}"
+            )
+
+
+def test_new_tile_types_appear():
+    """A 30x30 world (seed=42) should contain all expected tile types."""
+    world = World(width=30, height=30, seed=42)
+    all_tiles = {world.grid[y][x] for y in range(world.height) for x in range(world.width)}
+
+    expected = {TILE_FOREST, TILE_MOUNTAIN, TILE_SAND, TILE_CAVE, TILE_RIVER}
+    missing = expected - all_tiles
+
+    # If seed=42 is missing some, try additional seeds before giving up
+    for extra_seed in [1, 2, 3, 7]:
+        if not missing:
+            break
+        extra_world = World(width=30, height=30, seed=extra_seed)
+        extra_tiles = {extra_world.grid[y][x] for y in range(extra_world.height) for x in range(extra_world.width)}
+        missing -= extra_tiles
+
+    assert not missing, f"Tile types never appeared across tested seeds: {missing}"
+
+
+def test_river_walkable():
+    """River tiles must be walkable (agents can cross rivers)."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_RIVER:
+                assert world.is_walkable(x, y), f"River tile at ({x},{y}) should be walkable"
+                return
+    pytest.skip("No river tile found in this world — increase size or try another seed")
+
+
+def test_water_not_walkable():
+    """Deep water tiles must not be walkable."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_WATER:
+                assert not world.is_walkable(x, y), f"Water tile at ({x},{y}) should not be walkable"
+                return
+    pytest.skip("No water tile found in this world")
+
+
+def test_forest_spawns_mushrooms():
+    """Forest tiles must have a mushroom resource at world generation."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_FOREST:
+                res = world.get_resource(x, y)
+                assert res is not None, f"Forest tile at ({x},{y}) has no resource"
+                assert res["type"] == "mushroom", f"Forest tile at ({x},{y}) has wrong resource type: {res['type']}"
+                return
+    pytest.skip("No forest tile found in this world")
+
+
+def test_mountain_spawns_stone():
+    """Mountain tiles must have a stone resource at world generation."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_MOUNTAIN:
+                res = world.get_resource(x, y)
+                assert res is not None, f"Mountain tile at ({x},{y}) has no resource"
+                assert res["type"] == "stone", f"Mountain tile at ({x},{y}) has wrong resource type: {res['type']}"
+                return
+    pytest.skip("No mountain tile found in this world")
+
+
+def test_cave_spawns_stone():
+    """Cave tiles must have a stone resource at world generation."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_CAVE:
+                res = world.get_resource(x, y)
+                assert res is not None, f"Cave tile at ({x},{y}) has no resource"
+                assert res["type"] == "stone", f"Cave tile at ({x},{y}) has wrong resource type: {res['type']}"
+                return
+    pytest.skip("No cave tile found in this world")
+
+
+def test_river_has_water_resource():
+    """River tiles must have a water resource with quantity 99."""
+    world = World(width=30, height=30, seed=42)
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_RIVER:
+                res = world.get_resource(x, y)
+                assert res is not None, f"River tile at ({x},{y}) has no resource"
+                assert res["type"] == "water", f"River tile at ({x},{y}) has wrong resource type: {res['type']}"
+                assert res["quantity"] == 99, f"River water at ({x},{y}) has unexpected quantity: {res['quantity']}"
+                return
+    pytest.skip("No river tile found in this world")
+
+
+def test_river_water_inexhaustible():
+    """Consuming from a river tile must not reduce its quantity."""
+    world = World(width=30, height=30, seed=42)
+    river_pos = None
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_RIVER:
+                river_pos = (x, y)
+                break
+        if river_pos:
+            break
+
+    if river_pos is None:
+        pytest.skip("No river tile found in this world")
+
+    x, y = river_pos
+    world.consume_resource(x, y, 99)
+    res = world.get_resource(x, y)
+    assert res is not None, "River resource disappeared after consuming — should be inexhaustible"
+    assert res["quantity"] == 99, f"River quantity changed after consuming: {res['quantity']}"
+
+
+def test_stone_does_not_regen():
+    """Stone resources (mountain/cave) must NOT regenerate at dawn."""
+    world = World(width=30, height=30, seed=42)
+    _deplete_all(world)
+
+    # Collect all mountain and cave positions before regen
+    stone_tiles = {TILE_MOUNTAIN, TILE_CAVE}
+    mountain_cave_positions = {
+        (x, y)
+        for y in range(world.height)
+        for x in range(world.width)
+        if world.get_tile(x, y) in stone_tiles
+    }
+
+    with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
+        regenerated = world.update_resources(DAY_LENGTH)
+
+    regen_set = set(regenerated)
+    stone_regen = regen_set & mountain_cave_positions
+    assert stone_regen == set(), (
+        f"Stone positions should never regenerate, but these did: {stone_regen}"
+    )
+
+
+def test_mushroom_regen_at_dawn():
+    """Forest (mushroom) tiles must regenerate at dawn with 100% regen chance."""
+    world = World(width=30, height=30, seed=42)
+    forest_positions = [
+        (x, y)
+        for y in range(world.height)
+        for x in range(world.width)
+        if world.get_tile(x, y) == TILE_FOREST
+    ]
+    if not forest_positions:
+        pytest.skip("No forest tiles in this world")
+
+    _deplete_all(world)
+
+    with patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0):
+        regenerated = world.update_resources(DAY_LENGTH)
+
+    regen_set = set(regenerated)
+    forest_set = set(forest_positions)
+    mushroom_regen = regen_set & forest_set
+    assert len(mushroom_regen) > 0, "Expected at least some forest positions to regenerate mushrooms"
+
+
+def test_world_size_configurable():
+    """World dimensions must match the constructor arguments."""
+    small = World(width=10, height=10)
+    assert small.width == 10
+    assert small.height == 10
+    assert len(small.grid) == 10
+    assert len(small.grid[0]) == 10
+
+    rect = World(width=20, height=15)
+    assert rect.width == 20
+    assert rect.height == 15
+    assert len(rect.grid) == 15
+    assert len(rect.grid[0]) == 20
