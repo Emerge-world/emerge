@@ -368,16 +368,20 @@ class Oracle:
             required_items = requires.get("items")
             if isinstance(required_items, dict):
                 for item, qty in required_items.items():
-                    if not agent.inventory.has(item, int(qty)):
+                    try:
+                        qty_int = int(qty)
+                    except (ValueError, TypeError):
+                        qty_int = 1  # safe fallback: treat malformed qty as requiring 1
+                    if not agent.inventory.has(item, qty_int):
                         msg = (
                             f"{agent.name} cannot innovate '{new_action_name}': "
-                            f"requires {qty}x {item} in inventory "
+                            f"requires {qty_int}x {item} in inventory "
                             f"(has {agent.inventory.items.get(item, 0)})."
                         )
                         self._log(tick, msg)
                         agent.add_memory(
                             f"I tried to innovate '{new_action_name}' but I need "
-                            f"{qty}x {item} (I have {agent.inventory.items.get(item, 0)})."
+                            f"{qty_int}x {item} (I have {agent.inventory.items.get(item, 0)})."
                         )
                         return {"success": False, "message": msg, "effects": {}}
 
