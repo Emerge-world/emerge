@@ -195,3 +195,22 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - `_validate_innovation` — `produces` param added to prompt
 
 **No new base action added.** Crafting is a CRAFTING-category innovatable action with a `produces` field.
+
+### DEC-019 — Visual Logging for Phase 2 Mechanics (2026-03-05)
+
+**Context:** Phase 2 added crafting, inventory, day/night cycles, and resource regeneration. The existing markdown logs only captured action outcomes — not what items changed, not inventory state, not world resource changes. This made it impossible to visually assess whether new mechanics were behaving correctly.
+
+**Decision:**
+- **Oracle:** `_apply_crafting_recipe` now returns `{"consumed": {...}, "produced": {...}}` instead of `None`; `_resolve_custom_action` embeds `crafting_event` in the result dict
+- **Engine:** Snapshots `inventory_before` and `resources_before` at the start of each agent action and tick respectively; extracts `crafting_event` from oracle result; passes all of this to the logger; appends a `[CRAFTED: ...]` suffix to the live console line when crafting occurs
+- **SimLogger:** `log_oracle_resolution` accepts optional `inventory_before` and `crafting_event` params (existing call sites unaffected) and writes inventory diff and crafting blocks; new `log_tick_world_state` method writes a World State section per tick showing resources consumed and dawn regeneration
+
+**Rejected alternatives:**
+- JSON audit extension only (no live feedback during run)
+- Post-run renderer script (delayed, requires separate tool)
+
+**Consequences:**
+- Crafting events, inventory diffs, and world resource changes are now visible both in the live console and in saved markdown tick logs
+- `_apply_crafting_recipe` return type changed from `None` to `dict` — callers that discarded the return value are unaffected
+
+**Files modified:** `simulation/oracle.py`, `simulation/engine.py`, `simulation/sim_logger.py`, `tests/test_visual_logging.py` (new)

@@ -128,6 +128,9 @@ class SimulationEngine:
         self._print_tick_header(tick, alive_agents, time_description)
         self.sim_logger.log_tick_start(tick, alive_agents)
 
+        # Snapshot world resources before any agent acts this tick
+        resources_before = {pos: dict(res) for pos, res in self.world.resources.items()}
+
         for agent in alive_agents:
             if not agent.alive:
                 continue
@@ -139,6 +142,9 @@ class SimulationEngine:
             if self.recorder:
                 stats_before = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
                 position_before = (agent.x, agent.y)
+
+            # Snapshot inventory before oracle resolves the action
+            inventory_before = dict(agent.inventory.items)
 
             # 2. Agent decides its action
             action = agent.decide_action(nearby, tick, time_description)
@@ -163,8 +169,17 @@ class SimulationEngine:
 
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
+            crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
-            print(f"     {status} {result['message']}")
+
+            # Append crafting summary to console output when crafting occurred
+            crafting_suffix = ""
+            if crafting_event and (crafting_event.get("consumed") or crafting_event.get("produced")):
+                c_str = ", ".join(f"-{q}x{i}" for i, q in crafting_event["consumed"].items())
+                p_str = ", ".join(f"+{q}x{i}" for i, q in crafting_event["produced"].items())
+                parts = [s for s in [c_str, p_str] if s]
+                crafting_suffix = f"  [CRAFTED: {' '.join(parts)}]"
+            print(f"     {status} {result['message']}{crafting_suffix}")
 
             # Collect event for web broadcast
             self._tick_events.append({
@@ -174,8 +189,12 @@ class SimulationEngine:
                 "message": result["message"],
             })
 
-            # 5. Log oracle resolution
-            self.sim_logger.log_oracle_resolution(tick, agent, action, result)
+            # 5. Log oracle resolution (with inventory diff and crafting event)
+            self.sim_logger.log_oracle_resolution(
+                tick, agent, action, result,
+                inventory_before=inventory_before,
+                crafting_event=crafting_event,
+            )
 
             # 6. Apply passive tick effects (hunger, etc.)
             prev_life = agent.life
@@ -212,6 +231,18 @@ class SimulationEngine:
         regenerated = self.world.update_resources(tick)
         if regenerated:
             logger.info("[tick %d] %d tree(s) regenerated fruit at dawn", tick, len(regenerated))
+
+        # Log world state (resource changes + day/night period) for this tick
+        resources_after = {pos: dict(res) for pos, res in self.world.resources.items()}
+        self.sim_logger.log_tick_world_state(
+            tick=tick,
+            period=self.day_cycle.get_period(tick),
+            hour=self.day_cycle.get_hour(tick),
+            day=self.day_cycle.get_day(tick),
+            resources_before=resources_before,
+            resources_after=resources_after,
+            regenerated=regenerated,
+        )
 
         # Memory compression
         for agent in alive_agents:

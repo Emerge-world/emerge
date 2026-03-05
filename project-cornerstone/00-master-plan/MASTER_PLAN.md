@@ -44,7 +44,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Basic crafting as an innovatable action (see DEC-018)
 - [ ] Weather (rain, drought) affecting resources
 - [ ] Rethink agent and oracle prompts to incorporate new world complexity
-- [ ] Logging updates to assess new mechanics visually
+- [x] Logging updates to assess new mechanics visually (see DEC-019)
 - **Context**: `02-world/`, `06-innovation-system/`
 
 ### PHASE 3 — Social

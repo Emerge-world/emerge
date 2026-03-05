@@ -117,7 +117,15 @@ class SimLogger:
         self._append(f"tick_{tick:04d}.md", block)
         self._append(self._agent_file(agent.name), f"## Tick {tick:04d}\n\n{block}")
 
-    def log_oracle_resolution(self, tick: int, agent, action: dict, result: dict):
+    def log_oracle_resolution(
+        self,
+        tick: int,
+        agent,
+        action: dict,
+        result: dict,
+        inventory_before: dict | None = None,
+        crafting_event: dict | None = None,
+    ):
         """Log the oracle resolution to tick + agent files."""
         status = "SUCCESS" if result["success"] else "FAILED"
         block = (
@@ -127,6 +135,44 @@ class SimLogger:
             f"**Stats after:** {self._stats_line(agent)}\n\n"
             "---\n\n"
         )
+
+        if inventory_before is not None:
+            inv_after = dict(agent.inventory.items)
+            all_keys = set(inventory_before) | set(inv_after)
+            changes = []
+            for k in sorted(all_keys):
+                b = inventory_before.get(k, 0)
+                a = inv_after.get(k, 0)
+                if a > b:
+                    changes.append(f"+{a - b} {k}")
+                elif a < b:
+                    changes.append(f"-{b - a} {k}")
+            inv_before_str = (
+                ", ".join(f"{k}={v}" for k, v in sorted(inventory_before.items()))
+                or "empty"
+            )
+            inv_after_str = (
+                ", ".join(f"{k}={v}" for k, v in sorted(inv_after.items())) or "empty"
+            )
+            changes_str = ", ".join(changes) or "no change"
+            inv_block = (
+                f"**Inventory before:** {inv_before_str}\n"
+                f"**Inventory after:** {inv_after_str} ({changes_str})\n\n"
+            )
+            block = block.replace("---\n\n", inv_block + "---\n\n", 1)
+
+        if crafting_event and (crafting_event.get("consumed") or crafting_event.get("produced")):
+            consumed_str = (
+                ", ".join(f"{q}x {i}" for i, q in crafting_event["consumed"].items())
+                or "nothing"
+            )
+            produced_str = (
+                ", ".join(f"{q}x {i}" for i, q in crafting_event["produced"].items())
+                or "nothing"
+            )
+            craft_block = f"**Crafting:** consumed [{consumed_str}] -> produced [{produced_str}]\n\n"
+            block = block.replace("---\n\n", craft_block + "---\n\n", 1)
+
         self._append(f"tick_{tick:04d}.md", block)
         self._append(self._agent_file(agent.name), block)
 
@@ -157,6 +203,42 @@ class SimLogger:
         block = f"**Tick effects for {agent.name}:** {effects_description}\n\n"
         self._append(f"tick_{tick:04d}.md", block)
         self._append(self._agent_file(agent.name), block)
+
+    def log_tick_world_state(
+        self,
+        tick: int,
+        period: str,
+        hour: int,
+        day: int,
+        resources_before: dict,
+        resources_after: dict,
+        regenerated: list,
+    ) -> None:
+        """Append world-state summary (resources consumed, regenerated) to the tick file."""
+        period_icons = {"day": "☀️", "sunset": "🌅", "night": "🌙"}
+        icon = period_icons.get(period, "")
+
+        harvested = []
+        all_positions = set(resources_before) | set(resources_after)
+        for pos in sorted(all_positions):
+            before = resources_before.get(pos)
+            after = resources_after.get(pos)
+            if before and (not after or after["quantity"] < before["quantity"]):
+                delta = before["quantity"] - (after["quantity"] if after else 0)
+                harvested.append(f"({pos[0]},{pos[1]}) {before['type']} -{delta}")
+
+        lines = [f"## World State — {icon} {period.capitalize()} (Day {day}, {hour:02d}:00)\n\n"]
+        lines.append(
+            "**Resources consumed this tick:** "
+            + (", ".join(harvested) if harvested else "none")
+            + "\n\n"
+        )
+        if regenerated:
+            regen_str = ", ".join(f"({x},{y})" for x, y in regenerated)
+            lines.append(f"**Regenerated at dawn:** {regen_str}\n\n")
+        lines.append("---\n\n")
+
+        self._append(f"tick_{tick:04d}.md", "".join(lines))
 
     # ------------------------------------------------------------------
     # Formatting helpers

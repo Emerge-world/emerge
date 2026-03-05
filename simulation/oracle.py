@@ -510,14 +510,18 @@ class Oracle:
         if existing_result:
             result = self._apply_custom_result(agent, action_type, existing_result, tick)
             if result.get("success"):
-                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+                result["crafting_event"] = self._apply_crafting_recipe(
+                    agent, action_type, required_items, produces, tick
+                )
             return result
 
         if not self.llm:
             result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
             agent.modify_energy(-5)
             self._log(tick, result["message"])
-            self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+            result["crafting_event"] = self._apply_crafting_recipe(
+                agent, action_type, required_items, produces, tick
+            )
             return result
 
         # Ask the oracle to determine the outcome
@@ -527,7 +531,9 @@ class Oracle:
             self.precedents[situation_key] = oracle_result
             result = self._apply_custom_result(agent, action_type, oracle_result, tick)
             if result.get("success"):
-                self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+                result["crafting_event"] = self._apply_crafting_recipe(
+                    agent, action_type, required_items, produces, tick
+                )
             return result
 
         # Fallback
@@ -535,8 +541,8 @@ class Oracle:
         msg = f"{agent.name} tried '{action_type}' with uncertain results."
         self._log(tick, msg)
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
-        self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
-        return {"success": True, "message": msg, "effects": {"energy": -5}}
+        crafting_event = self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+        return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event}
 
     def _apply_crafting_recipe(
         self,
@@ -545,11 +551,15 @@ class Oracle:
         required_items: dict,
         produces: dict,
         tick: int,
-    ) -> None:
+    ) -> dict:
         """Consume required items and add produced items for a crafting action.
 
         Pre-condition: caller must have already verified items are available via inventory.has().
+        Returns a dict with "consumed" and "produced" keys recording what actually changed.
         """
+        consumed: dict[str, int] = {}
+        produced: dict[str, int] = {}
+
         # Consume materials
         for item, qty in required_items.items():
             try:
@@ -557,7 +567,9 @@ class Oracle:
             except (ValueError, TypeError):
                 qty_int = 1
             removed = agent.inventory.remove(item, qty_int)
-            if not removed:
+            if removed:
+                consumed[item] = qty_int
+            else:
                 msg = f"{agent.name} lost track of {qty_int}x {item} during '{action_type}' (inventory inconsistency)."
                 self._log(tick, msg)
 
@@ -569,6 +581,7 @@ class Oracle:
                 qty_int = 1
             added = agent.inventory.add(item, qty_int)
             if added > 0:
+                produced[item] = added
                 agent.add_memory(
                     f"I crafted {added}x {item} via '{action_type}'. "
                     f"Inventory: {agent.inventory.to_prompt()}."
@@ -579,6 +592,8 @@ class Oracle:
                 agent.add_memory(
                     f"I crafted '{action_type}' but my inventory is full. I lost the {item} I made."
                 )
+
+        return {"consumed": consumed, "produced": produced}
 
     def _apply_custom_result(self, agent: Agent, action_type: str, result: dict, tick: int) -> dict:
         effects = result.get("effects", {})
