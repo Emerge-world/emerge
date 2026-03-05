@@ -124,7 +124,10 @@ INNOVATION_EFFECT_BOUNDS = {
 }
 
 # --- Base actions ---
-BASE_ACTIONS = ["move", "eat", "rest", "innovate"]
+BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup"]
+
+# --- Inventory ---
+AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry
 
 # --- Resource regeneration ---
 RESOURCE_REGEN_CHANCE = 0.3          # probability per depleted tree at each dawn
