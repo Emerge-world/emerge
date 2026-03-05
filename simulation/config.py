@@ -8,8 +8,52 @@ WORLD_HEIGHT = 15
 TILE_WATER = "water"
 TILE_LAND = "land"
 TILE_TREE = "tree"
+# New tile types (Phase 2)
+TILE_SAND     = "sand"
+TILE_FOREST   = "forest"
+TILE_MOUNTAIN = "mountain"
+TILE_CAVE     = "cave"
+TILE_RIVER    = "river"
 
-# World generation probabilities
+# Risk applied when an agent enters this tile type.
+# life_damage: flat life points lost on entry (0 = none).
+#   River life_damage is set to 0 here; Oracle LLM may add more based on current strength.
+# energy_cost_add: additional energy cost beyond ENERGY_COST_MOVE.
+TILE_RISKS = {
+    TILE_RIVER:    {"life_damage": 0,  "energy_cost_add": 3},
+    TILE_MOUNTAIN: {"life_damage": 0,  "energy_cost_add": 6},
+}
+
+# Extra energy recovery when resting on this tile (stacks with ENERGY_RECOVERY_REST).
+TILE_REST_BONUS = {
+    TILE_CAVE: {"energy_add": 20},
+}
+
+# Resources that spawn at world generation on each tile type.
+TILE_RESOURCE_SPAWN = {
+    TILE_TREE:     {"type": "fruit",    "min": 1, "max": 5},
+    TILE_FOREST:   {"type": "mushroom", "min": 1, "max": 3},
+    TILE_MOUNTAIN: {"type": "stone",    "min": 2, "max": 5},
+    TILE_CAVE:     {"type": "stone",    "min": 1, "max": 4},
+    TILE_RIVER:    {"type": "water",    "min": 99, "max": 99},
+}
+
+# World generation noise parameters.
+WORLD_NOISE_SCALE       = 3.5   # controls biome feature size (lower = larger biomes)
+WORLD_RIVER_NOISE_SCALE = 7.0   # secondary noise scale for river channel carving
+WORLD_RIVER_THRESHOLD   = 0.15  # secondary noise value below which tile becomes river
+
+# Height thresholds for tile assignment from Perlin heightmap (normalized 0–1).
+WORLD_HEIGHT_WATER    = 0.28
+WORLD_HEIGHT_SAND     = 0.38
+WORLD_HEIGHT_LAND     = 0.70
+WORLD_HEIGHT_TREE     = 0.76  # scattered trees (between land and dense forest)
+WORLD_HEIGHT_FOREST   = 0.82
+WORLD_HEIGHT_MOUNTAIN = 0.90
+WORLD_HEIGHT_CAVE     = 0.96
+# Height > WORLD_HEIGHT_CAVE → mountain peak (also TILE_MOUNTAIN type)
+
+# World generation probabilities (legacy white-noise, kept for fallback reference)
 WORLD_WATER_PROB = 0.15
 WORLD_TREE_PROB = 0.10  # on land tiles
 

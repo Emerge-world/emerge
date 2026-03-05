@@ -1,44 +1,60 @@
 # 02 — World System
 
-## Current State (Phase 0)
+## Current State (Phase 2)
 
-The world is a 10x10 2D tile matrix randomly generated with three types:
-- **water** (~15%): impassable — controlled by `WATER_RATIO = 0.15` in `config.py`
-- **land** (~76.5%): passable, no resources — remaining tiles after water and trees
-- **tree** (~8.5%): passable, contains fruit (1–5 units) — `TREE_DENSITY = 0.10` of land tiles
+The world is a configurable 2D tile matrix (default 10×10, overridable via `--width`/`--height` CLI flags) generated with Perlin noise via the `opensimplex` library. Eight tile types are implemented:
 
-> **Note**: Previous docs listed 65% land and 20% trees, which was a planning target. The actual config values are `WATER_RATIO=0.15` and `TREE_DENSITY=0.10` (10% of land tiles), yielding ~8.5% trees overall.
+| Tile     | Walkable | Resources          | Passive effect                                        |
+|----------|----------|--------------------|-------------------------------------------------------|
+| water    | No       | —                  | Impassable                                            |
+| sand     | Yes      | —                  | —                                                     |
+| land     | Yes      | —                  | —                                                     |
+| tree     | Yes      | fruit (1–5)        | —                                                     |
+| forest   | Yes      | mushroom (1–3)     | —                                                     |
+| mountain | Yes      | stone (2–5)        | +6 energy cost to enter                               |
+| cave     | Yes      | stone (1–4)        | +20 energy when resting inside                        |
+| river    | Yes      | water (qty=99, ∞)  | Oracle-determined life damage + +3 energy cost to enter |
+
+**Generation:** Two-pass Perlin noise. Primary heightmap assigns biomes; secondary river-noise map carves channels through sand/land zones.
+
+**Height thresholds** (in `config.py`):
+```
+h < WORLD_HEIGHT_WATER    (0.28) → water
+h < WORLD_HEIGHT_SAND     (0.38) → sand  (or river if river noise < WORLD_RIVER_THRESHOLD)
+h < WORLD_HEIGHT_LAND     (0.70) → land  (or river if river noise < WORLD_RIVER_THRESHOLD)
+h < WORLD_HEIGHT_TREE     (0.76) → tree
+h < WORLD_HEIGHT_FOREST   (0.82) → forest
+h < WORLD_HEIGHT_MOUNTAIN (0.90) → mountain
+h < WORLD_HEIGHT_CAVE     (0.96) → cave
+else                              → mountain peak (TILE_MOUNTAIN)
+```
+
+**Resource regeneration:**
+- Trees (fruit): dawn regen, 30% chance per depleted tree tile
+- Forests (mushrooms): dawn regen, 30% chance per depleted forest tile
+- Mountain / cave (stone): no regen — finite resource
+- River (water): quantity=99, inexhaustible (`consume_resource()` short-circuits for `type="water"`)
+
+**New resources require innovation:** `mushroom`, `stone`, and `water` are not accessible via base actions. Only `fruit` works with `eat`. Agents must innovate `forage`, `mine`, `drink`, etc. — preserving the emergence-first philosophy.
 
 ### Known Issues
 
-1. **Generation is white noise**: There's no geographic coherence. Water appears as scattered pixels instead of lakes/rivers. Trees don't form forests.
-2. **Resources don't regenerate**: Once all fruit is eaten, the world is depleted.
-3. **No resource variety**: Only fruit.
-4. **No persistence**: The world regenerates every execution.
+1. **Resources don't persist**: The world regenerates every execution.
+2. **No persistence**: The world state is not saved between runs.
 
 ## Phase 1 — Quick wins
 
-### Generation with Perlin Noise
-Replace random generation with Perlin noise to create coherent biomes.
+### ✅ Generation with Perlin Noise (implemented — see DEC-016)
+Replaced white-noise generation with two-pass Perlin noise (`opensimplex`) producing coherent biomes (sand beaches, plains, forests, mountains, caves, rivers).
 
+### ✅ Resource regeneration (implemented — see DEC-015)
 ```python
-# Proposed algorithm:
-# 1. Generate heightmap with Perlin noise
-# 2. height < 0.3 → water
-# 3. height 0.3-0.4 → beach/sand (new tile)
-# 4. height 0.4-0.7 → land (plains)
-# 5. height 0.7-0.85 → forest (trees)
-# 6. height > 0.85 → mountain (new tile, impassable but mineable)
-# Library: `noise` (pip install noise)
-```
-
-### Resource regeneration
-```python
-# Every N ticks, trees without fruit have a probability to regenerate.
-# Proposal: every 10 ticks, 30% chance per depleted tree to give 1-3 fruits.
-RESOURCE_REGEN_INTERVAL = 10
+# At dawn (tick % DAY_LENGTH == 0, skip tick 0):
+# - Depleted tree tiles: 30% chance to regrow 1–3 fruit
+# - Depleted forest tiles: 30% chance to regrow 1–3 mushrooms
 RESOURCE_REGEN_CHANCE = 0.3
-RESOURCE_REGEN_AMOUNT = (1, 3)
+RESOURCE_REGEN_AMOUNT_MIN = 1
+RESOURCE_REGEN_AMOUNT_MAX = 3
 ```
 
 ### World persistence
@@ -99,17 +115,17 @@ rolls for fruit regeneration:
 
 ## Phase 2 — Survival Depth
 
-### New tiles
-| Tile     | Walkable    | Resources              | Notes                          |
-|----------|-------------|------------------------|--------------------------------|
-| water    | No          | fish (future)          | Natural barrier                |
-| sand     | Yes         | none                   | Water-land transition          |
-| land     | Yes         | none                   | Base tile                      |
-| tree     | Yes         | fruit, wood            | Wood = crafting resource       |
-| forest   | Yes (slow)  | fruit, wood, mushrooms | Slows movement                 |
-| mountain | No*         | stone, minerals        | *Walkable with innovation      |
-| cave     | Yes         | shelter, minerals      | Protects from weather          |
-| river    | No*         | drinking water, fish   | *Crossable with bridge         |
+### New tiles ✅ (implemented — see DEC-016)
+| Tile     | Walkable | Resources              | Notes                                          |
+|----------|----------|------------------------|------------------------------------------------|
+| water    | No       | —                      | Impassable deep water                          |
+| sand     | Yes      | none                   | Water-land transition                          |
+| land     | Yes      | none                   | Base tile                                      |
+| tree     | Yes      | fruit (1–5)            | Dawn regen 30%                                 |
+| forest   | Yes      | mushroom (1–3)         | Dawn regen 30%; requires forage innovation     |
+| mountain | Yes      | stone (2–5)            | +6 energy to enter; requires mine innovation   |
+| cave     | Yes      | stone (1–4)            | +20 energy rest bonus; requires mine innovation|
+| river    | Yes      | water (∞)              | Oracle-determined life damage; requires drink  |
 
 ### Day/night cycle *(implemented — see "Implemented in Phase 1/2" above)*
 

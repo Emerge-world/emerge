@@ -134,3 +134,26 @@ global `random` module.
 **Constants:** `RESOURCE_REGEN_CHANCE=0.3`, `RESOURCE_REGEN_AMOUNT_MIN=1`, `RESOURCE_REGEN_AMOUNT_MAX=3`
 
 **Files:** `simulation/config.py`, `simulation/world.py`, `simulation/engine.py`, `tests/test_world.py`
+
+## DEC-016 — New Tile Types + Perlin Noise Generation
+
+**Date:** 2026-03-05
+**Status:** Implemented
+**Files:** `simulation/world.py`, `simulation/oracle.py`, `simulation/config.py`, `simulation/engine.py`, `main.py`
+
+### Decision
+Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noise world generation with Perlin noise via the `opensimplex` library.
+
+### Key choices
+
+1. **All tiles walkable**: Even rivers. No tile is impassable except `water` (the existing deep water tile).
+2. **Risk model**: River damage is Oracle-determined (LLM judges current strength, cached as precedent). Mountain has a hardcoded energy surcharge (`TILE_RISKS`). This separates "physics" (Oracle) from "configuration" (constants).
+3. **Cave shelter**: Passive rest bonus (+20 energy) applied in `_resolve_rest()` via `TILE_REST_BONUS` config dict.
+4. **New resources require innovation**: `mushroom`, `stone`, and `water` resources are not accessible via base actions. Only `fruit` works with `eat`. Agents must innovate `forage`, `mine`, `drink`, etc. — preserving the emergence-first philosophy.
+5. **River water inexhaustible**: `consume_resource()` short-circuits for `type="water"` — never decrements, never deletes the river resource entry.
+6. **World size configurable**: `--width` and `--height` CLI flags added to `main.py`, passed through `SimulationEngine` to `World`.
+7. **Perlin two-pass**: Primary heightmap assigns biomes. Secondary river-noise map carves channels through sand/land zones.
+
+### Alternatives considered
+- Making rivers impassable (like water): rejected — user wanted all tiles walkable with emergent risk.
+- Using Python's `noise` library: rejected — Python 3.12 compatibility issues; `opensimplex` chosen instead.

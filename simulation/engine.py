@@ -34,6 +34,8 @@ class SimulationEngine:
         max_ticks: int = MAX_TICKS,
         audit: bool = False,
         start_hour: int = WORLD_START_HOUR,
+        world_width: int = WORLD_WIDTH,
+        world_height: int = WORLD_HEIGHT,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -55,7 +57,7 @@ class SimulationEngine:
         self.day_cycle = DayCycle(start_hour=start_hour)
 
         # Create world
-        self.world = World(seed=world_seed)
+        self.world = World(width=world_width, height=world_height, seed=world_seed)
 
         # Create simulation logger
         self.sim_logger = SimLogger()
@@ -86,11 +88,11 @@ class SimulationEngine:
                 "num_agents": num_agents,
                 "use_llm": self.use_llm,
                 "world_seed": world_seed,
-                "world_size": f"{WORLD_WIDTH}x{WORLD_HEIGHT}",
+                "world_size": f"{world_width}x{world_height}",
             }
             self.recorder = AuditRecorder(self.sim_logger.run_dir, audit_config)
 
-        logger.info(f"Simulation initialized: {num_agents} agents, world {WORLD_WIDTH}x{WORLD_HEIGHT}")
+        logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
     def run(self):
         """Run the complete simulation."""
@@ -226,7 +228,7 @@ class SimulationEngine:
             "num_agents": len(self.agents),
             "use_llm": self.use_llm,
             "llm_model": self.llm.model if self.llm else "none",
-            "world_size": f"{WORLD_WIDTH}x{WORLD_HEIGHT}",
+            "world_size": f"{self.world.width}x{self.world.height}",
         }
         world_summary = self.world.get_summary()
         self.sim_logger.log_overview_start(config_summary, world_summary, self.agents)
@@ -241,7 +243,9 @@ class SimulationEngine:
         print(f"  Tiles: 🌊 Water={summary['tile_counts'].get('water', 0)} | "
               f"🟫 Land={summary['tile_counts'].get('land', 0)} | "
               f"🌳 Trees={summary['tile_counts'].get('tree', 0)}")
-        print(f"  Available fruit: {summary['total_fruit_available']} in {summary['fruit_locations']} trees")
+        fruit_qty = summary["resources_by_type"].get("fruit", 0)
+        fruit_locs = sum(1 for r in self.world.resources.values() if r["type"] == "fruit")
+        print(f"  Available fruit: {fruit_qty} in {fruit_locs} trees")
         print(f"  Agents: {len(self.agents)}")
         print(f"  LLM: {'✅ ' + self.llm.model if self.llm else '❌ Fallback mode (no LLM)'}")
         print(f"  Max ticks: {self.max_ticks}")
@@ -346,7 +350,9 @@ class SimulationEngine:
         # World summary
         summary = self.world.get_summary()
         print(f"\n  🌍 Final world state:")
-        print(f"    Remaining fruit: {summary['total_fruit_available']} in {summary['fruit_locations']} trees")
+        remaining_fruit_qty = summary["resources_by_type"].get("fruit", 0)
+        remaining_fruit_locs = sum(1 for r in self.world.resources.values() if r["type"] == "fruit")
+        print(f"    Remaining fruit: {remaining_fruit_qty} in {remaining_fruit_locs} trees")
 
         print("\n" + "=" * 70)
 
