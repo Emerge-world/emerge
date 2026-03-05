@@ -110,3 +110,10 @@
 **Rationale:** Keeps runs deterministic across restarts and avoids redundant LLM calls for already-validated actions. Per-seed isolation prevents cross-contamination between different world configurations. Unseeded runs use `precedents_unseeded.json`. `save_precedents` does not raise (catches OSError/TypeError/ValueError) so a disk error in finally cannot mask a simulation exception.
 **Alternatives considered:** Global single file (contamination risk across seeds); PrecedentKey/Value dataclasses (deferred — YAGNI until needed).
 
+### DEC-014: Personality system deferred to Phase 3
+- **Date**: 2026-03-05
+- **Context**: Personality was the last pending item in Phase 1. Individual traits (courage, curiosity, patience) were designed to influence agent decision-making, but without other agents to interact with, the behavioral differences are minimal and hard to validate. The `sociability` trait was already scoped to Phase 3 in the design docs. Implementing the full personality system in Phase 2 would add complexity (prompt changes, config, dataclass, tests) with no social payoff until Phase 3.
+- **Decision**: Move the personality system entirely to Phase 3. It will be designed alongside perception, communication, and social interaction mechanics. Sociability and individual traits will be introduced together when they can meaningfully affect agent behavior.
+- **Rejected alternatives**: Implement individual traits only in Phase 1 and defer sociability to Phase 3 (split implementation adds fragmentation and maintenance cost across phases). Implement personality in Phase 2 (Phase 2 is survival-depth focused; personality doesn't affect resource gathering or crafting meaningfully).
+- **Consequences**: Phase 1 is now complete. Phase 2 focuses entirely on survival depth (resources, inventory, crafting, weather). Phase 3 gains personality as its first item, making it the foundation for all social mechanics.
+

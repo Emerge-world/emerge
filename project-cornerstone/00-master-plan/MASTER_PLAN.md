@@ -27,17 +27,16 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Fallback mode without LLM
 - [x] Console output with stat bars
 
-### PHASE 1 — Intelligence (CURRENT)
+### PHASE 1 — Intelligence ✅ (COMPLETED)
 - [x] Improved prompts for smarter decisions (compact ASCII grid, resource hints, few-shot examples, `prompts/` template system)
 - [x] Structured logging (markdown `sim_logger.py`; structlog JSON planned for later in Phase 1)
-- [ ] Personality system per agent — **pending**
 - [x] Short and long-term memory (episodic + semantic)
 - [x] Improved innovation system with robust validation (`requires` prerequisites, effect bounds, categories, redundancy via LLM prompt — see DEC-011)
 - [x] Unit and integration tests (MockLLM) — `test_audit`, `test_memory`, `test_day_cycle`, `test_innovation` (20 tests)
-- [ ] Precedent persistence (JSON save/load) — **pending**
+- [x] Precedent persistence (JSON save/load) — (DEC-013)
 - **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
 
-### PHASE 2 — Survival Depth
+### PHASE 2 — Survival Depth (CURRENT)
 - [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
 - [ ] Weather (rain, drought) affecting resources
 - [ ] Resource regeneration (trees give fruit periodically)
@@ -47,6 +46,8 @@ Build an emergent world where agents controlled by language models learn to surv
 - **Context**: `02-world/`, `06-innovation-system/`
 
 ### PHASE 3 — Social
+- [ ] Personality system (courage, curiosity, patience) — individual behavioral traits
+- [ ] Sociability trait as bridge between personality and social behaviors
 - [ ] Perception of other agents
 - [ ] Communication (speak, signal)
 - [ ] Cooperation (share food, build together)

@@ -10,8 +10,7 @@ The following prompt improvements are already live:
 - **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
 - **Dual memory system**: Episodic (short-term, max 20) + semantic (long-term, max 30) memory. The decision prompt includes 10 semantic + 10 episodic entries via `memory.to_prompt()`. See DEC-009, implemented in `simulation/memory.py`.
 
-**Pending for Phase 1:**
-- Personality traits dataclass + system prompt inclusion
+Phase 1 is complete. Personality system is scheduled for **Phase 3** (see DEC-014).
 
 ---
 
@@ -78,16 +77,16 @@ class Memory:
         return f"KNOWLEDGE:\n{sem}\n\nRECENT EVENTS:\n{epi}"
 ```
 
-### Personality system *(pending)*
+### Personality system *(Phase 3 — deferred, see DEC-014)*
 
-Each agent is born with traits that influence their decisions:
+Each agent will be born with traits that influence their decisions. All four traits are implemented together in Phase 3 alongside social mechanics, where they can meaningfully affect agent behavior:
 
 ```python
 PERSONALITY_TRAITS = {
     "courage": (0.0, 1.0),      # 0=coward, 1=daredevil
     "curiosity": (0.0, 1.0),    # 0=conservative, 1=explorer
     "patience": (0.0, 1.0),     # 0=impulsive, 1=methodical
-    "sociability": (0.0, 1.0),  # 0=solitary, 1=gregarious (Phase 3)
+    "sociability": (0.0, 1.0),  # 0=solitary, 1=gregarious
 }
 # Included in the agent's system prompt:
 # "You are Ada. You are very curious (0.9) but impatient (0.2).
