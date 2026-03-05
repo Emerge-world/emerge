@@ -275,9 +275,24 @@ class Oracle:
                     )
                     return {"success": True, "message": msg, "effects": {"hunger": -hunger_reduction, "energy": -cost}}
 
-        msg = f"{agent.name} tried to eat but there's no food nearby."
-        self._log(tick, msg)
-        agent.add_memory("I tried to eat but couldn't find food within reach.")
+        # Collect non-fruit resources nearby so the agent can reason about innovating
+        nearby_other = {
+            self.world.get_resource(x, y)["type"]
+            for (x, y) in positions_to_check
+            if self.world.get_resource(x, y) and self.world.get_resource(x, y)["type"] != "fruit"
+        }
+        if nearby_other:
+            resource_hint = ", ".join(sorted(nearby_other))
+            msg = f"{agent.name} tried to eat but found no fruit nearby (nearby: {resource_hint})."
+            self._log(tick, msg)
+            agent.add_memory(
+                f"I tried to eat but found no fruit. Nearby resources: {resource_hint}. "
+                f"I might need to innovate a new action to use them."
+            )
+        else:
+            msg = f"{agent.name} tried to eat but there's no food nearby."
+            self._log(tick, msg)
+            agent.add_memory("I tried to eat but couldn't find food within reach.")
         return {"success": False, "message": msg, "effects": {}}
 
     def _resolve_rest(self, agent: Agent, action: dict, tick: int) -> dict:
