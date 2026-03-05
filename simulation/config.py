@@ -47,6 +47,7 @@ WORLD_RIVER_THRESHOLD   = 0.15  # secondary noise value below which tile becomes
 WORLD_HEIGHT_WATER    = 0.28
 WORLD_HEIGHT_SAND     = 0.38
 WORLD_HEIGHT_LAND     = 0.70
+WORLD_HEIGHT_TREE     = 0.76  # scattered trees (between land and dense forest)
 WORLD_HEIGHT_FOREST   = 0.82
 WORLD_HEIGHT_MOUNTAIN = 0.90
 WORLD_HEIGHT_CAVE     = 0.96

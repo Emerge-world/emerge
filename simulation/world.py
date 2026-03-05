@@ -20,7 +20,7 @@ from simulation.config import (
     TILE_RESOURCE_SPAWN,
     WORLD_NOISE_SCALE, WORLD_RIVER_NOISE_SCALE, WORLD_RIVER_THRESHOLD,
     WORLD_HEIGHT_WATER, WORLD_HEIGHT_SAND, WORLD_HEIGHT_LAND,
-    WORLD_HEIGHT_FOREST, WORLD_HEIGHT_MOUNTAIN, WORLD_HEIGHT_CAVE,
+    WORLD_HEIGHT_TREE, WORLD_HEIGHT_FOREST, WORLD_HEIGHT_MOUNTAIN, WORLD_HEIGHT_CAVE,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,8 @@ class World:
                 elif h < WORLD_HEIGHT_LAND:
                     r = (gen_river.noise2(x / WORLD_RIVER_NOISE_SCALE, y / WORLD_RIVER_NOISE_SCALE) + 1) / 2
                     tile = TILE_RIVER if r < WORLD_RIVER_THRESHOLD else TILE_LAND
+                elif h < WORLD_HEIGHT_TREE:
+                    tile = TILE_TREE
                 elif h < WORLD_HEIGHT_FOREST:
                     tile = TILE_FOREST
                 elif h < WORLD_HEIGHT_MOUNTAIN:
