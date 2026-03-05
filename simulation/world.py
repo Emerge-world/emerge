@@ -14,7 +14,6 @@ from simulation.config import (
     WORLD_WIDTH, WORLD_HEIGHT,
     TILE_WATER, TILE_LAND, TILE_TREE,
     TILE_SAND, TILE_FOREST, TILE_MOUNTAIN, TILE_CAVE, TILE_RIVER,
-    WORLD_WATER_PROB, WORLD_TREE_PROB,  # keep for backwards compat but won't use in generation
     DAY_LENGTH,
     RESOURCE_REGEN_CHANCE, RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX,
     TILE_RESOURCE_SPAWN,
@@ -40,10 +39,10 @@ class World:
         self._resource_positions: dict[str, list[tuple[int, int]]] = {}
         self._generate(seed)
 
-    def _generate(self, seed=None):
+    def _generate(self, seed: Optional[int] = None):
         """Generate world using Perlin noise for geographic coherence."""
         gen_primary = OpenSimplex(seed if seed is not None else 0)
-        gen_river   = OpenSimplex((seed if seed is not None else 0) + 1)
+        gen_river   = OpenSimplex((seed if seed is not None else 0) + 1)  # + 1 ensures river noise field is uncorrelated with the height field
 
         self.grid = []
         self.resources = {}
@@ -106,9 +105,13 @@ class World:
         return self.resources.get((x, y))
 
     def consume_resource(self, x: int, y: int, amount: int = 1) -> int:
-        """Consume a resource at a tile. Returns the amount actually consumed."""
+        """Consume a resource at a tile. Returns the amount actually consumed.
+        Water resources (rivers) are inexhaustible and are never decremented.
+        """
         res = self.resources.get((x, y))
         if res and res["quantity"] > 0:
+            if res["type"] == "water":
+                return amount  # rivers are inexhaustible — don't decrement
             consumed = min(amount, res["quantity"])
             res["quantity"] -= consumed
             if res["quantity"] <= 0:
