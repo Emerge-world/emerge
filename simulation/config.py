@@ -73,6 +73,7 @@ HUNGER_DAMAGE_PER_TICK = 3    # life damage when hunger > threshold
 ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 10
+ENERGY_COST_PICKUP = 0
 ENERGY_RECOVERY_REST = 50
 ENERGY_LOW_THRESHOLD = 20    # below this, agent feels tired/dizzy (prompt signal)
 ENERGY_DAMAGE_PER_TICK = 2   # life lost per tick when energy == 0
