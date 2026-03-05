@@ -157,3 +157,51 @@ class TestInventorySerialization:
         inv = Inventory.from_dict(d)
         assert inv.is_empty()
         assert inv.capacity == 10
+
+
+class TestInventoryInputValidation:
+    def test_add_zero_qty(self):
+        inv = Inventory(capacity=10)
+        added = inv.add("fruit", 0)
+        assert added == 0
+        assert inv.is_empty()
+
+    def test_add_negative_qty(self):
+        inv = Inventory(capacity=10)
+        added = inv.add("fruit", -1)
+        assert added == 0
+        assert inv.is_empty()
+
+    def test_add_empty_item_name(self):
+        inv = Inventory(capacity=10)
+        added = inv.add("", 3)
+        assert added == 0
+        assert inv.is_empty()
+
+    def test_add_blank_item_name(self):
+        inv = Inventory(capacity=10)
+        added = inv.add("  ", 3)
+        assert added == 0
+        assert inv.is_empty()
+
+    def test_remove_zero_qty(self):
+        inv = Inventory(capacity=10)
+        inv.add("fruit", 3)
+        result = inv.remove("fruit", 0)
+        assert result is False
+        assert inv.items["fruit"] == 3  # unchanged
+
+    def test_remove_negative_qty(self):
+        inv = Inventory(capacity=10)
+        inv.add("fruit", 3)
+        result = inv.remove("fruit", -1)
+        assert result is False
+        assert inv.items["fruit"] == 3  # unchanged
+
+    def test_from_dict_ignores_invalid_items(self):
+        d = {"items": {"fruit": 2, "": 5, "stone": -1, "water": "bad"}, "capacity": 10}
+        inv = Inventory.from_dict(d)
+        assert inv.has("fruit", 2)
+        assert "" not in inv.items
+        assert "stone" not in inv.items
+        assert "water" not in inv.items
