@@ -401,12 +401,19 @@ class Oracle:
         agent.modify_energy(-ENERGY_COST_INNOVATE)
 
         # Register the new action as a precedent
-        self.precedents[f"innovation:{new_action_name}"] = {
+        precedent_data = {
             "creator": agent.name,
             "description": description,
             "tick_created": tick,
             "category": category,
         }
+        # Store requires + produces so _resolve_custom_action can handle crafting
+        if isinstance(requires, dict):
+            precedent_data["requires"] = requires
+        produces = action.get("produces")
+        if isinstance(produces, dict) and produces:
+            precedent_data["produces"] = produces
+        self.precedents[f"innovation:{new_action_name}"] = precedent_data
 
         msg = f"🆕 {agent.name} innovated '{new_action_name}' [{category}]: {description}."
         self._log(tick, msg)

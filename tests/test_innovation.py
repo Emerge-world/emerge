@@ -415,3 +415,82 @@ class TestEffectBoundsClamping:
         e_lo, _ = INNOVATION_EFFECT_BOUNDS["energy"]
         energy_spent = energy_before - agent.energy
         assert energy_spent <= -e_lo  # energy_spent should not exceed abs(lower bound)
+
+
+# ---------------------------------------------------------------------------
+# Crafting (DEC-018)
+# ---------------------------------------------------------------------------
+
+class TestCraftingPrecedentStorage:
+    """_resolve_innovate must persist requires + produces in the innovation precedent."""
+
+    def _innovate_make_knife(self, oracle, agent, tick=1):
+        """Helper: agent innovates make_knife with requires+produces."""
+        agent.inventory.add("stone", 3)  # agent must have the items to propose
+        return oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve two stones into a sharp blade",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"knife": 1},
+            },
+            tick=tick,
+        )
+
+    def test_produces_stored_in_precedent(self):
+        """After approval, precedent contains the produces dict."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        result = self._innovate_make_knife(oracle, agent)
+
+        assert result["success"] is True
+        precedent = oracle.precedents.get("innovation:make_knife", {})
+        assert precedent.get("produces") == {"knife": 1}
+
+    def test_requires_stored_in_precedent(self):
+        """After approval, precedent contains the requires dict."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        self._innovate_make_knife(oracle, agent)
+
+        precedent = oracle.precedents.get("innovation:make_knife", {})
+        assert precedent.get("requires") == {"items": {"stone": 2}}
+
+    def test_innovation_without_produces_stores_no_produces_key(self):
+        """A normal (non-crafting) innovation must not get a produces key."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+        precedent = oracle.precedents.get("innovation:fish", {})
+        assert "produces" not in precedent
+
+    def test_produces_none_not_stored(self):
+        """produces=None must not write a produces key."""
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_oracle(world)
+
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "forage",
+                "description": "gather mushrooms",
+                "produces": None,
+            },
+            tick=1,
+        )
+        precedent = oracle.precedents.get("innovation:forage", {})
+        assert "produces" not in precedent
