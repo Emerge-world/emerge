@@ -8,6 +8,7 @@ WORLD_HEIGHT = 15
 TILE_WATER = "water"
 TILE_LAND = "land"
 TILE_TREE = "tree"
+# New tile types (Phase 2)
 TILE_SAND     = "sand"
 TILE_FOREST   = "forest"
 TILE_MOUNTAIN = "mountain"
@@ -19,22 +20,22 @@ TILE_RIVER    = "river"
 #   River life_damage is set to 0 here; Oracle LLM may add more based on current strength.
 # energy_cost_add: additional energy cost beyond ENERGY_COST_MOVE.
 TILE_RISKS = {
-    "river":    {"life_damage": 0,  "energy_cost_add": 3},
-    "mountain": {"life_damage": 0,  "energy_cost_add": 6},
+    TILE_RIVER:    {"life_damage": 0,  "energy_cost_add": 3},
+    TILE_MOUNTAIN: {"life_damage": 0,  "energy_cost_add": 6},
 }
 
 # Extra energy recovery when resting on this tile (stacks with ENERGY_RECOVERY_REST).
 TILE_REST_BONUS = {
-    "cave": {"energy_add": 20},
+    TILE_CAVE: {"energy_add": 20},
 }
 
 # Resources that spawn at world generation on each tile type.
 TILE_RESOURCE_SPAWN = {
-    "tree":     {"type": "fruit",    "min": 1, "max": 5},
-    "forest":   {"type": "mushroom", "min": 1, "max": 3},
-    "mountain": {"type": "stone",    "min": 2, "max": 5},
-    "cave":     {"type": "stone",    "min": 1, "max": 4},
-    "river":    {"type": "water",    "min": 99, "max": 99},
+    TILE_TREE:     {"type": "fruit",    "min": 1, "max": 5},
+    TILE_FOREST:   {"type": "mushroom", "min": 1, "max": 3},
+    TILE_MOUNTAIN: {"type": "stone",    "min": 2, "max": 5},
+    TILE_CAVE:     {"type": "stone",    "min": 1, "max": 4},
+    TILE_RIVER:    {"type": "water",    "min": 99, "max": 99},
 }
 
 # World generation noise parameters.
