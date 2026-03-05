@@ -8,8 +8,50 @@ WORLD_HEIGHT = 15
 TILE_WATER = "water"
 TILE_LAND = "land"
 TILE_TREE = "tree"
+TILE_SAND     = "sand"
+TILE_FOREST   = "forest"
+TILE_MOUNTAIN = "mountain"
+TILE_CAVE     = "cave"
+TILE_RIVER    = "river"
 
-# World generation probabilities
+# Risk applied when an agent enters this tile type.
+# life_damage: flat life points lost on entry (0 = none).
+#   River life_damage is set to 0 here; Oracle LLM may add more based on current strength.
+# energy_cost_add: additional energy cost beyond ENERGY_COST_MOVE.
+TILE_RISKS = {
+    "river":    {"life_damage": 0,  "energy_cost_add": 3},
+    "mountain": {"life_damage": 0,  "energy_cost_add": 6},
+}
+
+# Extra energy recovery when resting on this tile (stacks with ENERGY_RECOVERY_REST).
+TILE_REST_BONUS = {
+    "cave": {"energy_add": 20},
+}
+
+# Resources that spawn at world generation on each tile type.
+TILE_RESOURCE_SPAWN = {
+    "tree":     {"type": "fruit",    "min": 1, "max": 5},
+    "forest":   {"type": "mushroom", "min": 1, "max": 3},
+    "mountain": {"type": "stone",    "min": 2, "max": 5},
+    "cave":     {"type": "stone",    "min": 1, "max": 4},
+    "river":    {"type": "water",    "min": 99, "max": 99},
+}
+
+# World generation noise parameters.
+WORLD_NOISE_SCALE       = 3.5   # controls biome feature size (lower = larger biomes)
+WORLD_RIVER_NOISE_SCALE = 7.0   # secondary noise scale for river channel carving
+WORLD_RIVER_THRESHOLD   = 0.15  # secondary noise value below which tile becomes river
+
+# Height thresholds for tile assignment from Perlin heightmap (normalized 0–1).
+WORLD_HEIGHT_WATER    = 0.28
+WORLD_HEIGHT_SAND     = 0.38
+WORLD_HEIGHT_LAND     = 0.70
+WORLD_HEIGHT_FOREST   = 0.82
+WORLD_HEIGHT_MOUNTAIN = 0.90
+WORLD_HEIGHT_CAVE     = 0.96
+# Height > WORLD_HEIGHT_CAVE → mountain peak (also TILE_MOUNTAIN type)
+
+# World generation probabilities (legacy white-noise, kept for fallback reference)
 WORLD_WATER_PROB = 0.15
 WORLD_TREE_PROB = 0.10  # on land tiles
 
