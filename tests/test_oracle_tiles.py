@@ -16,12 +16,14 @@ from simulation.config import (
     TILE_CAVE,
     TILE_RIVER,
     TILE_LAND,
+    TILE_WATER,
     TILE_RISKS,
     TILE_REST_BONUS,
     ENERGY_COST_MOVE,
     ENERGY_RECOVERY_REST,
     AGENT_START_LIFE,
     AGENT_START_ENERGY,
+    AGENT_MAX_ENERGY,
 )
 
 
@@ -60,7 +62,7 @@ def _find_adjacent_tile(world: World, tile_type: str):
                 # Check all cardinal + diagonal neighbours
                 for direction, (dx, dy) in DIRECTION_DELTAS.items():
                     ax, ay = x - dx, y - dy  # agent position
-                    if world.get_tile(ax, ay) is not None and world.get_tile(ax, ay) != "water":
+                    if world.get_tile(ax, ay) is not None and world.get_tile(ax, ay) != TILE_WATER:
                         return (ax, ay), (x, y), direction
     return None
 
@@ -94,9 +96,9 @@ class TestMountainExtraEnergy:
 
         expected_extra = TILE_RISKS[TILE_MOUNTAIN]["energy_cost_add"]
         energy_spent = energy_before - agent.energy
-        assert energy_spent >= ENERGY_COST_MOVE + expected_extra, (
-            f"Expected at least {ENERGY_COST_MOVE + expected_extra} energy spent, "
-            f"but only {energy_spent} was spent"
+        assert energy_spent == ENERGY_COST_MOVE + expected_extra, (
+            f"Expected exactly {ENERGY_COST_MOVE + expected_extra} energy spent, "
+            f"but {energy_spent} was spent"
         )
 
 
@@ -124,7 +126,6 @@ class TestCaveRestBonus:
         expected_min_recovery = ENERGY_RECOVERY_REST + bonus
         # If we started at 50, new energy should be at least 50 + expected_min_recovery
         # (capped at AGENT_MAX_ENERGY)
-        from simulation.config import AGENT_MAX_ENERGY
         expected_energy = min(AGENT_MAX_ENERGY, 50 + expected_min_recovery)
         assert agent.energy == expected_energy, (
             f"Expected energy {expected_energy} after cave rest, got {agent.energy}"
@@ -145,7 +146,6 @@ class TestCaveRestBonus:
         oracle = _make_oracle(world)
         oracle.resolve_action(agent, {"action": "rest"}, tick=1)
 
-        from simulation.config import AGENT_MAX_ENERGY
         expected_energy = min(AGENT_MAX_ENERGY, 10 + ENERGY_RECOVERY_REST)
         assert agent.energy == expected_energy, (
             f"Expected energy {expected_energy} after land rest, got {agent.energy}"

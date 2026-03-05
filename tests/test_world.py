@@ -202,7 +202,10 @@ def test_different_seeds_run_without_error():
 from simulation.config import (  # noqa: E402
     TILE_WATER, TILE_LAND,
     TILE_SAND, TILE_MOUNTAIN, TILE_CAVE, TILE_RIVER,
+    TILE_RESOURCE_SPAWN,
 )
+
+RIVER_WATER_QTY = TILE_RESOURCE_SPAWN[TILE_RIVER]["min"]  # 99 = inexhaustible sentinel
 
 
 def test_perlin_determinism():
@@ -212,8 +215,8 @@ def test_perlin_determinism():
 
     for y in range(20):
         for x in range(20):
-            assert world_a.grid[y][x] == world_b.grid[y][x], (
-                f"Tile mismatch at ({x},{y}): {world_a.grid[y][x]} vs {world_b.grid[y][x]}"
+            assert world_a.get_tile(x, y) == world_b.get_tile(x, y), (
+                f"Tile mismatch at ({x},{y}): {world_a.get_tile(x, y)} vs {world_b.get_tile(x, y)}"
             )
 
 
@@ -306,7 +309,7 @@ def test_river_has_water_resource():
                 res = world.get_resource(x, y)
                 assert res is not None, f"River tile at ({x},{y}) has no resource"
                 assert res["type"] == "water", f"River tile at ({x},{y}) has wrong resource type: {res['type']}"
-                assert res["quantity"] == 99, f"River water at ({x},{y}) has unexpected quantity: {res['quantity']}"
+                assert res["quantity"] == RIVER_WATER_QTY, f"River water at ({x},{y}) has unexpected quantity: {res['quantity']}"
                 return
     pytest.skip("No river tile found in this world")
 
@@ -327,10 +330,10 @@ def test_river_water_inexhaustible():
         pytest.skip("No river tile found in this world")
 
     x, y = river_pos
-    world.consume_resource(x, y, 99)
+    world.consume_resource(x, y, RIVER_WATER_QTY)
     res = world.get_resource(x, y)
     assert res is not None, "River resource disappeared after consuming — should be inexhaustible"
-    assert res["quantity"] == 99, f"River quantity changed after consuming: {res['quantity']}"
+    assert res["quantity"] == RIVER_WATER_QTY, f"River quantity changed after consuming: {res['quantity']}"
 
 
 def test_stone_does_not_regen():
