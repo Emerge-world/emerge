@@ -86,11 +86,12 @@ class World:
     def update_resources(self, tick: int) -> list[tuple[int, int]]:
         """
         At each dawn (tick % DAY_LENGTH == 0, skipping tick 0), depleted trees
-        have a chance to regrow fruit. Uses self._rng for determinism.
+        have a chance to regrow fruit. Trees that still have fruit are skipped.
+        Uses self._rng for determinism.
 
         Returns list of (x, y) positions where fruit regenerated this tick.
         """
-        if tick == 0 or tick % DAY_LENGTH != 0:
+        if not (tick != 0 and tick % DAY_LENGTH == 0):
             return []
 
         regenerated = []
