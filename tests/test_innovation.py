@@ -347,11 +347,6 @@ class TestInnovationLLMValidation:
 # ---------------------------------------------------------------------------
 
 class TestEffectBoundsClamping:
-    def _oracle_with_agent(self):
-        world = _make_world()
-        agent = _make_agent(world)
-        return oracle, agent  # type: ignore  # will be replaced below
-
     def test_clamp_helper_within_bounds(self):
         oracle = _make_oracle(_make_world())
         effects = {"hunger": -10, "energy": -5, "life": 0}

@@ -481,7 +481,8 @@ class Oracle:
             ri = stored_requires.get("items", {})
             if isinstance(ri, dict):
                 required_items = ri
-        produces: dict = innovation.get("produces") or {}
+        raw_produces = innovation.get("produces")
+        produces: dict = raw_produces if isinstance(raw_produces, dict) else {}
 
         # Fail fast if crafting items are missing — generic message, no item names revealed
         if required_items:
@@ -540,14 +541,22 @@ class Oracle:
         produces: dict,
         tick: int,
     ) -> None:
-        """Consume required items and add produced items for a crafting action."""
+        """Consume required items and add produced items for a crafting action.
+
+        Pre-condition: caller must have already verified items are available via inventory.has().
+        """
+        # Consume materials
         for item, qty in required_items.items():
             try:
                 qty_int = int(qty)
             except (ValueError, TypeError):
                 qty_int = 1
-            agent.inventory.remove(item, qty_int)
+            removed = agent.inventory.remove(item, qty_int)
+            if not removed:
+                msg = f"{agent.name} lost track of {qty_int}x {item} during '{action_type}' (inventory inconsistency)."
+                self._log(tick, msg)
 
+        # Produce items
         for item, qty in produces.items():
             try:
                 qty_int = int(qty)
@@ -558,6 +567,12 @@ class Oracle:
                 agent.add_memory(
                     f"I crafted {added}x {item} via '{action_type}'. "
                     f"Inventory: {agent.inventory.to_prompt()}."
+                )
+            else:
+                msg = f"{agent.name} crafted '{action_type}' but inventory is full — {item} was lost."
+                self._log(tick, msg)
+                agent.add_memory(
+                    f"I crafted '{action_type}' but my inventory is full. I lost the {item} I made."
                 )
 
     def _apply_custom_result(self, agent: Agent, action_type: str, result: dict, tick: int) -> dict:
