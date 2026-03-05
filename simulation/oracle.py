@@ -431,7 +431,7 @@ class Oracle:
         if agent.inventory.free_space() <= 0:
             msg = (
                 f"{agent.name} tried to pick up but inventory is full "
-                f"({agent.inventory.capacity}/{agent.inventory.capacity})."
+                f"({agent.inventory.total()}/{agent.inventory.capacity})."
             )
             self._log(tick, msg)
             agent.add_memory(
@@ -451,7 +451,7 @@ class Oracle:
         agent.add_memory(
             f"I picked up 1 {item_type} from this tile. Inventory: {agent.inventory.to_prompt()}."
         )
-        return {"success": True, "message": msg, "effects": {}}
+        return {"success": True, "message": msg, "effects": {"item_added": item_type}}
 
     # --- Innovated (custom) actions ---
 
