@@ -41,7 +41,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Resource regeneration (trees give fruit periodically) — see DEC-015
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
 - [x] Object inventory for agents (see DEC-017)
-- [ ] Basic crafting as an innovatable action
+- [x] Basic crafting as an innovatable action (see DEC-018)
 - [ ] Weather (rain, drought) affecting resources
 - [ ] Rethink agent and oracle prompts to incorporate new world complexity
 - [ ] Logging updates to assess new mechanics visually

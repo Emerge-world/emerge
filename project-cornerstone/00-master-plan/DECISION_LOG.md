@@ -176,3 +176,22 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 
 **Files added:** `simulation/inventory.py`, `tests/test_inventory.py`, `tests/test_oracle_pickup.py`
 **Files modified:** `simulation/agent.py`, `simulation/oracle.py`, `simulation/config.py`, `prompts/agent/decision.txt`, `prompts/agent/system.txt`
+
+### DEC-018 — Basic Crafting as Innovatable Action (2026-03-05)
+
+**Context:** Phase 2 requires crafting. DEC-017 added `requires.items` checks at innovation approval time but explicitly deferred item consumption. DEC-018 activates it and adds item production.
+
+**Decision:**
+- Agents propose `produces: {item: qty}` in the `innovate` action JSON (fully emergent — no hardcoded recipes)
+- `requires` and `produces` are stored in `precedents["innovation:<name>"]` at approval time
+- On every execution of a crafting action: `requires.items` are checked → consumed; `produces` items added to inventory
+- Failure message when materials are missing is generic (no item names revealed) — preserves emergence
+- Oracle `_validate_innovation` includes `produces` in the LLM prompt to check physical plausibility of the recipe
+
+**Implementation:**
+- `_resolve_innovate` — stores `requires` and `produces` in the innovation precedent
+- `_resolve_custom_action` — item check (fail-fast), then calls `_apply_crafting_recipe`
+- `_apply_crafting_recipe` (new helper) — consumes `requires.items`, adds `produces` items, logs inconsistencies
+- `_validate_innovation` — `produces` param added to prompt
+
+**No new base action added.** Crafting is a CRAFTING-category innovatable action with a `produces` field.
