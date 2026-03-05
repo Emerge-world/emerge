@@ -23,7 +23,7 @@ Add 5 new tile types with coherent Perlin-noise generation, new resources, and t
 | forest   | Yes      | —                                | mushroom (1–3) |
 | mountain | Yes      | +6 energy cost to move through   | stone (2–5)  |
 | cave     | Yes      | +20 energy when resting inside   | stone (1–4)  |
-| river    | Yes      | Oracle-determined life damage    | water (∞)    |
+| river    | Yes      | +3 energy cost (hardcoded) + Oracle-determined life damage | water (∞)    |
 
 ## Key Decisions
 
