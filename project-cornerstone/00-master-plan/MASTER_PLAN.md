@@ -40,7 +40,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
 - [x] Resource regeneration (trees give fruit periodically) — see DEC-015
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
-- [ ] Object inventory for agents
+- [x] Object inventory for agents (see DEC-017)
 - [ ] Basic crafting as an innovatable action
 - [ ] Weather (rain, drought) affecting resources
 - [ ] Rethink agent and oracle prompts to incorporate new world complexity
