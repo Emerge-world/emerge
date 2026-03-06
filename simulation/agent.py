@@ -21,6 +21,18 @@ from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
 
+# Mapping from tile type to ASCII character for the 7x7 vision grid.
+_TILE_CHARS: dict[str, object] = {
+    "tree":     lambda tile: "F" if "resource" in tile else "t",
+    "water":    lambda _: "W",
+    "sand":     lambda _: "S",
+    "forest":   lambda _: "f",
+    "mountain": lambda _: "M",
+    "cave":     lambda _: "C",
+    "river":    lambda _: "~",
+    "land":     lambda _: ".",
+}
+
 # Agent names
 AGENT_NAMES = ["Ada", "Bruno", "Clara", "Dante", "Elena",
                "Felix", "Gaia", "Hugo", "Iris", "Joel"]
@@ -176,17 +188,7 @@ class Agent:
                 elif (nx, ny) in tile_map:
                     t = tile_map[(nx, ny)]
                     tile_type = t["tile"]
-                    TILE_CHARS = {
-                        "tree":     lambda t: "F" if "resource" in t else "t",
-                        "water":    lambda _: "W",
-                        "sand":     lambda _: "S",
-                        "forest":   lambda _: "f",
-                        "mountain": lambda _: "M",
-                        "cave":     lambda _: "C",
-                        "river":    lambda _: "~",
-                        "land":     lambda _: ".",
-                    }
-                    char_fn = TILE_CHARS.get(tile_type, lambda _: ".")
+                    char_fn = _TILE_CHARS.get(tile_type, lambda _: ".")
                     row_chars.append(char_fn(t))
                 else:
                     row_chars.append("#")
