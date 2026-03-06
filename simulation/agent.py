@@ -21,6 +21,18 @@ from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
 
+# Mapping from tile type to ASCII character for the 7x7 vision grid.
+_TILE_CHARS: dict[str, object] = {
+    "tree":     lambda tile: "F" if "resource" in tile else "t",
+    "water":    lambda _: "W",
+    "sand":     lambda _: "S",
+    "forest":   lambda _: "f",
+    "mountain": lambda _: "M",
+    "cave":     lambda _: "C",
+    "river":    lambda _: "~",
+    "land":     lambda _: ".",
+}
+
 # Agent names
 AGENT_NAMES = ["Ada", "Bruno", "Clara", "Dante", "Elena",
                "Felix", "Gaia", "Hugo", "Iris", "Joel"]
@@ -176,12 +188,8 @@ class Agent:
                 elif (nx, ny) in tile_map:
                     t = tile_map[(nx, ny)]
                     tile_type = t["tile"]
-                    if tile_type == "tree":
-                        row_chars.append("F" if "resource" in t else "t")
-                    elif tile_type == "water":
-                        row_chars.append("W")
-                    else:
-                        row_chars.append(".")
+                    char_fn = _TILE_CHARS.get(tile_type, lambda _: ".")
+                    row_chars.append(char_fn(t))
                 else:
                     row_chars.append("#")
             rows.append(" ".join(row_chars))
@@ -224,6 +232,12 @@ class Agent:
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
                                time_description: str = "") -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
+        # Current tile type — shown to agent so it can write valid requires.tile in innovations
+        _current_tile = next(
+            (t["tile"] for t in nearby_tiles if t["x"] == self.x and t["y"] == self.y),
+            "land",
+        )
+        current_tile_info = f"[Tile: {_current_tile}]"
         resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
 
@@ -252,6 +266,7 @@ class Agent:
             status_effects=status_effects,
             time_info=time_description,
             inventory_info=inventory_info,
+            current_tile_info=current_tile_info,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
