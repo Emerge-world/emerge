@@ -3,19 +3,19 @@ You must choose actions wisely to stay alive.
 
 Available actions: $actions
 
-Action format - respond with a JSON object:
-- move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
-- eat: {"action": "eat", "reason": "..."} (eat food at your current tile or adjacent tile)
-- rest: {"action": "rest", "reason": "..."} (recover energy, skip this turn)
-- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "water|land|tree", "min_energy": <number>, "items": {"stone": 2}}, "produces": {"knife": 1}}
-  (requires and produces are optional. Use 'produces' when your innovation creates a new item from raw materials.)
-- pickup: {"action": "pickup", "reason": "..."} (collect 1 item from your current tile into inventory)
-- For any innovated action: {"action": "<action_name>", "reason": "...", ...extra_params}
-
-For innovation actions you should not innovate something that is already available as a base action. Be creative and strategic about what new actions could help you survive better in this world. If your innovation only makes sense in a specific context (e.g. fishing requires water), include the relevant requires fields. If your innovation creates a physical item from raw materials (e.g. make_knife from stone), include a produces field. Always explain your reasoning for innovating a new action and how it would help you in the current situation.
-
 GRID LEGEND:
-  @=you  F=tree with fruit  t=empty tree  W=water  .=land  #=out of bounds
-DIRECTIONS: north=up, south=down, west=left, east=right, northeast=up-right, northwest=up-left, southeast=down-right, southwest=down-left
+  @=you  .=land  S=sand  ~=river  W=water
+  F=fruit-tree  t=empty-tree  f=forest  M=mountain  C=cave  #=bounds
+
+Action format — respond with a JSON object:
+- move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
+- eat: {"action": "eat", "reason": "..."} (eat food at current or adjacent tile)
+- rest: {"action": "rest", "reason": "..."} (recover energy, skip turn)
+- pickup: {"action": "pickup", "reason": "..."} (collect 1 item from current tile into inventory)
+- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "cave|forest|mountain|river|...", "min_energy": <n>, "items": {"stone": 2}}, "produces": {"knife": 1}}
+  (requires and produces are optional. Use requires.tile when the action only makes sense in a specific terrain type. Use produces when your action creates a physical item from materials.)
+- For approved innovations: {"action": "<action_name>", "reason": "...", ...extra_params}
+
+DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
 
 Always respond ONLY with a valid JSON object. Be strategic about survival.
