@@ -42,8 +42,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
 - [x] Object inventory for agents (see DEC-017)
 - [x] Basic crafting as an innovatable action (see DEC-018)
-- [ ] Weather (rain, drought) affecting resources
-- [ ] Rethink agent and oracle prompts to incorporate new world complexity
+- [x] Rethink agent and oracle prompts to incorporate new world complexity
 - [x] Logging updates to assess new mechanics visually (see DEC-019)
 - **Context**: `02-world/`, `06-innovation-system/`
 
@@ -56,6 +55,8 @@ Build an emergent world where agents controlled by language models learn to surv
 - [ ] Conflict (compete for resources)
 - [ ] Knowledge transmission (teach innovations)
 - [ ] Reputation and relationships
+- [ ] Social memory (who did what to whom)
+- [ ] Reproduction with inherited traits 
 - **Context**: `07-interaction/`
 
 ### PHASE 4 — Culture & Evolution
@@ -76,6 +77,10 @@ Build an emergent world where agents controlled by language models learn to surv
 - [ ] Video export
 - **Context**: `09-visualization/`
 
+### PHASE 6 — Future Work
+- [ ] Weather (rain, drought) affecting resources
+- **Context**: `02-world/`
+
 ---
 
 ## Tech Stack
@@ -83,7 +88,7 @@ Build an emergent world where agents controlled by language models learn to surv
 | Component         | Technology              | Reason                             |
 |-------------------|-------------------------|------------------------------------|
 | Core              | Python 3.12+            | ML ecosystem, fast dev             |
-| LLM               | Ollama (Qwen 2.5-3B)   | Local, free, fast                  |
+| LLM               | Ollama (Qwen 3.5-4B)   | Local, free, fast                  |
 | Future LLM        | Claude API / OpenAI     | When we need more capacity         |
 | Testing           | pytest + hypothesis     | Property-based testing for sim     |
 | Logging           | `sim_logger.py` (markdown per-run); structlog (JSON lines) planned | Parseable, queryable |
