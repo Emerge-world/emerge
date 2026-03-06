@@ -36,7 +36,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Precedent persistence (JSON save/load) — (DEC-013)
 - **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
 
-### PHASE 2 — Survival Depth (CURRENT)
+### PHASE 2 — Survival Depth ✅ (COMPLETED)
 - [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
 - [x] Resource regeneration (trees give fruit periodically) — see DEC-015
 - [x] New tile types and resources (stone, rivers, caves) — see DEC-016
@@ -56,7 +56,6 @@ Build an emergent world where agents controlled by language models learn to surv
 - [ ] Knowledge transmission (teach innovations)
 - [ ] Reputation and relationships
 - [ ] Social memory (who did what to whom)
-- [ ] Reproduction with inherited traits 
 - **Context**: `07-interaction/`
 
 ### PHASE 4 — Culture & Evolution
