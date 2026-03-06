@@ -13,10 +13,19 @@ class TestBuildAsciiGrid:
         Agent._id_counter = 0
         self.agent = Agent(name="Test", x=5, y=5)
 
-    def test_sand_renders_S(self):
+    def test_agent_marker_renders_at(self):
+        """The agent's position is rendered as @ in the grid."""
         nearby = _make_nearby("sand")
         grid = self.agent._build_ascii_grid(nearby)
         assert "@" in grid  # agent marker at center
+
+    def test_out_of_bounds_renders_hash(self):
+        """Cells outside nearby_tiles render as #."""
+        # Agent at (0,0), only its own tile provided — all neighbors outside vision are #
+        agent = Agent(name="Edge", x=0, y=0)
+        nearby = [{"x": 0, "y": 0, "tile": "land", "distance": 0}]
+        grid = agent._build_ascii_grid(nearby)
+        assert "#" in grid
 
     def test_all_tile_chars(self):
         """Each tile type renders to the correct character in the grid."""
