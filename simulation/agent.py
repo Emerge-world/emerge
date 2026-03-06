@@ -232,6 +232,12 @@ class Agent:
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
                                time_description: str = "") -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
+        # Current tile type — shown to agent so it can write valid requires.tile in innovations
+        _current_tile = next(
+            (t["tile"] for t in nearby_tiles if t["x"] == self.x and t["y"] == self.y),
+            "land",
+        )
+        current_tile_info = f"[Tile: {_current_tile}]"
         resource_hints = self._build_resource_hints(nearby_tiles)
         memory_text = self.get_recent_memory()
 
@@ -260,6 +266,7 @@ class Agent:
             status_effects=status_effects,
             time_info=time_description,
             inventory_info=inventory_info,
+            current_tile_info=current_tile_info,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:

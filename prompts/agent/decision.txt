@@ -1,4 +1,5 @@
 $time_info
+$current_tile_info
 TICK $tick - What do you do next?
 
 YOUR STATS: Life=$life/$max_life, Hunger=$hunger/$max_hunger (danger at ${hunger_threshold}+), Energy=$energy/$max_energy

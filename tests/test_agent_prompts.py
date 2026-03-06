@@ -57,3 +57,24 @@ class TestBuildAsciiGrid:
         grid = self.agent._build_ascii_grid(nearby)
         row_center = grid.split("\n")[3]
         assert "F" in row_center
+
+
+class TestCurrentTileInfo:
+    def setup_method(self):
+        Agent._id_counter = 0
+        self.agent = Agent(name="Test", x=5, y=5)
+
+    def test_decision_prompt_contains_current_tile(self):
+        """decision prompt shows [Tile: cave] when agent is on cave."""
+        nearby = [
+            {"x": 5, "y": 5, "tile": "cave", "distance": 0},
+        ]
+        prompt = self.agent._build_decision_prompt(nearby, tick=1)
+        assert "[Tile: cave]" in prompt
+
+    def test_decision_prompt_tile_changes_with_position(self):
+        """different tile types appear correctly."""
+        for tile_type in ["land", "sand", "forest", "mountain", "river"]:
+            nearby = [{"x": 5, "y": 5, "tile": tile_type, "distance": 0}]
+            prompt = self.agent._build_decision_prompt(nearby, tick=1)
+            assert f"[Tile: {tile_type}]" in prompt
