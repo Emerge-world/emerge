@@ -176,12 +176,18 @@ class Agent:
                 elif (nx, ny) in tile_map:
                     t = tile_map[(nx, ny)]
                     tile_type = t["tile"]
-                    if tile_type == "tree":
-                        row_chars.append("F" if "resource" in t else "t")
-                    elif tile_type == "water":
-                        row_chars.append("W")
-                    else:
-                        row_chars.append(".")
+                    TILE_CHARS = {
+                        "tree":     lambda t: "F" if "resource" in t else "t",
+                        "water":    lambda _: "W",
+                        "sand":     lambda _: "S",
+                        "forest":   lambda _: "f",
+                        "mountain": lambda _: "M",
+                        "cave":     lambda _: "C",
+                        "river":    lambda _: "~",
+                        "land":     lambda _: ".",
+                    }
+                    char_fn = TILE_CHARS.get(tile_type, lambda _: ".")
+                    row_chars.append(char_fn(t))
                 else:
                     row_chars.append("#")
             rows.append(" ".join(row_chars))
