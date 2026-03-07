@@ -143,6 +143,33 @@ class Agent:
         """Backward-compatible access to all memory entries."""
         return self.memory_system.all_entries()
 
+    def nearby_agents_prompt(self, visible_agents: list[tuple]) -> str:
+        """
+        Format nearby agents for the decision prompt.
+        Returns empty string if no agents are visible (omits the section entirely).
+        Uses fuzzy stats to avoid revealing exact numbers.
+        """
+        if not visible_agents:
+            return ""
+
+        lines = ["NEARBY AGENTS:"]
+        for other, distance in visible_agents:
+            status_parts = []
+            if other.hunger > 50:
+                status_parts.append("looks hungry")
+            if other.energy < 30:
+                status_parts.append("looks tired")
+            if other.life < 50:
+                status_parts.append("looks hurt")
+            if other.inventory.items:
+                status_parts.append("carrying items")
+            status = ". ".join(status_parts).capitalize() if status_parts else "Looks healthy"
+            tile_word = "tile" if distance == 1 else "tiles"
+            lines.append(
+                f"- {other.name} @ ({other.x},{other.y}), {distance} {tile_word} away. {status}."
+            )
+        return "\n".join(lines)
+
     # --- Decision making with LLM ---
 
     def decide_action(self, nearby_tiles: list[dict], tick: int,
