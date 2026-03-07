@@ -78,6 +78,7 @@ Build an emergent world where agents controlled by language models learn to surv
 
 ### PHASE 6 — Future Work
 - [ ] Weather (rain, drought) affecting resources
+- [ ] Emergence measurement plan (check docs/plans/2026-03-07-emergence-measurement.md)
 - **Context**: `02-world/`
 
 ---
