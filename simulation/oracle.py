@@ -395,6 +395,8 @@ class Oracle:
 
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
+        _aggressive = False
+        _trust_impact = None
         if self.llm:
             validation = self._validate_innovation(
                 agent, new_action_name, description, tick,
@@ -406,6 +408,8 @@ class Oracle:
                 agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {validation['reason']}.")
                 return {"success": False, "message": msg, "effects": {}}
             category = validation.get("category", "SURVIVAL")
+            _aggressive = validation.get("aggressive", False)
+            _trust_impact = float(validation.get("trust_impact", 0.2)) if _aggressive else None
 
         # Approve innovation
         agent.actions.append(new_action_name)
@@ -424,6 +428,10 @@ class Oracle:
         produces = action.get("produces")
         if isinstance(produces, dict) and produces:
             precedent_data["produces"] = produces
+        # Store aggression metadata for trust damage on execution
+        if self.llm and _aggressive:
+            precedent_data["aggressive"] = True
+            precedent_data["trust_impact"] = _trust_impact
         self.precedents[f"innovation:{new_action_name}"] = precedent_data
 
         msg = f"🆕 {agent.name} innovated '{new_action_name}' [{category}]: {description}."
@@ -557,6 +565,7 @@ class Oracle:
                 result["crafting_event"] = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         if not self.llm:
@@ -566,6 +575,7 @@ class Oracle:
             result["crafting_event"] = self._apply_crafting_recipe(
                 agent, action_type, required_items, produces, tick
             )
+            self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         # Ask the oracle to determine the outcome
@@ -578,6 +588,7 @@ class Oracle:
                 result["crafting_event"] = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         # Fallback
@@ -586,7 +597,25 @@ class Oracle:
         self._log(tick, msg)
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
         crafting_event = self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+        self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
         return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event}
+
+    def _apply_aggressive_trust_damage(self, agent: Agent, action: dict, precedent_key: str, tick: int):
+        """If the innovation is marked aggressive, apply trust damage to victim and attacker."""
+        precedent = self.precedents.get(precedent_key, {})
+        if not precedent.get("aggressive"):
+            return
+        trust_impact = float(precedent.get("trust_impact", 0.2))
+        target_name = action.get("target")
+        if not target_name:
+            return
+        victim = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if victim:
+            victim.update_relationship(agent.name, delta=-trust_impact, tick=tick, is_conflict=True)
+            agent.update_relationship(target_name, delta=-trust_impact * 0.5, tick=tick, is_conflict=True)
 
     def _apply_crafting_recipe(
         self,
@@ -678,7 +707,10 @@ The agent already knows these actions: {existing}.
 The world is a primitive survival setting (think early human civilization).
 Is this innovation reasonable, feasible, and meaningfully different from existing actions?{produces_text}
 
-Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}"""
+Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}
+If this action involves aggression toward another agent (stealing, attacking, threatening), also include:
+  "aggressive": true, "trust_impact": <float 0.05-0.5 based on severity>
+Otherwise omit both fields."""
 
         system = prompt_loader.load("oracle/innovation_system")
 

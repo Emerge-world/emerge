@@ -113,3 +113,81 @@ def test_communicate_builds_trust():
     assert result["success"] is True
     assert "Bruno" in sender.relationships
     assert sender.relationships["Bruno"].trust == pytest.approx(0.05, abs=0.001)
+
+
+def test_aggressive_innovation_sets_trust_impact():
+    """Validate that oracle stores trust_impact in precedent for aggressive innovations."""
+    mock_llm = MagicMock()
+    mock_llm.generate_json.return_value = {
+        "approved": True,
+        "reason": "Physically plausible aggression.",
+        "category": "SOCIAL",
+        "aggressive": True,
+        "trust_impact": 0.3,
+    }
+    mock_world = MagicMock()
+    mock_world.get_tile.return_value = "land"
+    oracle = Oracle(world=mock_world, llm=mock_llm)
+    oracle.current_tick_agents = []
+    oracle._communicated_this_tick = set()
+
+    agent = Agent(name="Kai", x=5, y=5)
+    agent.energy = 40
+    action = {
+        "action": "innovate",
+        "new_action_name": "steal_food",
+        "description": "Grab food from another agent's hands.",
+        "requires": {},
+    }
+    oracle.resolve_action(agent, action, tick=1)
+    key = "innovation:steal_food"
+    assert key in oracle.precedents
+    if oracle.precedents[key].get("aggressive"):
+        assert "trust_impact" in oracle.precedents[key]
+
+
+def test_aggressive_innovation_applies_trust_damage():
+    """On execution, aggressive innovated actions damage trust between attacker and victim."""
+    mock_llm = MagicMock()
+    # First call: validate innovation → aggressive
+    mock_llm.generate_json.return_value = {
+        "approved": True,
+        "reason": "Plausible.",
+        "category": "SOCIAL",
+        "aggressive": True,
+        "trust_impact": 0.3,
+    }
+    mock_world = MagicMock()
+    mock_world.get_tile.return_value = "land"
+    oracle = Oracle(world=mock_world, llm=mock_llm)
+
+    attacker = Agent(name="Kai", x=5, y=5)
+    attacker.energy = 40
+    victim = Agent(name="Bruno", x=6, y=5)
+    oracle.current_tick_agents = [attacker, victim]
+    oracle._communicated_this_tick = set()
+
+    # 1. Innovate the action
+    innovate_action = {
+        "action": "innovate",
+        "new_action_name": "steal_food",
+        "description": "Grab food from another agent.",
+        "requires": {},
+    }
+    oracle.resolve_action(attacker, innovate_action, tick=1)
+
+    # 2. Execute it — second LLM call judges the outcome
+    mock_llm.generate_json.return_value = {
+        "success": True,
+        "message": "Kai grabs food from Bruno.",
+        "effects": {"hunger": -10},
+    }
+    exec_action = {"action": "steal_food", "target": "Bruno"}
+    oracle.resolve_action(attacker, exec_action, tick=2)
+
+    # Victim's trust toward attacker should be negative
+    assert "Kai" in victim.relationships
+    assert victim.relationships["Kai"].trust == pytest.approx(-0.3, abs=0.001)
+    # Attacker's trust toward victim should also drop (half)
+    assert "Bruno" in attacker.relationships
+    assert attacker.relationships["Bruno"].trust == pytest.approx(-0.15, abs=0.001)
