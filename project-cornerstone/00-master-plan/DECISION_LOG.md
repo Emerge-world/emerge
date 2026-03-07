@@ -214,3 +214,24 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - `_apply_crafting_recipe` return type changed from `None` to `dict` — callers that discarded the return value are unaffected
 
 **Files modified:** `simulation/oracle.py`, `simulation/engine.py`, `simulation/sim_logger.py`, `tests/test_visual_logging.py` (new)
+
+### DEC-020: Personality via prompt injection
+- **Date**: 2026-03-07
+- **Context**: Phase 3a added personality traits to agents.
+- **Decision**: Personality traits injected as natural language in the system prompt (not as probability modifiers). LLM interprets them organically.
+- **Rejected alternatives**: Probability modifiers on action selection (too rigid, bypasses LLM reasoning).
+- **Consequences**: Personality influence is emergent and qualitative; hard to measure directly but produces more believable behavior.
+
+### DEC-021: Emergent conflict (not a base action)
+- **Date**: 2026-03-07
+- **Context**: Phase 3b needed conflict mechanics without adding a generic "attack" action.
+- **Decision**: Aggression is not a base action. Agents innovate aggressive actions (steal, attack). Oracle validation LLM sets `aggressive: true` and `trust_impact: float` in the precedent. Trust damage is applied by Oracle on execution via `_apply_aggressive_trust_damage()`.
+- **Rejected alternatives**: Dedicated `attack` base action (too rigid), no conflict mechanics (misses emergent drama).
+- **Consequences**: Conflict emerges from agent creativity. Oracle precedent system now carries social metadata. Trust damage only triggers when a named `target` is present in the action dict.
+
+### DEC-022: Resource competition — first-come wins
+- **Date**: 2026-03-07
+- **Context**: Multiple agents may target the same resource tile in the same tick.
+- **Decision**: No engine-level conflict resolution for contested resources. Sequential Oracle processing means the first agent to act wins. Trust damage from conflict comes only from innovated aggressive actions, not from passive resource competition.
+- **Rejected alternatives**: Engine-level resource locking (complex), random resolution (unpredictable), explicit fight mechanics (phase 4 territory).
+- **Consequences**: Agent turn order matters. Agents that innovate aggressive actions can steal explicitly; otherwise resource competition is silent.

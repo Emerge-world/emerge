@@ -19,6 +19,8 @@ from simulation.memory import Memory
 from simulation.inventory import Inventory
 from simulation.personality import Personality
 from simulation import prompt_loader
+from simulation.message import IncomingMessage
+from simulation.relationship import Relationship
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,12 @@ class Agent:
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
+
+        # Incoming messages from other agents (cleared after decide_action each tick)
+        self.incoming_messages: list[IncomingMessage] = []
+
+        # Social relationship memory (persists across ticks)
+        self.relationships: dict[str, Relationship] = {}
 
         # Personality traits (injected into system prompt)
         self.personality = Personality.random()
@@ -167,6 +175,31 @@ class Agent:
             tile_word = "tile" if distance == 1 else "tiles"
             lines.append(
                 f"- {other.name} @ ({other.x},{other.y}), {distance} {tile_word} away. {status}."
+            )
+        return "\n".join(lines)
+
+    def get_messages_prompt(self) -> str:
+        if not self.incoming_messages:
+            return ""
+        lines = ["INCOMING MESSAGES:"]
+        for msg in self.incoming_messages:
+            lines.append(f'- {msg.sender} (tick {msg.tick}): "{msg.message}" [{msg.intent}]')
+        return "\n".join(lines)
+
+    def update_relationship(self, target_name: str, delta: float, tick: int, **kwargs):
+        if target_name not in self.relationships:
+            self.relationships[target_name] = Relationship(target=target_name)
+        self.relationships[target_name].update(delta=delta, tick=tick, **kwargs)
+
+    def get_relationships_prompt(self, current_tick: int) -> str:
+        if not self.relationships:
+            return ""
+        lines = ["RELATIONSHIPS:"]
+        for name, rel in self.relationships.items():
+            ticks_ago = current_tick - rel.last_tick
+            lines.append(
+                f"- {name}: {rel.status.capitalize()} (trust: {rel.trust:.2f}), "
+                f"last interacted {ticks_ago} tick(s) ago"
             )
         return "\n".join(lines)
 
@@ -285,6 +318,8 @@ class Agent:
 
         inventory_info = self.inventory.to_prompt()  # empty string if empty
         nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
+        incoming_messages_text = self.get_messages_prompt()
+        relationships_text = self.get_relationships_prompt(current_tick=tick)
 
         return prompt_loader.render(
             "agent/decision",
@@ -304,6 +339,8 @@ class Agent:
             inventory_info=inventory_info,
             current_tile_info=current_tile_info,
             nearby_agents=nearby_agents_text,
+            incoming_messages=incoming_messages_text,
+            relationships=relationships_text,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:

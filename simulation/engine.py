@@ -131,6 +131,10 @@ class SimulationEngine:
         # Snapshot world resources before any agent acts this tick
         resources_before = {pos: dict(res) for pos, res in self.world.resources.items()}
 
+        # Reset per-tick Oracle state for communication
+        self.oracle.current_tick_agents = alive_agents
+        self.oracle._communicated_this_tick = set()
+
         for agent in alive_agents:
             if not agent.alive:
                 continue
@@ -156,6 +160,9 @@ class SimulationEngine:
                                          nearby_agents=nearby_agent_list)
             action_str = action.get("action", "none")
             reason = action.get("reason", "")
+
+            # Clear incoming messages now that agent has decided (consumed this tick)
+            agent.incoming_messages.clear()
 
             # 3. Log the decision (extract and remove the trace before passing to oracle)
             llm_trace = action.pop("_llm_trace", None)

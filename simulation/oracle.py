@@ -12,7 +12,9 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
     TILE_RISKS, TILE_REST_BONUS,
+    COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS, COMMUNICATE_TRUST_DELTA,
 )
+from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
 from simulation.world import World
 from simulation.agent import Agent
@@ -55,6 +57,10 @@ class Oracle:
 
         # Log of everything that has happened in the world
         self.world_log: list[str] = []
+
+        # Per-tick state for communicate action
+        self.current_tick_agents: list = []
+        self._communicated_this_tick: set[str] = set()
 
     def load_precedents(self, filepath: str) -> None:
         """Load precedents from a JSON file and merge into self.precedents.
@@ -132,6 +138,8 @@ class Oracle:
             return self._resolve_innovate(agent, action, tick)
         elif action_type == "pickup":
             return self._resolve_pickup(agent, tick)
+        elif action_type == "communicate":
+            return self._resolve_communicate(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -387,6 +395,8 @@ class Oracle:
 
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
+        _aggressive = False
+        _trust_impact = None
         if self.llm:
             validation = self._validate_innovation(
                 agent, new_action_name, description, tick,
@@ -398,6 +408,8 @@ class Oracle:
                 agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {validation['reason']}.")
                 return {"success": False, "message": msg, "effects": {}}
             category = validation.get("category", "SURVIVAL")
+            _aggressive = validation.get("aggressive", False)
+            _trust_impact = float(validation.get("trust_impact", 0.2)) if _aggressive else None
 
         # Approve innovation
         agent.actions.append(new_action_name)
@@ -416,6 +428,10 @@ class Oracle:
         produces = action.get("produces")
         if isinstance(produces, dict) and produces:
             precedent_data["produces"] = produces
+        # Store aggression metadata for trust damage on execution
+        if self.llm and _aggressive:
+            precedent_data["aggressive"] = True
+            precedent_data["trust_impact"] = _trust_impact
         self.precedents[f"innovation:{new_action_name}"] = precedent_data
 
         msg = f"🆕 {agent.name} innovated '{new_action_name}' [{category}]: {description}."
@@ -467,6 +483,42 @@ class Oracle:
         )
         return {"success": True, "message": msg, "effects": {"item_added": item_type}}
 
+    def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Agent sends a message to a nearby agent."""
+        intent = action.get("intent", "")
+        if intent not in VALID_INTENTS:
+            return {"success": False, "message": f"Unknown intent '{intent}'.", "effects": {}}
+
+        if agent.name in self._communicated_this_tick:
+            return {"success": False, "message": "Already communicated this tick.", "effects": {}}
+
+        if agent.energy < COMMUNICATE_ENERGY_COST:
+            return {"success": False, "message": "Not enough energy to communicate.", "effects": {}}
+
+        target_name = action.get("target", "")
+        target = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if target is None:
+            return {"success": False, "message": f"{target_name} not found or not alive.", "effects": {}}
+
+        dist = abs(agent.x - target.x) + abs(agent.y - target.y)
+        if dist > AGENT_VISION_RADIUS:
+            return {"success": False, "message": f"{target_name} is too far away.", "effects": {}}
+
+        message_text = action.get("message", "")
+        agent.energy -= COMMUNICATE_ENERGY_COST
+        self._communicated_this_tick.add(agent.name)
+        target.incoming_messages.append(
+            IncomingMessage(sender=agent.name, tick=tick, message=message_text, intent=intent)
+        )
+        # Trust: sender trusts recipient a little more after reaching out
+        agent.update_relationship(target.name, delta=COMMUNICATE_TRUST_DELTA, tick=tick, is_cooperation=True)
+        msg = f"Message sent to {target_name}: \"{message_text}\""
+        self._log(tick, f"{agent.name} communicated with {target_name}: [{intent}] {message_text}")
+        return {"success": True, "message": msg, "effects": {}}
+
     # --- Innovated (custom) actions ---
 
     def _resolve_custom_action(self, agent: Agent, action: dict, tick: int) -> dict:
@@ -513,6 +565,7 @@ class Oracle:
                 result["crafting_event"] = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         if not self.llm:
@@ -522,6 +575,7 @@ class Oracle:
             result["crafting_event"] = self._apply_crafting_recipe(
                 agent, action_type, required_items, produces, tick
             )
+            self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         # Ask the oracle to determine the outcome
@@ -534,6 +588,7 @@ class Oracle:
                 result["crafting_event"] = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
             return result
 
         # Fallback
@@ -542,7 +597,25 @@ class Oracle:
         self._log(tick, msg)
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
         crafting_event = self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
+        self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
         return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event}
+
+    def _apply_aggressive_trust_damage(self, agent: Agent, action: dict, precedent_key: str, tick: int):
+        """If the innovation is marked aggressive, apply trust damage to victim and attacker."""
+        precedent = self.precedents.get(precedent_key, {})
+        if not precedent.get("aggressive"):
+            return
+        trust_impact = float(precedent.get("trust_impact", 0.2))
+        target_name = action.get("target")
+        if not target_name:
+            return
+        victim = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if victim:
+            victim.update_relationship(agent.name, delta=-trust_impact, tick=tick, is_conflict=True)
+            agent.update_relationship(target_name, delta=-trust_impact * 0.5, tick=tick, is_conflict=True)
 
     def _apply_crafting_recipe(
         self,
@@ -634,7 +707,10 @@ The agent already knows these actions: {existing}.
 The world is a primitive survival setting (think early human civilization).
 Is this innovation reasonable, feasible, and meaningfully different from existing actions?{produces_text}
 
-Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}"""
+Respond with JSON: {{"approved": true/false, "reason": "explanation", "category": "SURVIVAL|CRAFTING|EXPLORATION|SOCIAL"}}
+If this action involves aggression toward another agent (stealing, attacking, threatening), also include:
+  "aggressive": true, "trust_impact": <float 0.05-0.5 based on severity>
+Otherwise omit both fields."""
 
         system = prompt_loader.load("oracle/innovation_system")
 
