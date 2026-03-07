@@ -12,7 +12,9 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
     TILE_RISKS, TILE_REST_BONUS,
+    COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS,
 )
+from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
 from simulation.world import World
 from simulation.agent import Agent
@@ -55,6 +57,10 @@ class Oracle:
 
         # Log of everything that has happened in the world
         self.world_log: list[str] = []
+
+        # Per-tick state for communicate action
+        self.current_tick_agents: list = []
+        self._communicated_this_tick: set[str] = set()
 
     def load_precedents(self, filepath: str) -> None:
         """Load precedents from a JSON file and merge into self.precedents.
@@ -132,6 +138,8 @@ class Oracle:
             return self._resolve_innovate(agent, action, tick)
         elif action_type == "pickup":
             return self._resolve_pickup(agent, tick)
+        elif action_type == "communicate":
+            return self._resolve_communicate(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -466,6 +474,40 @@ class Oracle:
             f"I picked up 1 {item_type} from this tile. Inventory: {agent.inventory.to_prompt()}."
         )
         return {"success": True, "message": msg, "effects": {"item_added": item_type}}
+
+    def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Agent sends a message to a nearby agent."""
+        intent = action.get("intent", "")
+        if intent not in VALID_INTENTS:
+            return {"success": False, "message": f"Unknown intent '{intent}'.", "effects": {}}
+
+        if agent.name in self._communicated_this_tick:
+            return {"success": False, "message": "Already communicated this tick.", "effects": {}}
+
+        if agent.energy < COMMUNICATE_ENERGY_COST:
+            return {"success": False, "message": "Not enough energy to communicate.", "effects": {}}
+
+        target_name = action.get("target", "")
+        target = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if target is None:
+            return {"success": False, "message": f"{target_name} not found or not alive.", "effects": {}}
+
+        dist = abs(agent.x - target.x) + abs(agent.y - target.y)
+        if dist > AGENT_VISION_RADIUS:
+            return {"success": False, "message": f"{target_name} is too far away.", "effects": {}}
+
+        message_text = action.get("message", "")
+        agent.energy -= COMMUNICATE_ENERGY_COST
+        self._communicated_this_tick.add(agent.name)
+        target.incoming_messages.append(
+            IncomingMessage(sender=agent.name, tick=tick, message=message_text, intent=intent)
+        )
+        msg = f"Message sent to {target_name}: \"{message_text}\""
+        self._log(tick, f"{agent.name} communicated with {target_name}: [{intent}] {message_text}")
+        return {"success": True, "message": msg, "effects": {}}
 
     # --- Innovated (custom) actions ---
 
