@@ -173,7 +173,8 @@ class Agent:
     # --- Decision making with LLM ---
 
     def decide_action(self, nearby_tiles: list[dict], tick: int,
-                      time_description: str = "") -> dict:
+                      time_description: str = "",
+                      nearby_agents: list | None = None) -> dict:
         """
         Ask the LLM to decide what action to take.
         Returns a dict with the action and its parameters.
@@ -186,7 +187,8 @@ class Agent:
             return self._fallback_decision(nearby_tiles)
 
         system_prompt = self._build_system_prompt()
-        user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description)
+        user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description,
+                                                  nearby_agents=nearby_agents or [])
 
         result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
         
@@ -262,7 +264,8 @@ class Agent:
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
-                               time_description: str = "") -> str:
+                               time_description: str = "",
+                               nearby_agents: list | None = None) -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         # Current tile type — shown to agent so it can write valid requires.tile in innovations
         _current_tile = next(
@@ -281,6 +284,7 @@ class Agent:
             status_effects = ""
 
         inventory_info = self.inventory.to_prompt()  # empty string if empty
+        nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
 
         return prompt_loader.render(
             "agent/decision",
@@ -299,6 +303,7 @@ class Agent:
             time_info=time_description,
             inventory_info=inventory_info,
             current_tile_info=current_tile_info,
+            nearby_agents=nearby_agents_text,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
