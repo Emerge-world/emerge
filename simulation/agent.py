@@ -19,6 +19,7 @@ from simulation.memory import Memory
 from simulation.inventory import Inventory
 from simulation.personality import Personality
 from simulation import prompt_loader
+from simulation.message import IncomingMessage
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,9 @@ class Agent:
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
+
+        # Incoming messages from other agents (cleared after decide_action each tick)
+        self.incoming_messages: list[IncomingMessage] = []
 
         # Personality traits (injected into system prompt)
         self.personality = Personality.random()
@@ -168,6 +172,14 @@ class Agent:
             lines.append(
                 f"- {other.name} @ ({other.x},{other.y}), {distance} {tile_word} away. {status}."
             )
+        return "\n".join(lines)
+
+    def get_messages_prompt(self) -> str:
+        if not self.incoming_messages:
+            return ""
+        lines = ["INCOMING MESSAGES:"]
+        for msg in self.incoming_messages:
+            lines.append(f'- {msg.sender} (tick {msg.tick}): "{msg.message}" [{msg.intent}]')
         return "\n".join(lines)
 
     # --- Decision making with LLM ---
