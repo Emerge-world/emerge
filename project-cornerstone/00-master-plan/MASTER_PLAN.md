@@ -47,14 +47,14 @@ Build an emergent world where agents controlled by language models learn to surv
 - **Context**: `02-world/`, `06-innovation-system/`
 
 ### PHASE 3 — Social
-- [ ] Personality system (courage, curiosity, patience) — individual behavioral traits
-- [ ] Sociability trait as bridge between personality and social behaviors
-- [ ] Perception of other agents
-- [ ] Communication (speak, signal)
+- [x] Personality system (courage, curiosity, patience) — individual behavioral traits — Phase 3a
+- [x] Sociability trait as bridge between personality and social behaviors — Phase 3a
+- [x] Perception of other agents — Phase 3a
+- [x] Communication (speak, signal) — Phase 3b PR 1
 - [ ] Cooperation (share food, build together)
-- [ ] Conflict (compete for resources)
+- [x] Conflict (emergent via innovated actions + trust penalties) — Phase 3b PR 2
 - [ ] Knowledge transmission (teach innovations)
-- [ ] Reputation and relationships
+- [x] Reputation and relationships — Phase 3b PR 2
 - [ ] Social memory (who did what to whom)
 - **Context**: `07-interaction/`
 
