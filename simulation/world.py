@@ -225,3 +225,27 @@ class World:
             "resources_by_type": resource_summary,
             "resource_locations": len(self.resources),
         }
+
+    def get_agents_in_radius(
+        self,
+        agent: object,
+        agents_list: list,
+        radius: int,
+    ) -> list[tuple]:
+        """
+        Return alive agents within Manhattan distance `radius` of `agent`,
+        excluding `agent` itself. Results sorted by distance (closest first).
+
+        Returns list of (agent, distance) tuples.
+        """
+        result = []
+        for other in agents_list:
+            if other is agent:
+                continue
+            if not other.alive:
+                continue
+            distance = abs(other.x - agent.x) + abs(other.y - agent.y)
+            if distance <= radius:
+                result.append((other, distance))
+        result.sort(key=lambda t: t[1])
+        return result
