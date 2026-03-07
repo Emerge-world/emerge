@@ -17,6 +17,7 @@ from simulation.config import (
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
 from simulation.inventory import Inventory
+from simulation.personality import Personality
 from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,9 @@ class Agent:
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
+
+        # Personality traits (injected into system prompt)
+        self.personality = Personality.random()
 
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
@@ -227,6 +231,7 @@ class Agent:
             "agent/system",
             name=self.name,
             actions=", ".join(self.actions),
+            personality_description=self.personality.to_prompt(),
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,

@@ -1,6 +1,7 @@
 # tests/test_agent_prompts.py
 import pytest
 from simulation.agent import Agent
+from simulation.personality import Personality
 
 def _make_nearby(center_tile: str, *extra: dict) -> list[dict]:
     """Build a nearby_tiles list with the agent at (5,5) on center_tile."""
@@ -78,3 +79,34 @@ class TestCurrentTileInfo:
             nearby = [{"x": 5, "y": 5, "tile": tile_type, "distance": 0}]
             prompt = self.agent._build_decision_prompt(nearby, tick=1)
             assert f"[Tile: {tile_type}]" in prompt
+
+
+class TestPersonalityInAgent:
+    def setup_method(self):
+        Agent._id_counter = 0
+
+    def test_agent_has_personality_by_default(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        assert hasattr(agent, "personality")
+        assert isinstance(agent.personality, Personality)
+
+    def test_agent_personality_traits_in_range(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        assert 0.0 <= agent.personality.courage <= 1.0
+        assert 0.0 <= agent.personality.sociability <= 1.0
+
+    def test_system_prompt_contains_personality(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        agent.personality = Personality(courage=0.9, curiosity=0.1, patience=0.5, sociability=0.7)
+        prompt = agent._build_system_prompt()
+        assert "courage" in prompt.lower()
+        assert "0.90" in prompt
+
+    def test_system_prompt_personality_is_dynamic(self):
+        """Different personalities produce different prompts."""
+        agent = Agent(name="Ada", x=5, y=5)
+        agent.personality = Personality(courage=0.1, curiosity=0.1, patience=0.1, sociability=0.1)
+        prompt_low = agent._build_system_prompt()
+        agent.personality = Personality(courage=0.9, curiosity=0.9, patience=0.9, sociability=0.9)
+        prompt_high = agent._build_system_prompt()
+        assert prompt_low != prompt_high
