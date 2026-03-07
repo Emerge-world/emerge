@@ -76,6 +76,11 @@ ENERGY_COST_INNOVATE = 10
 ENERGY_COST_PICKUP = 0
 COMMUNICATE_ENERGY_COST = 3
 COMMUNICATE_TRUST_DELTA = 0.05
+GIVE_ITEM_ENERGY_COST = 2
+GIVE_ITEM_TRUST_DELTA = 0.15
+TEACH_ENERGY_COST_TEACHER = 8
+TEACH_ENERGY_COST_LEARNER = 5
+TEACH_TRUST_DELTA = 0.20
 BONDING_TRUST_THRESHOLD = 0.75
 BONDING_COOPERATION_MINIMUM = 3
 ENERGY_RECOVERY_REST = 50
@@ -129,7 +134,7 @@ INNOVATION_EFFECT_BOUNDS = {
 }
 
 # --- Base actions ---
-BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup"]
+BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup", "give_item", "teach"]
 
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry

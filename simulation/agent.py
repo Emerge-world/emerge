@@ -13,6 +13,7 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     BASE_ACTIONS, AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
+    GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
 )
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
@@ -79,6 +80,11 @@ class Agent:
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
 
+        # Generational tracking (Phase 4 groundwork)
+        self.generation: int = 0
+        self.parent_ids: list[str] = []
+        self.born_tick: int = 0
+
         # LLM
         self.llm = llm
 
@@ -132,6 +138,8 @@ class Agent:
             "rest": 0,
             "pickup": ENERGY_COST_PICKUP,
             "innovate": ENERGY_COST_INNOVATE,
+            "give_item": GIVE_ITEM_ENERGY_COST,
+            "teach": TEACH_ENERGY_COST_TEACHER,
         }
         cost = costs.get(action, 5)  # innovated actions: default cost 5
         return self.energy >= cost
@@ -387,6 +395,9 @@ class Agent:
             "memory_episodic": len(self.memory_system.episodic),
             "memory_semantic": len(self.memory_system.semantic),
             "inventory": self.inventory.to_dict(),
+            "generation": self.generation,
+            "parent_ids": self.parent_ids,
+            "born_tick": self.born_tick,
         }
 
     def __repr__(self):

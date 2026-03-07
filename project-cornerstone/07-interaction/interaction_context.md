@@ -58,28 +58,40 @@ In Phase 3 agents speak in natural language. In Phase 4, we can experiment with:
 - Invent their own "words"
 - Misunderstandings based on distance
 
-## Cooperation
+## Cooperation *(Phase 3c — Implemented)*
 
-### Cooperative actions
+### `give_item` action
 
 ```python
-# Require two agents to be adjacent and both choose to cooperate
-"build_together"    # Build something that requires 2+ agents
-"share_food"        # Give food from your inventory to another
-"carry_together"    # Move heavy objects
-"teach"             # Transmit an innovation to another agent
+# Transfer any inventory item to an adjacent agent (manhattan dist ≤ 1)
+# Format: {"action": "give_item", "target": "<name>", "item": "<item>", "quantity": 1, "reason": "..."}
+# Validations: target alive, adjacent, giver has item+quantity, target has free space, giver energy ≥ 2
+# Effects:
+#   - item removed from giver, added to target
+#   - giver.energy -= 2
+#   - target.update_relationship(giver, +0.15 trust, is_cooperation=True)
+#   - both agents get episodic memory
+GIVE_ITEM_ENERGY_COST = 2
+GIVE_ITEM_TRUST_DELTA = 0.15
 ```
 
-### Teaching innovations
+### `teach` action *(Phase 3c — DEC-024: no LLM call)*
 
 ```python
-# Agent A knows "fish", agent B doesn't.
-# A decides: {"action": "teach", "target": "Bruno", "skill": "fish"}
-# Oracle verifies: A knows the action, B is adjacent, both spend energy
-# Result: B adds "fish" to their repertoire
-# The "recipe" (precedent) is copied too
-ENERGY_COST_TEACH = 8   # for the teacher
-ENERGY_COST_LEARN = 5   # for the student
+# Copy an owned innovation to a visible agent (dist ≤ AGENT_VISION_RADIUS)
+# Format: {"action": "teach", "target": "<name>", "skill": "<innovation_name>", "reason": "..."}
+# Validations: target alive, within vision range, teacher knows skill (precedent exists),
+#              skill not in BASE_ACTIONS, learner doesn't already know it,
+#              teacher energy ≥ 8, learner energy ≥ 5
+# Effects:
+#   - teacher.energy -= 8, learner.energy -= 5
+#   - target.actions.append(skill)  # learner gains the action
+#   - both agents get +0.20 trust toward each other
+#   - both get episodic memory
+# No LLM call — deterministic precedent copy
+TEACH_ENERGY_COST_TEACHER = 8
+TEACH_ENERGY_COST_LEARNER = 5
+TEACH_TRUST_DELTA = 0.20
 ```
 
 ## Conflict

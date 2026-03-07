@@ -17,6 +17,10 @@ Action format — respond with a JSON object:
   (requires and produces are optional. Use requires.tile when the action only makes sense in a specific terrain type. Use produces when your action creates a physical item from materials.)
 - communicate: {"action": "communicate", "target": "<name>", "message": "<text>", "intent": "<share_info|request_help|warn|trade_offer>", "reason": "..."}
   (send a message to a nearby visible agent; costs 3 energy; once per tick)
+- give_item: {"action": "give_item", "target": "<name>", "item": "<item_name>", "quantity": 1, "reason": "..."}
+  (give an item from your inventory to an adjacent agent; costs 2 energy)
+- teach: {"action": "teach", "target": "<name>", "skill": "<innovation_name>", "reason": "..."}
+  (teach a visible agent one of your innovations; costs 8 energy for you, 5 for learner)
 - For approved innovations: {"action": "<action_name>", "reason": "...", ...extra_params}
 
 DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
