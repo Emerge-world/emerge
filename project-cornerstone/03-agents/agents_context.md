@@ -88,7 +88,19 @@ agent.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)  # default 10
 - **Prompt**: appears in decision prompt only when non-empty: `INVENTORY: fruit x2, stone x1 (3/10)`
 - **Serialized** in `get_status()` → `{"items": {...}, "capacity": 10}`
 - **`pickup` base action**: agents start with it — pick up 1 item per tick from their current tile (no energy cost)
+- **`give_item` base action** *(Phase 3c)*: transfer any inventory item to an adjacent agent (manhattan dist ≤ 1); costs 2 energy; builds +0.15 trust on receiver toward giver; both get episodic memory
+- **`teach` base action** *(Phase 3c)*: deterministically copy an owned innovation to a visible agent (dist ≤ AGENT_VISION_RADIUS); costs 8 energy (teacher) + 5 energy (learner); both gain +0.20 trust; no LLM call (DEC-024)
 - **Source**: `simulation/inventory.py` — `Inventory` class
+
+### Generational tracking fields *(Phase 3c — Phase 4 groundwork)*
+
+Added to `Agent.__init__()`:
+```python
+self.generation: int = 0      # Generation number (0 = original)
+self.parent_ids: list[str] = []  # Names of parent agents
+self.born_tick: int = 0       # Tick at which agent was born/spawned
+```
+All default to inert values. Included in `get_status()`. Populated by Phase 4 reproduction logic.
 
 ### Personality system *(Phase 3 — deferred, see DEC-014)*
 

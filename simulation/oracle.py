@@ -13,6 +13,9 @@ from simulation.config import (
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
     TILE_RISKS, TILE_REST_BONUS,
     COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS, COMMUNICATE_TRUST_DELTA,
+    GIVE_ITEM_ENERGY_COST, GIVE_ITEM_TRUST_DELTA,
+    TEACH_ENERGY_COST_TEACHER, TEACH_ENERGY_COST_LEARNER, TEACH_TRUST_DELTA,
+    BASE_ACTIONS,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -140,6 +143,10 @@ class Oracle:
             return self._resolve_pickup(agent, tick)
         elif action_type == "communicate":
             return self._resolve_communicate(agent, action, tick)
+        elif action_type == "give_item":
+            return self._resolve_give_item(agent, action, tick)
+        elif action_type == "teach":
+            return self._resolve_teach(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -517,6 +524,89 @@ class Oracle:
         agent.update_relationship(target.name, delta=COMMUNICATE_TRUST_DELTA, tick=tick, is_cooperation=True)
         msg = f"Message sent to {target_name}: \"{message_text}\""
         self._log(tick, f"{agent.name} communicated with {target_name}: [{intent}] {message_text}")
+        return {"success": True, "message": msg, "effects": {}}
+
+    def _resolve_give_item(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Agent gives an item from their inventory to an adjacent agent."""
+        target_name = action.get("target", "")
+        item = action.get("item", "")
+        quantity = int(action.get("quantity", 1))
+
+        target = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if target is None:
+            return {"success": False, "message": f"{target_name} not found or not alive.", "effects": {}}
+
+        dist = abs(agent.x - target.x) + abs(agent.y - target.y)
+        if dist > 1:
+            return {"success": False, "message": f"{target_name} is not adjacent.", "effects": {}}
+
+        if agent.energy < GIVE_ITEM_ENERGY_COST:
+            return {"success": False, "message": "Not enough energy to give item.", "effects": {}}
+
+        if not agent.inventory.has(item, quantity):
+            return {"success": False, "message": f"You don't have {quantity}x {item}.", "effects": {}}
+
+        if target.inventory.free_space() < quantity:
+            return {"success": False, "message": f"{target_name}'s inventory is full.", "effects": {}}
+
+        agent.inventory.remove(item, quantity)
+        target.inventory.add(item, quantity)
+        agent.energy -= GIVE_ITEM_ENERGY_COST
+        target.update_relationship(agent.name, delta=GIVE_ITEM_TRUST_DELTA, tick=tick, is_cooperation=True)
+
+        agent.add_memory(f"I gave {quantity}x {item} to {target_name}.")
+        target.add_memory(f"{agent.name} gave me {quantity}x {item}.")
+
+        msg = f"{agent.name} gave {quantity}x {item} to {target_name}."
+        self._log(tick, msg)
+        return {"success": True, "message": msg, "effects": {}}
+
+    def _resolve_teach(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Teacher passes an innovation to a learner within vision range (DEC-024: no LLM)."""
+        target_name = action.get("target", "")
+        skill = action.get("skill", "")
+
+        target = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if target is None:
+            return {"success": False, "message": f"{target_name} not found or not alive.", "effects": {}}
+
+        dist = abs(agent.x - target.x) + abs(agent.y - target.y)
+        if dist > AGENT_VISION_RADIUS:
+            return {"success": False, "message": f"{target_name} is out of teaching range.", "effects": {}}
+
+        if f"innovation:{skill}" not in self.precedents:
+            return {"success": False, "message": f"You don't know the skill '{skill}'.", "effects": {}}
+
+        if skill in BASE_ACTIONS:
+            return {"success": False, "message": f"'{skill}' is a base action, cannot be taught.", "effects": {}}
+
+        if skill in target.actions:
+            return {"success": False, "message": f"{target_name} already knows '{skill}'.", "effects": {}}
+
+        if agent.energy < TEACH_ENERGY_COST_TEACHER:
+            return {"success": False, "message": "Not enough energy to teach.", "effects": {}}
+
+        if target.energy < TEACH_ENERGY_COST_LEARNER:
+            return {"success": False, "message": f"{target_name} doesn't have enough energy to learn.", "effects": {}}
+
+        agent.energy -= TEACH_ENERGY_COST_TEACHER
+        target.energy -= TEACH_ENERGY_COST_LEARNER
+        target.actions.append(skill)
+
+        agent.update_relationship(target_name, delta=TEACH_TRUST_DELTA, tick=tick, is_cooperation=True)
+        target.update_relationship(agent.name, delta=TEACH_TRUST_DELTA, tick=tick, is_cooperation=True)
+
+        agent.add_memory(f"I taught {target_name} the skill '{skill}'.")
+        target.add_memory(f"{agent.name} taught me the skill '{skill}'.")
+
+        msg = f"{agent.name} taught '{skill}' to {target_name}."
+        self._log(tick, msg)
         return {"success": True, "message": msg, "effects": {}}
 
     # --- Innovated (custom) actions ---

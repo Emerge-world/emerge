@@ -235,3 +235,25 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: No engine-level conflict resolution for contested resources. Sequential Oracle processing means the first agent to act wins. Trust damage from conflict comes only from innovated aggressive actions, not from passive resource competition.
 - **Rejected alternatives**: Engine-level resource locking (complex), random resolution (unpredictable), explicit fight mechanics (phase 4 territory).
 - **Consequences**: Agent turn order matters. Agents that innovate aggressive actions can steal explicitly; otherwise resource competition is silent.
+
+### DEC-023: `give_item` generalizes `share_food` — any inventory item
+- **Date**: 2026-03-07
+- **Context**: Phase 3c added cooperative item transfer between agents.
+- **Decision**: `give_item` is a general-purpose transfer action for any inventory item (not just food). Any item type and quantity can be given, subject to giver possessing the item and target having inventory space. Requires adjacency (manhattan distance ≤ 1), costs 2 energy, and builds +0.15 trust on the target toward the giver.
+- **Rejected alternatives**: `share_food` (food-specific, too narrow), agent-initiated trade negotiation (too complex for Phase 3).
+- **Consequences**: Foundation for trade and cooperation. Trust accumulates through repeated giving. The `is_cooperation=True` flag records the interaction in relationship history.
+
+### DEC-024: Teaching as deterministic precedent copy — no LLM call
+- **Date**: 2026-03-07
+- **Context**: Phase 3c added the ability for agents to teach innovations to each other.
+- **Decision**: `teach` is fully deterministic. The Oracle copies the innovation precedent from teacher to learner by appending to `target.actions`. No LLM call is made. Preconditions enforced by Oracle: teacher must know the skill (precedent exists), skill must not be a BASE_ACTION, learner must not already know it, both must have sufficient energy (teacher 8, learner 5), and target must be within vision radius.
+- **Rejected alternatives**: LLM-generated skill transfer (non-deterministic, expensive), LLM-validated teach (unnecessary indirection), adjacency requirement (vision radius is more socially natural for knowledge transfer).
+- **Consequences**: Innovation can spread through the population without LLM cost. Teaching creates mutual +0.20 trust. Base actions cannot be taught, preventing circular/trivial teaching.
+
+### DEC-025: Generational tracking fields added in Phase 3 as Phase 4 groundwork
+- **Date**: 2026-03-07
+- **Context**: Phase 4 will add reproduction and generational evolution. These fields need to exist before reproduction is wired up.
+- **Decision**: Three fields added to Agent: `generation: int = 0`, `parent_ids: list[str] = []`, `born_tick: int = 0`. All default to inert values. Included in `get_status()` output. Not yet populated by any engine logic.
+- **Rejected alternatives**: Adding fields in Phase 4 (risks larger diffs), using a separate dataclass (unnecessary indirection for simple scalar fields).
+- **Consequences**: All agents start as generation 0. Phase 4 reproduction will set generation, parent_ids, and born_tick on newly spawned agents.
+

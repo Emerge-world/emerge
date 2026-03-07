@@ -51,9 +51,9 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Sociability trait as bridge between personality and social behaviors — Phase 3a
 - [x] Perception of other agents — Phase 3a
 - [x] Communication (speak, signal) — Phase 3b PR 1
-- [ ] Cooperation (share food, build together)
+- [x] Cooperation (`give_item`: transfer any inventory item to adjacent agent) — Phase 3c PR 1
 - [x] Conflict (emergent via innovated actions + trust penalties) — Phase 3b PR 2
-- [ ] Knowledge transmission (teach innovations)
+- [x] Knowledge transmission (`teach`: deterministic innovation copy, no LLM) — Phase 3c PR 2
 - [x] Reputation and relationships — Phase 3b PR 2
 - [ ] Social memory (who did what to whom)
 - **Context**: `07-interaction/`
