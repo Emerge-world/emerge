@@ -297,6 +297,7 @@ class Agent:
 
         inventory_info = self.inventory.to_prompt()  # empty string if empty
         nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
+        incoming_messages_text = self.get_messages_prompt()
 
         return prompt_loader.render(
             "agent/decision",
@@ -316,6 +317,7 @@ class Agent:
             inventory_info=inventory_info,
             current_tile_info=current_tile_info,
             nearby_agents=nearby_agents_text,
+            incoming_messages=incoming_messages_text,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:

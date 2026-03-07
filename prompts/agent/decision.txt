@@ -11,6 +11,7 @@ $ascii_grid
 NEARBY RESOURCES:
 $resource_hints
 $nearby_agents
+$incoming_messages
 
 YOUR MEMORY:
 $memory_text
