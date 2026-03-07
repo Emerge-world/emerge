@@ -12,7 +12,7 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
     TILE_RISKS, TILE_REST_BONUS,
-    COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS,
+    COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS, COMMUNICATE_TRUST_DELTA,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -505,6 +505,8 @@ class Oracle:
         target.incoming_messages.append(
             IncomingMessage(sender=agent.name, tick=tick, message=message_text, intent=intent)
         )
+        # Trust: sender trusts recipient a little more after reaching out
+        agent.update_relationship(target.name, delta=COMMUNICATE_TRUST_DELTA, tick=tick, is_cooperation=True)
         msg = f"Message sent to {target_name}: \"{message_text}\""
         self._log(tick, f"{agent.name} communicated with {target_name}: [{intent}] {message_text}")
         return {"success": True, "message": msg, "effects": {}}

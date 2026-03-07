@@ -93,3 +93,23 @@ def test_get_relationships_prompt_shows_status():
     assert "RELATIONSHIPS:" in prompt
     assert "Bruno" in prompt
     assert "friendly" in prompt.lower()
+
+
+# --- Oracle trust tests ---
+
+from unittest.mock import MagicMock
+from simulation.oracle import Oracle
+
+
+def test_communicate_builds_trust():
+    sender = Agent(name="Kai", x=5, y=5)
+    sender.energy = 20
+    target = Agent(name="Bruno", x=6, y=5)
+    oracle = Oracle(world=MagicMock(), llm=None)
+    oracle.current_tick_agents = [sender, target]
+    oracle._communicated_this_tick = set()
+    action = {"action": "communicate", "target": "Bruno", "message": "Hi!", "intent": "share_info"}
+    result = oracle.resolve_action(sender, action, tick=1)
+    assert result["success"] is True
+    assert "Bruno" in sender.relationships
+    assert sender.relationships["Bruno"].trust == pytest.approx(0.05, abs=0.001)
