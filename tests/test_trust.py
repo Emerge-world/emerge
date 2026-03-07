@@ -61,3 +61,35 @@ def test_bonding_not_triggered_low_trust():
     rel = Relationship(target="Bruno", trust=0.5, cooperations=4)
     rel.update(delta=0.05, tick=5, is_cooperation=True)
     assert rel.bonded is False  # trust still below threshold
+
+
+# --- Agent relationship tests ---
+
+from simulation.agent import Agent
+
+
+def test_agent_has_empty_relationships():
+    agent = Agent(name="Kai", x=0, y=0)
+    assert agent.relationships == {}
+
+
+def test_update_relationship_creates_entry():
+    agent = Agent(name="Kai", x=0, y=0)
+    agent.update_relationship("Bruno", delta=0.1, tick=5, is_cooperation=True)
+    assert "Bruno" in agent.relationships
+    assert agent.relationships["Bruno"].trust == pytest.approx(0.1, abs=0.001)
+    assert agent.relationships["Bruno"].cooperations == 1
+
+
+def test_get_relationships_prompt_empty():
+    agent = Agent(name="Kai", x=0, y=0)
+    assert agent.get_relationships_prompt(current_tick=1) == ""
+
+
+def test_get_relationships_prompt_shows_status():
+    agent = Agent(name="Kai", x=0, y=0)
+    agent.update_relationship("Bruno", delta=0.7, tick=3, is_cooperation=True)
+    prompt = agent.get_relationships_prompt(current_tick=5)
+    assert "RELATIONSHIPS:" in prompt
+    assert "Bruno" in prompt
+    assert "friendly" in prompt.lower()

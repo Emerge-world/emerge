@@ -20,6 +20,7 @@ from simulation.inventory import Inventory
 from simulation.personality import Personality
 from simulation import prompt_loader
 from simulation.message import IncomingMessage
+from simulation.relationship import Relationship
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ class Agent:
 
         # Incoming messages from other agents (cleared after decide_action each tick)
         self.incoming_messages: list[IncomingMessage] = []
+
+        # Social relationship memory (persists across ticks)
+        self.relationships: dict[str, Relationship] = {}
 
         # Personality traits (injected into system prompt)
         self.personality = Personality.random()
@@ -180,6 +184,23 @@ class Agent:
         lines = ["INCOMING MESSAGES:"]
         for msg in self.incoming_messages:
             lines.append(f'- {msg.sender} (tick {msg.tick}): "{msg.message}" [{msg.intent}]')
+        return "\n".join(lines)
+
+    def update_relationship(self, target_name: str, delta: float, tick: int, **kwargs):
+        if target_name not in self.relationships:
+            self.relationships[target_name] = Relationship(target=target_name)
+        self.relationships[target_name].update(delta=delta, tick=tick, **kwargs)
+
+    def get_relationships_prompt(self, current_tick: int) -> str:
+        if not self.relationships:
+            return ""
+        lines = ["RELATIONSHIPS:"]
+        for name, rel in self.relationships.items():
+            ticks_ago = current_tick - rel.last_tick
+            lines.append(
+                f"- {name}: {rel.status.capitalize()} (trust: {rel.trust:.2f}), "
+                f"last interacted {ticks_ago} tick(s) ago"
+            )
         return "\n".join(lines)
 
     # --- Decision making with LLM ---
