@@ -17,6 +17,7 @@ from simulation.config import (
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
 from simulation.inventory import Inventory
+from simulation.personality import Personality
 from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,9 @@ class Agent:
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
+
+        # Personality traits (injected into system prompt)
+        self.personality = Personality.random()
 
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
@@ -139,10 +143,38 @@ class Agent:
         """Backward-compatible access to all memory entries."""
         return self.memory_system.all_entries()
 
+    def nearby_agents_prompt(self, visible_agents: list[tuple]) -> str:
+        """
+        Format nearby agents for the decision prompt.
+        Returns empty string if no agents are visible (omits the section entirely).
+        Uses fuzzy stats to avoid revealing exact numbers.
+        """
+        if not visible_agents:
+            return ""
+
+        lines = ["NEARBY AGENTS:"]
+        for other, distance in visible_agents:
+            status_parts = []
+            if other.hunger > 50:
+                status_parts.append("looks hungry")
+            if other.energy < 30:
+                status_parts.append("looks tired")
+            if other.life < 50:
+                status_parts.append("looks hurt")
+            if other.inventory.items:
+                status_parts.append("carrying items")
+            status = ". ".join(status_parts).capitalize() if status_parts else "Looks healthy"
+            tile_word = "tile" if distance == 1 else "tiles"
+            lines.append(
+                f"- {other.name} @ ({other.x},{other.y}), {distance} {tile_word} away. {status}."
+            )
+        return "\n".join(lines)
+
     # --- Decision making with LLM ---
 
     def decide_action(self, nearby_tiles: list[dict], tick: int,
-                      time_description: str = "") -> dict:
+                      time_description: str = "",
+                      nearby_agents: list | None = None) -> dict:
         """
         Ask the LLM to decide what action to take.
         Returns a dict with the action and its parameters.
@@ -155,7 +187,8 @@ class Agent:
             return self._fallback_decision(nearby_tiles)
 
         system_prompt = self._build_system_prompt()
-        user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description)
+        user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description,
+                                                  nearby_agents=nearby_agents or [])
 
         result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
         
@@ -227,10 +260,12 @@ class Agent:
             "agent/system",
             name=self.name,
             actions=", ".join(self.actions),
+            personality_description=self.personality.to_prompt(),
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
-                               time_description: str = "") -> str:
+                               time_description: str = "",
+                               nearby_agents: list | None = None) -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         # Current tile type — shown to agent so it can write valid requires.tile in innovations
         _current_tile = next(
@@ -249,6 +284,7 @@ class Agent:
             status_effects = ""
 
         inventory_info = self.inventory.to_prompt()  # empty string if empty
+        nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
 
         return prompt_loader.render(
             "agent/decision",
@@ -267,6 +303,7 @@ class Agent:
             time_info=time_description,
             inventory_info=inventory_info,
             current_tile_info=current_tile_info,
+            nearby_agents=nearby_agents_text,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:

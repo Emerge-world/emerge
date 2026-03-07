@@ -10,6 +10,7 @@ $ascii_grid
 
 NEARBY RESOURCES:
 $resource_hints
+$nearby_agents
 
 YOUR MEMORY:
 $memory_text

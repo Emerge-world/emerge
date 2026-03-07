@@ -138,6 +138,11 @@ class SimulationEngine:
             # 1. Get environment perception (radius varies by time of day)
             nearby = self.world.get_nearby_tiles(agent.x, agent.y, vision_radius)
 
+            # Gather nearby agents for social perception (same vision radius)
+            nearby_agent_list = self.world.get_agents_in_radius(
+                agent, alive_agents, vision_radius
+            )
+
             # Audit: snapshot stats before action
             if self.recorder:
                 stats_before = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
@@ -147,7 +152,8 @@ class SimulationEngine:
             inventory_before = dict(agent.inventory.items)
 
             # 2. Agent decides its action
-            action = agent.decide_action(nearby, tick, time_description)
+            action = agent.decide_action(nearby, tick, time_description,
+                                         nearby_agents=nearby_agent_list)
             action_str = action.get("action", "none")
             reason = action.get("reason", "")
 
