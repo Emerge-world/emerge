@@ -15,5 +15,5 @@ Based on the recent events above, extract 0-4 reusable lessons. Focus on:
 Do NOT repeat anything already in your EXISTING KNOWLEDGE.
 Keep each lesson concise (one sentence).
 
-Respond ONLY with valid JSON:
-{"learnings": ["lesson 1", "lesson 2"]}
+Respond ONLY with valid JSON. All lessons must be inside a single array:
+{"learnings": ["lesson here"]}

@@ -7,6 +7,19 @@ import re
 import requests
 import logging
 
+
+def _repair_learnings_json(text: str) -> dict | None:
+    """Recover from split-array malformation: {"learnings": ["A"], ["B"]} → {"learnings": ["A", "B"]}.
+
+    Extracts all quoted string values from any array literals in the text,
+    filtering out JSON key names, and reassembles a valid learnings dict.
+    """
+    strings = re.findall(r'"((?:[^"\\]|\\.)*)"', text)
+    lessons = [s for s in strings if s != "learnings" and s.strip()]
+    if not lessons:
+        return None
+    return {"learnings": lessons}
+
 from simulation.config import OLLAMA_BASE_URL, OLLAMA_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
@@ -91,6 +104,9 @@ class LLMClient:
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:
+            repaired = _repair_learnings_json(cleaned)
+            if repaired is not None:
+                return repaired
             logger.warning(f"Could not parse JSON from LLM response: {raw[:300]}")
             return None
 

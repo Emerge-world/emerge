@@ -46,7 +46,7 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Logging updates to assess new mechanics visually (see DEC-019)
 - **Context**: `02-world/`, `06-innovation-system/`
 
-### PHASE 3 — Social
+### PHASE 3 — Social ✅ (COMPLETED)
 - [x] Personality system (courage, curiosity, patience) — individual behavioral traits — Phase 3a
 - [x] Sociability trait as bridge between personality and social behaviors — Phase 3a
 - [x] Perception of other agents — Phase 3a
@@ -55,13 +55,12 @@ Build an emergent world where agents controlled by language models learn to surv
 - [x] Conflict (emergent via innovated actions + trust penalties) — Phase 3b PR 2
 - [x] Knowledge transmission (`teach`: deterministic innovation copy, no LLM) — Phase 3c PR 2
 - [x] Reputation and relationships — Phase 3b PR 2
-- [ ] Social memory (who did what to whom)
 - **Context**: `07-interaction/`
 
 ### PHASE 4 — Culture & Evolution
-- [ ] Emergent language between agents
 - [ ] Reproduction and inheritance (traits, base memory)
 - [ ] Generations and lineage
+- [ ] Emergent language between agents
 - [ ] Emergent roles (gatherer, explorer, builder)
 - [ ] Settlements and territory
 - [ ] Natural selection by fitness
@@ -78,6 +77,7 @@ Build an emergent world where agents controlled by language models learn to surv
 
 ### PHASE 6 — Future Work
 - [ ] Weather (rain, drought) affecting resources
+- [ ] Social memory (who did what to whom)
 - [ ] Emergence measurement plan (check docs/plans/2026-03-07-emergence-measurement.md)
 - **Context**: `02-world/`
 
