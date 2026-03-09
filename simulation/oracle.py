@@ -267,16 +267,6 @@ class Oracle:
         return {"success": True, "message": msg, "effects": effects}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
-        situation_key = "physical:eat:fruit"
-        if situation_key not in self.precedents:
-            reflection_prompt = (
-                "In a primitive survival world, a human picks and eats a fruit from a nearby tree. "
-                "Is this physically possible? "
-                "Respond with JSON: {\"possible\": true, \"reason\": \"brief explanation\"}"
-            )
-            self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
-
-        # Food-presence check is pure world state (not a physical law)
         positions_to_check = [
             (agent.x, agent.y),
             (agent.x + 1, agent.y), (agent.x - 1, agent.y),
@@ -285,31 +275,49 @@ class Oracle:
 
         for (x, y) in positions_to_check:
             resource = self.world.get_resource(x, y)
-            if resource and resource["type"] == "fruit":
-                consumed = self.world.consume_resource(x, y, 1)
-                if consumed > 0:
-                    hunger_reduction = self._get_fruit_effect(tick)
-                    agent.modify_hunger(-hunger_reduction)
-                    cost = self._apply_energy_cost(agent, ENERGY_COST_EAT, tick)
-                    msg = f"{agent.name} ate fruit at ({x},{y}). Hunger -{hunger_reduction} → {agent.hunger}."
-                    self._log(tick, msg)
-                    agent.add_memory(
-                        f"I ate a fruit. My hunger decreased by {hunger_reduction} to {agent.hunger}. Energy: {agent.energy}."
-                    )
-                    return {"success": True, "message": msg, "effects": {"hunger": -hunger_reduction, "energy": -cost}}
+            if not resource:
+                continue
+            item_type = resource["type"]
+            effect = self._get_item_eat_effect(item_type, tick)
+            if not effect["possible"]:
+                continue
+            consumed = self.world.consume_resource(x, y, 1)
+            if consumed > 0:
+                agent.modify_hunger(-effect["hunger_reduction"])
+                if effect.get("life_change"):
+                    agent.modify_life(effect["life_change"])
+                cost = self._apply_energy_cost(agent, ENERGY_COST_EAT, tick)
+                msg = (
+                    f"{agent.name} ate {item_type} at ({x},{y}). "
+                    f"Hunger -{effect['hunger_reduction']} → {agent.hunger}."
+                )
+                self._log(tick, msg)
+                agent.add_memory(
+                    f"I ate a {item_type}. My hunger decreased by {effect['hunger_reduction']} "
+                    f"to {agent.hunger}. Energy: {agent.energy}."
+                )
+                return {
+                    "success": True,
+                    "message": msg,
+                    "effects": {
+                        "hunger": -effect["hunger_reduction"],
+                        "life": effect.get("life_change", 0),
+                        "energy": -cost,
+                    },
+                }
 
-        # Collect non-fruit resources nearby so the agent can reason about innovating
+        # Nothing edible found — collect all nearby resource types as hints
         nearby_other = {
             self.world.get_resource(x, y)["type"]
             for (x, y) in positions_to_check
-            if self.world.get_resource(x, y) and self.world.get_resource(x, y)["type"] != "fruit"
+            if self.world.get_resource(x, y)
         }
         if nearby_other:
             resource_hint = ", ".join(sorted(nearby_other))
-            msg = f"{agent.name} tried to eat but found no fruit nearby (nearby: {resource_hint})."
+            msg = f"{agent.name} tried to eat but nothing nearby is edible (nearby: {resource_hint})."
             self._log(tick, msg)
             agent.add_memory(
-                f"I tried to eat but found no fruit. Nearby resources: {resource_hint}. "
+                f"Nearby resources ({resource_hint}) are not edible. "
                 f"I might need to innovate a new action to use them."
             )
         else:
@@ -1015,6 +1023,76 @@ Respond with JSON:
         self.precedents[key] = {"value": value}
         logger.info(f"Oracle established: eating fruit reduces hunger by {value} points.")
         return value
+
+    # Sensible no-LLM defaults for known item types
+    _ITEM_EAT_DEFAULTS: dict = {
+        "fruit":    {"possible": True,  "hunger_reduction": 20, "life_change": 0},
+        "mushroom": {"possible": True,  "hunger_reduction": 15, "life_change": 0},
+        "water":    {"possible": True,  "hunger_reduction":  5, "life_change": 0},
+        "stone":    {"possible": False, "hunger_reduction":  0, "life_change": 0},
+    }
+
+    def _get_item_eat_effect(self, item_type: str, tick: int = 0) -> dict:
+        """Return the eat effect for item_type, using precedents (cached) or LLM.
+
+        Returns dict with keys: possible (bool), hunger_reduction (int), life_change (int).
+
+        Backward compatibility: if the old 'fruit_hunger_reduction' key exists, it is
+        migrated into the unified 'physical:eat:fruit' precedent on first access.
+        """
+        # One-time migration of old fruit precedent
+        if item_type == "fruit" and "physical:eat:fruit" not in self.precedents:
+            old = self.precedents.get("fruit_hunger_reduction")
+            if old:
+                self.precedents["physical:eat:fruit"] = {
+                    "possible": True,
+                    "hunger_reduction": old["value"],
+                    "life_change": 0,
+                    "reason": "Migrated from fruit_hunger_reduction",
+                }
+
+        key = f"physical:eat:{item_type}"
+        if key in self.precedents:
+            return self.precedents[key]
+
+        default = self._ITEM_EAT_DEFAULTS.get(
+            item_type,
+            {"possible": False, "hunger_reduction": 0, "life_change": 0},
+        )
+
+        if self.llm:
+            system = prompt_loader.load("oracle/item_eat_effect")
+            prompt = (
+                f"A human in a primitive survival world tries to eat: {item_type}.\n"
+                f"Is it edible? If so, how much does it reduce hunger (0-30)? "
+                f"Does eating it cause harm (life_change -20 to 0) or minor healing (+1 to +5)?\n"
+                f"Respond with JSON: {{\"possible\": true/false, \"hunger_reduction\": 10, "
+                f"\"life_change\": 0, \"reason\": \"brief explanation\"}}"
+            )
+            result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.2)
+            if self.sim_logger and self.llm.last_call:
+                lc = self.llm.last_call
+                self.sim_logger.log_oracle_llm_call(
+                    tick=tick, context=f"Determine eat effect for {item_type}",
+                    system_prompt=lc.get("system_prompt", ""),
+                    user_prompt=lc.get("user_prompt", ""),
+                    raw_response=lc.get("raw_response", ""),
+                    parsed_result=result,
+                )
+            if result and "possible" in result:
+                effect = {
+                    "possible": bool(result["possible"]),
+                    "hunger_reduction": max(0, min(30, int(result.get("hunger_reduction", 0)))),
+                    "life_change": max(-20, min(5, int(result.get("life_change", 0)))),
+                    "reason": result.get("reason", ""),
+                }
+                self.precedents[key] = effect
+                logger.info(f"Oracle established: eating {item_type} → {effect}")
+                return effect
+
+        self.precedents[key] = default
+        logger.info(f"Oracle established (default): eating {item_type} → {default}")
+        return default
 
     # --- Logging ---
 
