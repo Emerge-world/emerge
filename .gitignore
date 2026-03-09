@@ -42,5 +42,8 @@ data/
 .env.local
 .env.*.local
 
+# Weights & Biases
+wandb/
+
 # Git worktrees
 .worktrees/
