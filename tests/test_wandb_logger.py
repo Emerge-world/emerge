@@ -82,3 +82,109 @@ class TestWandbLoggerInit:
                              run_config=run_config, prompts_dir=nonexistent)
         config_logged = mock_wandb.init.call_args[1]["config"]
         assert not any(k.startswith("prompt/") for k in config_logged)
+
+
+class TestWandbLoggerLogTick:
+    """Tests for log_tick metric computation."""
+
+    def _make_agent(self, life=80, hunger=30, energy=60):
+        agent = MagicMock()
+        agent.life = life
+        agent.hunger = hunger
+        agent.energy = energy
+        return agent
+
+    def _make_world(self, resources=None):
+        world = MagicMock()
+        # Match real World.resources structure: {"type": ..., "quantity": ...}
+        world.resources = resources or {
+            (0, 0): {"type": "fruit", "quantity": 3},
+            (1, 1): {"type": "stone", "quantity": 2},
+        }
+        return world
+
+    def _make_oracle(self, precedent_count=5):
+        oracle = MagicMock()
+        oracle.precedents = {str(i): {} for i in range(precedent_count)}
+        return oracle
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_log_tick_calls_wandb_log(self, mock_wandb, prompts_dir, run_config):
+        from simulation.wandb_logger import WandbLogger
+        logger = WandbLogger("test", None, run_config, prompts_dir)
+        agents = [self._make_agent()]
+        tick_data = {"actions": ["eat"], "oracle_results": [True],
+                     "deaths": 0, "births": 0, "innovations": 0, "is_daytime": True}
+        logger.log_tick(1, agents, self._make_world(), self._make_oracle(), tick_data)
+        mock_wandb.log.assert_called_once()
+        metrics, kwargs = mock_wandb.log.call_args[0][0], mock_wandb.log.call_args[1]
+        assert kwargs.get("step") == 1
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_agent_aggregates_correct(self, mock_wandb, prompts_dir, run_config):
+        from simulation.wandb_logger import WandbLogger
+        logger = WandbLogger("test", None, run_config, prompts_dir)
+        agents = [
+            self._make_agent(life=100, hunger=10, energy=90),
+            self._make_agent(life=60,  hunger=50, energy=40),
+        ]
+        tick_data = {"actions": [], "oracle_results": [],
+                     "deaths": 0, "births": 0, "innovations": 0, "is_daytime": True}
+        logger.log_tick(1, agents, self._make_world(), self._make_oracle(), tick_data)
+        m = mock_wandb.log.call_args[0][0]
+        assert m["agents/alive"] == 2
+        assert m["agents/mean_life"] == 80.0
+        assert m["agents/min_life"] == 60
+        assert m["agents/max_life"] == 100
+        assert m["agents/mean_hunger"] == 30.0
+        assert m["agents/mean_energy"] == 65.0
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_zero_agents_does_not_crash(self, mock_wandb, prompts_dir, run_config):
+        from simulation.wandb_logger import WandbLogger
+        logger = WandbLogger("test", None, run_config, prompts_dir)
+        tick_data = {"actions": [], "oracle_results": [],
+                     "deaths": 2, "births": 0, "innovations": 0, "is_daytime": False}
+        logger.log_tick(5, [], self._make_world(), self._make_oracle(), tick_data)
+        m = mock_wandb.log.call_args[0][0]
+        assert m["agents/alive"] == 0
+        assert m["agents/mean_life"] == 0
+        assert m["agents/deaths_this_tick"] == 2
+        assert m["sim/is_daytime"] == 0
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_action_metrics(self, mock_wandb, prompts_dir, run_config):
+        from simulation.wandb_logger import WandbLogger
+        logger = WandbLogger("test", None, run_config, prompts_dir)
+        tick_data = {
+            "actions": ["move", "eat", "move", "custom_dance"],
+            "oracle_results": [True, True, False, True],
+            "deaths": 0, "births": 1, "innovations": 1, "is_daytime": True,
+        }
+        logger.log_tick(3, [self._make_agent()], self._make_world(),
+                        self._make_oracle(), tick_data)
+        m = mock_wandb.log.call_args[0][0]
+        assert m["actions/total"] == 4
+        assert m["actions/oracle_success_rate"] == pytest.approx(0.75)
+        assert m["actions/by_type/move"] == 2
+        assert m["actions/by_type/eat"] == 1
+        assert m["actions/by_type/other"] == 1  # custom_dance
+        assert m["agents/births_this_tick"] == 1
+        assert m["actions/innovations"] == 1
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_world_and_oracle_metrics(self, mock_wandb, prompts_dir, run_config):
+        from simulation.wandb_logger import WandbLogger
+        logger = WandbLogger("test", None, run_config, prompts_dir)
+        world = self._make_world(resources={
+            (0, 0): {"type": "fruit", "quantity": 3},
+            (1, 1): {"type": "stone", "quantity": 2},
+        })
+        oracle = self._make_oracle(precedent_count=7)
+        tick_data = {"actions": [], "oracle_results": [],
+                     "deaths": 0, "births": 0, "innovations": 0, "is_daytime": True}
+        logger.log_tick(2, [self._make_agent()], world, oracle, tick_data)
+        m = mock_wandb.log.call_args[0][0]
+        assert m["world/total_resources"] == 5  # 3 + 2
+        assert m["oracle/precedent_count"] == 7
+        assert m["sim/is_daytime"] == 1
