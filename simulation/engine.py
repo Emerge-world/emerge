@@ -20,6 +20,7 @@ from simulation.oracle import Oracle
 from simulation.llm_client import LLMClient
 from simulation.sim_logger import SimLogger
 from simulation.audit_recorder import AuditRecorder
+from simulation.wandb_logger import WandbLogger
 from simulation.day_cycle import DayCycle
 from simulation.lineage import LineageTracker
 from simulation.personality import Personality
@@ -40,6 +41,7 @@ class SimulationEngine:
         start_hour: int = WORLD_START_HOUR,
         world_width: int = WORLD_WIDTH,
         world_height: int = WORLD_HEIGHT,
+        wandb_logger: Optional["WandbLogger"] = None,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -107,6 +109,9 @@ class SimulationEngine:
             }
             self.recorder = AuditRecorder(self.sim_logger.run_dir, audit_config)
 
+        # W&B logger (optional)
+        self.wandb_logger: Optional[WandbLogger] = wandb_logger
+
         logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
     def run(self):
@@ -133,6 +138,8 @@ class SimulationEngine:
                 self._precedents_path, self.current_tick, self._world_seed
             )
             self.lineage.save(self._lineage_path)
+            if self.wandb_logger:
+                self.wandb_logger.finish()
 
         self._print_summary()
 
@@ -140,6 +147,16 @@ class SimulationEngine:
         """Execute a complete tick."""
         vision_radius = self.day_cycle.get_vision_radius(tick)
         time_description = self.day_cycle.get_prompt_line(tick)
+
+        # Per-tick data for W&B logging
+        tick_data: dict = {
+            "actions": [],
+            "oracle_results": [],
+            "deaths": 0,
+            "births": 0,
+            "innovations": 0,
+            "is_daytime": self.day_cycle.get_period(tick) == "day",
+        }
 
         self._print_tick_header(tick, alive_agents, time_description)
         self.sim_logger.log_tick_start(tick, alive_agents)
@@ -219,6 +236,11 @@ class SimulationEngine:
                 "message": result["message"],
             })
 
+            # Accumulate for W&B
+            if self.wandb_logger:
+                tick_data["actions"].append(action_str)
+                tick_data["oracle_results"].append(result["success"])
+
             # 4b. Handle child spawning from reproduce action
             child_spawn = result.get("child_spawn")
             if child_spawn and result["success"]:
@@ -230,6 +252,8 @@ class SimulationEngine:
                 )
                 self.agents.append(child)
                 alive_agents.append(child)
+                if self.wandb_logger:
+                    tick_data["births"] += 1
                 self.oracle.current_tick_agents = alive_agents
                 print(f"     👶 {child.name} was born at {child_spawn['pos']}! "
                       f"(Gen {child.generation}, parents: {child_spawn['parent_a']} & {child_spawn['parent_b']})")
@@ -253,12 +277,16 @@ class SimulationEngine:
             if not agent.alive:
                 effects_parts.append("DIED")
                 self.lineage.record_death(agent.name, tick)
+                if self.wandb_logger:
+                    tick_data["deaths"] += 1
             if effects_parts:
                 self.sim_logger.log_tick_effects(tick, agent, "; ".join(effects_parts))
 
             # Track innovations in lineage
             if result.get("success") and result.get("effects", {}).get("new_action"):
                 self.lineage.record_innovation(agent.name, result["effects"]["new_action"])
+                if self.wandb_logger:
+                    tick_data["innovations"] += 1
 
             # Audit: record event after all effects applied
             if self.recorder:
@@ -298,6 +326,12 @@ class SimulationEngine:
         for agent in alive_agents:
             if agent.alive and agent.memory_system.should_compress(tick):
                 agent.memory_system.compress(llm=self.llm, tick=tick, agent_name=agent.name)
+
+        # Log tick to W&B
+        if self.wandb_logger:
+            self.wandb_logger.log_tick(
+                tick, alive_agents, self.world, self.oracle, tick_data
+            )
 
         # Show agent states
         self._print_agent_states()
