@@ -11,6 +11,8 @@ from typing import Optional, Callable
 from simulation.config import (
     MAX_AGENTS, MAX_TICKS, TICK_DELAY_SECONDS,
     AGENT_VISION_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, WORLD_START_HOUR,
+    AGENT_NAME_POOL, CHILD_START_LIFE, CHILD_START_HUNGER, CHILD_START_ENERGY,
+    BONDING_TRUST_THRESHOLD,
 )
 from simulation.world import World
 from simulation.agent import Agent
@@ -19,6 +21,8 @@ from simulation.llm_client import LLMClient
 from simulation.sim_logger import SimLogger
 from simulation.audit_recorder import AuditRecorder
 from simulation.day_cycle import DayCycle
+from simulation.lineage import LineageTracker
+from simulation.personality import Personality
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +73,15 @@ class SimulationEngine:
         # Auto-load precedents from previous runs
         self.oracle.load_precedents(self._precedents_path)
 
+        # Lineage tracking
+        seed_str = str(world_seed) if world_seed is not None else "unseeded"
+        self._lineage_path = f"data/lineage_{seed_str}.json"
+        self.lineage = LineageTracker()
+        self.lineage.load(self._lineage_path)
+
+        # Name pool management (tracks which names are in use)
+        self._used_names: set[str] = set()
+
         # Create agents
         num_agents = min(num_agents, MAX_AGENTS)
         self.agents: list[Agent] = []
@@ -76,6 +89,8 @@ class SimulationEngine:
             x, y = self.world.find_spawn_point()
             agent = Agent(x=x, y=y, llm=self.llm)
             self.agents.append(agent)
+            self._used_names.add(agent.name)
+            self.lineage.record_birth(agent.name, [], 0, tick=0)
 
         # Web server: per-tick event collector (populated by run_with_callback)
         self._tick_events: list[dict] = []
@@ -117,6 +132,7 @@ class SimulationEngine:
             self.oracle.save_precedents(
                 self._precedents_path, self.current_tick, self._world_seed
             )
+            self.lineage.save(self._lineage_path)
 
         self._print_summary()
 
@@ -157,7 +173,8 @@ class SimulationEngine:
 
             # 2. Agent decides its action
             action = agent.decide_action(nearby, tick, time_description,
-                                         nearby_agents=nearby_agent_list)
+                                         nearby_agents=nearby_agent_list,
+                                         all_agents=alive_agents)
             action_str = action.get("action", "none")
             reason = action.get("reason", "")
 
@@ -202,6 +219,21 @@ class SimulationEngine:
                 "message": result["message"],
             })
 
+            # 4b. Handle child spawning from reproduce action
+            child_spawn = result.get("child_spawn")
+            if child_spawn and result["success"]:
+                child = self._spawn_child(
+                    parent_a_name=child_spawn["parent_a"],
+                    parent_b_name=child_spawn["parent_b"],
+                    pos=child_spawn["pos"],
+                    tick=tick,
+                )
+                self.agents.append(child)
+                alive_agents.append(child)
+                self.oracle.current_tick_agents = alive_agents
+                print(f"     👶 {child.name} was born at {child_spawn['pos']}! "
+                      f"(Gen {child.generation}, parents: {child_spawn['parent_a']} & {child_spawn['parent_b']})")
+
             # 5. Log oracle resolution (with inventory diff and crafting event)
             self.sim_logger.log_oracle_resolution(
                 tick, agent, action, result,
@@ -220,8 +252,13 @@ class SimulationEngine:
                 effects_parts.append(f"Life {prev_life} -> {agent.life}")
             if not agent.alive:
                 effects_parts.append("DIED")
+                self.lineage.record_death(agent.name, tick)
             if effects_parts:
                 self.sim_logger.log_tick_effects(tick, agent, "; ".join(effects_parts))
+
+            # Track innovations in lineage
+            if result.get("success") and result.get("effects", {}).get("new_action"):
+                self.lineage.record_innovation(agent.name, result["effects"]["new_action"])
 
             # Audit: record event after all effects applied
             if self.recorder:
@@ -264,6 +301,78 @@ class SimulationEngine:
 
         # Show agent states
         self._print_agent_states()
+
+    def _pick_child_name(self, parent_a_name: str, parent_b_name: str) -> str:
+        """Pick an unused name from the pool; fall back to generation suffixes."""
+        for name in AGENT_NAME_POOL:
+            if name not in self._used_names:
+                self._used_names.add(name)
+                return name
+        # Pool exhausted: derive from parent names with generation suffix
+        base = parent_a_name[:3] + parent_b_name[:3]
+        suffix = 2
+        while True:
+            candidate = f"{base}-G{suffix}"
+            if candidate not in self._used_names:
+                self._used_names.add(candidate)
+                return candidate
+            suffix += 1
+
+    def _spawn_child(
+        self,
+        parent_a_name: str,
+        parent_b_name: str,
+        pos: tuple[int, int],
+        tick: int,
+    ) -> Agent:
+        """Create a child agent, apply inheritance, and record in lineage."""
+        parent_a = next(a for a in self.agents if a.name == parent_a_name)
+        parent_b = next(a for a in self.agents if a.name == parent_b_name)
+
+        name = self._pick_child_name(parent_a_name, parent_b_name)
+        child = Agent(name=name, x=pos[0], y=pos[1], llm=self.llm)
+
+        # Override default stats with child (infant) values
+        child.life = CHILD_START_LIFE
+        child.hunger = CHILD_START_HUNGER
+        child.energy = CHILD_START_ENERGY
+
+        # Generational tracking
+        child.generation = max(parent_a.generation, parent_b.generation) + 1
+        child.parent_ids = [parent_a_name, parent_b_name]
+        child.born_tick = tick
+
+        # Personality inheritance via blending
+        child.personality = Personality.blend(parent_a.personality, parent_b.personality)
+
+        # Knowledge inheritance: semantic memories from both parents
+        child.memory_system.inherit_from(parent_a.memory_system, parent_b.memory_system)
+
+        # Innovation inheritance: only shared innovations (known by both)
+        shared_innovations = [
+            action for action in parent_a.actions
+            if action not in child.actions and action in parent_b.actions
+        ]
+        child.actions.extend(shared_innovations)
+
+        # Bootstrap relationships: both parents bond with child and vice versa
+        child.update_relationship(parent_a_name, delta=BONDING_TRUST_THRESHOLD, tick=tick)
+        child.update_relationship(parent_b_name, delta=BONDING_TRUST_THRESHOLD, tick=tick)
+        parent_a.update_relationship(name, delta=BONDING_TRUST_THRESHOLD, tick=tick)
+        parent_b.update_relationship(name, delta=BONDING_TRUST_THRESHOLD, tick=tick)
+        parent_a.children_names.append(name)
+        parent_b.children_names.append(name)
+
+        # Lineage recording
+        self.lineage.record_birth(name, [parent_a_name, parent_b_name], child.generation, tick)
+        self.lineage.record_child(parent_a_name, name)
+        self.lineage.record_child(parent_b_name, name)
+
+        logger.info(
+            "👶 %s born (gen %d) at %s, parents: %s & %s",
+            name, child.generation, pos, parent_a_name, parent_b_name,
+        )
+        return child
 
     def _log_overview_start(self):
         """Write initial overview to sim logger."""
@@ -464,6 +573,7 @@ class SimulationEngine:
             self.oracle.save_precedents(
                 self._precedents_path, self.current_tick, self._world_seed
             )
+            self.lineage.save(self._lineage_path)
 
         self._log_overview_end()
 

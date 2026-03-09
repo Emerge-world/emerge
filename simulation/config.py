@@ -133,8 +133,43 @@ INNOVATION_EFFECT_BOUNDS = {
     "life":   (-15, 10),
 }
 
+# --- Reproduction ---
+REPRODUCE_MIN_LIFE = 70           # both parents must have at least this life
+REPRODUCE_MAX_HUNGER = 30         # both parents must have hunger below this
+REPRODUCE_MIN_ENERGY = 50         # both parents must have at least this energy
+REPRODUCE_MIN_TICKS_ALIVE = 100   # both parents must have survived at least this many ticks
+REPRODUCE_ADJACENCY_MAX = 1       # Manhattan distance: must be adjacent
+REPRODUCE_COOLDOWN = 48           # ticks between reproduce attempts per agent
+
+# Cost to BOTH parents on successful reproduction
+REPRODUCE_LIFE_COST = 30
+REPRODUCE_HUNGER_COST = 30        # hunger increases (more hungry after)
+REPRODUCE_ENERGY_COST = 30
+
+# Child initial stats (vulnerable infant)
+CHILD_START_LIFE = 50
+CHILD_START_HUNGER = 40
+CHILD_START_ENERGY = 40
+
+# Trait mutation standard deviation for personality blending
+PERSONALITY_MUTATION_STD = 0.1
+
+# Max semantic memories inherited from each parent
+INHERIT_SEMANTIC_MAX = 5
+
+# Extended name pool (30+ names for new generations)
+AGENT_NAME_POOL = [
+    "Ada", "Bruno", "Clara", "Dante", "Elena",
+    "Felix", "Gaia", "Hugo", "Iris", "Joel",
+    "Kira", "Leo", "Maya", "Niko", "Ora",
+    "Pax", "Quinn", "Rosa", "Soren", "Tara",
+    "Uma", "Veer", "Wren", "Xen", "Yara",
+    "Zoe", "Ash", "Beau", "Cade", "Dara",
+    "Eli", "Fern",
+]
+
 # --- Base actions ---
-BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup", "give_item", "teach"]
+BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup", "give_item", "teach", "reproduce"]
 
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry

@@ -257,3 +257,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Rejected alternatives**: Adding fields in Phase 4 (risks larger diffs), using a separate dataclass (unnecessary indirection for simple scalar fields).
 - **Consequences**: All agents start as generation 0. Phase 4 reproduction will set generation, parent_ids, and born_tick on newly spawned agents.
 
+### DEC-026: Reproduction design — LLM-decided action, soft population cap
+- **Date**: 2026-03-09
+- **Context**: Phase 3 (Social) complete. Agents need reproduction to create multi-generational dynamics and natural selection pressure.
+- **Decision**: `reproduce` is a BASE_ACTION chosen voluntarily by the LLM. Oracle validates both agents meet requirements (life≥70, hunger≤30, energy≥50, age≥100 ticks, adjacent, cooldown 48 ticks). Costs both parents -30 life/energy, +30 hunger. Child spawns at an adjacent empty land tile with reduced stats (life=50, hunger=40, energy=40). Population self-regulates via resource pressure (no hard cap). Inheritance: personality via trait blending with Gaussian mutation (σ=0.1), up to 5 semantic memories per parent prefixed `[Inherited]`, shared innovations only. Lineage tracked in `simulation/lineage.py` (`LineageRecord`/`LineageTracker`), persisted to `data/lineage_{seed}.json`.
+- **Rejected alternatives**: Hard population cap (too prescriptive, removes emergent dynamics), asexual reproduction (removes social interdependence), fixed child stats equal to parents (removes vulnerability/parenting pressure).
+- **Consequences**: Requires long simulation runs (200+ ticks) for first reproduction to occur. Agents must stay healthy and social to reproduce — creates genuine selection pressure. Family relationships bootstrapped at trust=0.75 to drive emergent parenting behavior.
+

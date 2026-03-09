@@ -17,6 +17,7 @@ from simulation.config import (
     MEMORY_COMPRESSION_INTERVAL,
     MEMORY_EPISODIC_IN_PROMPT,
     MEMORY_SEMANTIC_IN_PROMPT,
+    INHERIT_SEMANTIC_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,16 @@ class Memory:
     def total_entries(self) -> int:
         """Total number of memory entries across both stores."""
         return len(self.episodic) + len(self.semantic)
+
+    def inherit_from(self, parent_a: "Memory", parent_b: "Memory") -> None:
+        """Seed this memory with up to INHERIT_SEMANTIC_MAX semantic memories from each parent.
+
+        Prefixes each entry with '[Inherited]' to distinguish from personal experience.
+        No episodic memories are inherited (those are personal).
+        """
+        for parent in (parent_a, parent_b):
+            for entry in parent.semantic[-INHERIT_SEMANTIC_MAX:]:
+                self.add_knowledge(f"[Inherited] {entry}")
 
     def all_entries(self) -> list[str]:
         """All entries from both stores (semantic first, then episodic). For backward compat."""
