@@ -9,6 +9,7 @@ dependencies = [
     "fastapi[standard]>=0.115",
     "uvicorn[standard]>=0.32",
     "opensimplex>=0.4",
+    "wandb>=0.25.0",
 ]
 
 [tool.pytest.ini_options]
