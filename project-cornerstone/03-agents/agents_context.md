@@ -18,6 +18,7 @@ Phase 1 is complete. Personality system is scheduled for **Phase 3** (see DEC-01
 
 Each agent has:
 - **Stats**: life (0-100), hunger (0-100, more = worse), energy (0-100)
+  - **Passive healing**: agents regenerate +1 life/tick when hunger < 50 AND energy > 30 (DEC-011)
 - **Posición**: (x, y) in the grid
 - **Memoria**: `Memory` class with episodic (max 20, raw events) + semantic (max 30, compressed knowledge)
 - **Acciones**: string list starting with `["move", "eat", "rest", "innovate"]`

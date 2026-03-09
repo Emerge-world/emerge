@@ -58,8 +58,8 @@ Build an emergent world where agents controlled by language models learn to surv
 - **Context**: `07-interaction/`
 
 ### PHASE 4 — Culture & Evolution
-- [ ] Reproduction and inheritance (traits, base memory)
-- [ ] Generations and lineage
+- [x] Reproduction and inheritance (traits, base memory)
+- [x] Generations and lineage
 - [ ] Emergent language between agents
 - [ ] Emergent roles (gatherer, explorer, builder)
 - [ ] Settlements and territory

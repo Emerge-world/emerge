@@ -264,3 +264,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Rejected alternatives**: Hard population cap (too prescriptive, removes emergent dynamics), asexual reproduction (removes social interdependence), fixed child stats equal to parents (removes vulnerability/parenting pressure).
 - **Consequences**: Requires long simulation runs (200+ ticks) for first reproduction to occur. Agents must stay healthy and social to reproduce — creates genuine selection pressure. Family relationships bootstrapped at trust=0.75 to drive emergent parenting behavior.
 
+### DEC-027: Passive health regeneration for well-maintained agents
+- **Date**: 2026-03-09
+- **Context**: Agents had no way to recover lost health. Life only decreased (hunger damage, exhaustion, terrain, reproduction costs). Innovated healing actions were unreliable and capped at +10. Agents were on a slow death march.
+- **Decision**: Passive per-tick healing in `apply_tick_effects()`. If hunger < 50 AND energy > 30, agent regenerates +1 life/tick (capped at max). Runs after damage checks, before death check. Thresholds are mutually exclusive with damage thresholds (hunger 50 vs 80, energy 30 vs 0), so healing and damage never occur simultaneously.
+- **Rejected alternatives**: Event-triggered healing on eat/rest (less predictable), Oracle-mediated world healing pass (over-engineered), higher heal rates +2/+3 (would trivialize survival pressure).
+- **Consequences**: Agents that maintain good hunger and energy self-heal slowly (~50 ticks for full recovery). Creates meaningful reward for self-care behavior. Does not eliminate death pressure — neglect still kills. Children (life=50) benefit significantly, recovering to full health in ~50 ticks if well-cared-for.
+

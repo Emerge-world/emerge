@@ -58,7 +58,7 @@ WORLD_WATER_PROB = 0.15
 WORLD_TREE_PROB = 0.10  # on land tiles
 
 # --- Agents ---
-MAX_AGENTS = 5
+MAX_AGENTS = 10
 AGENT_MAX_LIFE = 100
 AGENT_MAX_HUNGER = 100
 AGENT_MAX_ENERGY = 100
@@ -86,6 +86,11 @@ BONDING_COOPERATION_MINIMUM = 3
 ENERGY_RECOVERY_REST = 50
 ENERGY_LOW_THRESHOLD = 20    # below this, agent feels tired/dizzy (prompt signal)
 ENERGY_DAMAGE_PER_TICK = 2   # life lost per tick when energy == 0
+
+# Passive healing
+HEAL_HUNGER_THRESHOLD = 50   # must have hunger < this to heal
+HEAL_ENERGY_THRESHOLD = 30   # must have energy > this to heal
+HEAL_PER_TICK = 1            # life recovered per tick when conditions met
 
 # Perception
 AGENT_VISION_RADIUS = 3  # tiles in each direction

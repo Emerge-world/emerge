@@ -12,6 +12,7 @@ from simulation.config import (
     HUNGER_PER_TICK, HUNGER_DAMAGE_THRESHOLD, HUNGER_DAMAGE_PER_TICK,
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
+    HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
     BASE_ACTIONS, AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
@@ -114,6 +115,12 @@ class Agent:
         if self.energy <= 0:
             self.life = max(0, self.life - ENERGY_DAMAGE_PER_TICK)
             self.add_memory(f"I'm completely exhausted (energy=0). My life drops to {self.life}.")
+
+        # Passive healing: well-fed and rested agents regenerate life
+        if self.hunger < HEAL_HUNGER_THRESHOLD and self.energy > HEAL_ENERGY_THRESHOLD:
+            if self.life < AGENT_MAX_LIFE:
+                self.modify_life(HEAL_PER_TICK)
+                self.add_memory(f"I feel healthy. My body heals naturally (life={self.life}).")
 
         # Check death
         if self.life <= 0:
