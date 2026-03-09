@@ -15,6 +15,9 @@ import sys
 
 from simulation.engine import SimulationEngine
 from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
+from pathlib import Path
+from simulation.wandb_logger import WandbLogger
+from simulation import config as sim_config
 
 
 def setup_logging(verbose: bool = False):
@@ -41,9 +44,46 @@ def main():
                         help=f"In-world hour the simulation starts at (0-23, default: {WORLD_START_HOUR})")
     parser.add_argument("--width",  type=int, default=WORLD_WIDTH,  help=f"World width in tiles (default: {WORLD_WIDTH})")
     parser.add_argument("--height", type=int, default=WORLD_HEIGHT, help=f"World height in tiles (default: {WORLD_HEIGHT})")
+    parser.add_argument("--wandb", action="store_true",
+                        help="Enable Weights & Biases experiment logging")
+    parser.add_argument("--wandb-project", default="emerge",
+                        help="W&B project name (default: emerge)")
+    parser.add_argument("--wandb-entity", default=None,
+                        help="W&B entity/team (default: your W&B account)")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
+
+    wandb_logger = None
+    if args.wandb:
+        run_config = {
+            "agents": args.agents,
+            "ticks": args.ticks,
+            "seed": args.seed,
+            "no_llm": args.no_llm,
+            "width": args.width,
+            "height": args.height,
+            "start_hour": args.start_hour,
+            "LLM_MODEL": sim_config.OLLAMA_MODEL,
+            "LLM_TEMPERATURE": sim_config.LLM_TEMPERATURE,
+            "MOVE_ENERGY_COST": sim_config.ENERGY_COST_MOVE,
+            "REST_ENERGY_GAIN": sim_config.ENERGY_RECOVERY_REST,
+            "INNOVATE_ENERGY_COST": sim_config.ENERGY_COST_INNOVATE,
+            "MAX_HUNGER": sim_config.AGENT_MAX_HUNGER,
+            "HUNGER_DAMAGE": sim_config.HUNGER_DAMAGE_PER_TICK,
+            "LIFE_MAX": sim_config.AGENT_MAX_LIFE,
+            "ENERGY_MAX": sim_config.AGENT_MAX_ENERGY,
+            "MEMORY_EPISODIC_MAX": sim_config.MEMORY_EPISODIC_MAX,
+            "MEMORY_SEMANTIC_MAX": sim_config.MEMORY_SEMANTIC_MAX,
+            "MEMORY_COMPRESSION_INTERVAL": sim_config.MEMORY_COMPRESSION_INTERVAL,
+        }
+        prompts_dir = Path(__file__).parent / "prompts"
+        wandb_logger = WandbLogger(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            run_config=run_config,
+            prompts_dir=prompts_dir,
+        )
 
     print("🧬 Starting autonomous agent life simulation...\n")
 
@@ -56,6 +96,7 @@ def main():
         start_hour=args.start_hour,
         world_width=args.width,
         world_height=args.height,
+        wandb_logger=wandb_logger,
     )
 
     try:
