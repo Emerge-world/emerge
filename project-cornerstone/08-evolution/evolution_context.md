@@ -1,6 +1,28 @@
 # 08 — Evolution & Culture (Phase 4)
 
-> DO NOT implement until Phase 3 stable. This document is speculative and will be refined.
+> **Status: Phase 4 implemented (DEC-026, 2026-03-09).** Reproduction, inheritance, and lineage are live.
+> Emergent culture metrics are a future concern (Phase 5+).
+
+## Implementation Status (Phase 4)
+
+### Files modified/created
+| File | Change |
+|---|---|
+| `simulation/config.py` | Reproduction constants, `AGENT_NAME_POOL` (32 names), child stats |
+| `simulation/lineage.py` | **NEW** — `LineageRecord`, `LineageTracker` (save/load JSON) |
+| `simulation/agent.py` | `last_reproduce_tick`, `children_names`, `get_family_prompt()` |
+| `simulation/oracle.py` | `_resolve_reproduce()`, `_find_spawn_near()` |
+| `simulation/engine.py` | `_spawn_child()`, `_pick_child_name()`, death/innovation recording |
+| `simulation/personality.py` | `Personality.blend()` class method |
+| `simulation/memory.py` | `Memory.inherit_from()` method |
+| `prompts/agent/decision.txt` | `$family_info` section, reproduce action hint |
+| `tests/test_reproduction.py` | **NEW** — 32 unit tests |
+
+### Key constants (see `config.py`)
+- Requirements: `life >= 70`, `hunger <= 30`, `energy >= 50`, `age >= 100 ticks`
+- Cooldown: 48 ticks per agent
+- Parent cost: `-30 life, +30 hunger, -30 energy`
+- Child stats: `life=50, hunger=40, energy=40`
 
 ## Concept
 

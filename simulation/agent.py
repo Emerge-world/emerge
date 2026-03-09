@@ -14,6 +14,9 @@ from simulation.config import (
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     BASE_ACTIONS, AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
+    REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
+    REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
+    AGENT_NAME_POOL,
 )
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
@@ -37,7 +40,7 @@ _TILE_CHARS: dict[str, object] = {
     "land":     lambda _: ".",
 }
 
-# Agent names
+# Agent names (kept for backward compat; full pool in config.AGENT_NAME_POOL)
 AGENT_NAMES = ["Ada", "Bruno", "Clara", "Dante", "Elena",
                "Felix", "Gaia", "Hugo", "Iris", "Joel"]
 
@@ -80,10 +83,12 @@ class Agent:
         # Available actions (starts with base actions, can innovate new ones)
         self.actions: list[str] = list(BASE_ACTIONS)
 
-        # Generational tracking (Phase 4 groundwork)
+        # Generational tracking (Phase 4)
         self.generation: int = 0
         self.parent_ids: list[str] = []
         self.born_tick: int = 0
+        self.children_names: list[str] = []
+        self.last_reproduce_tick: int = -REPRODUCE_COOLDOWN  # ready from birth
 
         # LLM
         self.llm = llm
@@ -211,11 +216,43 @@ class Agent:
             )
         return "\n".join(lines)
 
+    def get_family_prompt(self, current_tick: int, all_agents: list | None = None) -> str:
+        """Return family context line for the decision prompt."""
+        parts = []
+        if self.generation > 0:
+            parents = ", ".join(self.parent_ids) if self.parent_ids else "unknown"
+            parts.append(
+                f"You are generation {self.generation}, born on tick {self.born_tick}. "
+                f"Parents: {parents}."
+            )
+        else:
+            parts.append(f"You are an original settler (generation 0).")
+
+        if self.children_names:
+            alive_lookup = {a.name: a.alive for a in (all_agents or [])}
+            child_parts = []
+            for name in self.children_names:
+                status = "alive" if alive_lookup.get(name, True) else "dead"
+                child_parts.append(f"{name} ({status})")
+            parts.append(f"Your children: {', '.join(child_parts)}.")
+
+        # Reproduction readiness hint
+        cooldown_remaining = (self.last_reproduce_tick + REPRODUCE_COOLDOWN) - current_tick
+        if cooldown_remaining > 0:
+            parts.append(f"Reproduction on cooldown for {cooldown_remaining} more tick(s).")
+        elif (self.life >= REPRODUCE_MIN_LIFE and self.hunger <= REPRODUCE_MAX_HUNGER
+              and self.energy >= REPRODUCE_MIN_ENERGY
+              and (current_tick - self.born_tick) >= REPRODUCE_MIN_TICKS_ALIVE):
+            parts.append("You are healthy enough to reproduce if you find a willing partner nearby.")
+
+        return "\n".join(parts)
+
     # --- Decision making with LLM ---
 
     def decide_action(self, nearby_tiles: list[dict], tick: int,
                       time_description: str = "",
-                      nearby_agents: list | None = None) -> dict:
+                      nearby_agents: list | None = None,
+                      all_agents: list | None = None) -> dict:
         """
         Ask the LLM to decide what action to take.
         Returns a dict with the action and its parameters.
@@ -229,7 +266,8 @@ class Agent:
 
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description,
-                                                  nearby_agents=nearby_agents or [])
+                                                  nearby_agents=nearby_agents or [],
+                                                  all_agents=all_agents)
 
         result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
         
@@ -306,7 +344,8 @@ class Agent:
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
                                time_description: str = "",
-                               nearby_agents: list | None = None) -> str:
+                               nearby_agents: list | None = None,
+                               all_agents: list | None = None) -> str:
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         # Current tile type — shown to agent so it can write valid requires.tile in innovations
         _current_tile = next(
@@ -328,6 +367,7 @@ class Agent:
         nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
         incoming_messages_text = self.get_messages_prompt()
         relationships_text = self.get_relationships_prompt(current_tick=tick)
+        family_info = self.get_family_prompt(current_tick=tick, all_agents=all_agents)
 
         return prompt_loader.render(
             "agent/decision",
@@ -349,6 +389,7 @@ class Agent:
             nearby_agents=nearby_agents_text,
             incoming_messages=incoming_messages_text,
             relationships=relationships_text,
+            family_info=family_info,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
@@ -398,6 +439,8 @@ class Agent:
             "generation": self.generation,
             "parent_ids": self.parent_ids,
             "born_tick": self.born_tick,
+            "children_names": self.children_names,
+            "last_reproduce_tick": self.last_reproduce_tick,
         }
 
     def __repr__(self):

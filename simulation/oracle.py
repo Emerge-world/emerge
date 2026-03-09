@@ -16,6 +16,10 @@ from simulation.config import (
     GIVE_ITEM_ENERGY_COST, GIVE_ITEM_TRUST_DELTA,
     TEACH_ENERGY_COST_TEACHER, TEACH_ENERGY_COST_LEARNER, TEACH_TRUST_DELTA,
     BASE_ACTIONS,
+    REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
+    REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_ADJACENCY_MAX, REPRODUCE_COOLDOWN,
+    REPRODUCE_LIFE_COST, REPRODUCE_HUNGER_COST, REPRODUCE_ENERGY_COST,
+    BONDING_TRUST_THRESHOLD,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -147,6 +151,8 @@ class Oracle:
             return self._resolve_give_item(agent, action, tick)
         elif action_type == "teach":
             return self._resolve_teach(agent, action, tick)
+        elif action_type == "reproduce":
+            return self._resolve_reproduce(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -608,6 +614,118 @@ class Oracle:
         msg = f"{agent.name} taught '{skill}' to {target_name}."
         self._log(tick, msg)
         return {"success": True, "message": msg, "effects": {}}
+
+    def _resolve_reproduce(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Validate and initiate reproduction. Returns child_name in effects on success."""
+        target_name = action.get("target", "")
+
+        target = next(
+            (a for a in self.current_tick_agents if a.name == target_name and a.alive),
+            None,
+        )
+        if target is None:
+            return {"success": False, "message": f"{target_name} not found or not alive.", "effects": {}}
+
+        # Adjacency check
+        dist = abs(agent.x - target.x) + abs(agent.y - target.y)
+        if dist > REPRODUCE_ADJACENCY_MAX:
+            return {"success": False, "message": f"{target_name} is not adjacent.", "effects": {}}
+
+        # Validate initiator requirements
+        def _check(a: Agent, label: str) -> Optional[str]:
+            if a.life < REPRODUCE_MIN_LIFE:
+                return f"{label} is not healthy enough (life {a.life} < {REPRODUCE_MIN_LIFE})."
+            if a.hunger > REPRODUCE_MAX_HUNGER:
+                return f"{label} is too hungry (hunger {a.hunger} > {REPRODUCE_MAX_HUNGER})."
+            if a.energy < REPRODUCE_MIN_ENERGY:
+                return f"{label} has insufficient energy ({a.energy} < {REPRODUCE_MIN_ENERGY})."
+            age = tick - a.born_tick
+            if age < REPRODUCE_MIN_TICKS_ALIVE:
+                return f"{label} is too young (age {age} < {REPRODUCE_MIN_TICKS_ALIVE} ticks)."
+            cooldown_remaining = (a.last_reproduce_tick + REPRODUCE_COOLDOWN) - tick
+            if cooldown_remaining > 0:
+                return f"{label} cannot reproduce yet ({cooldown_remaining} tick(s) cooldown remaining)."
+            return None
+
+        reason = _check(agent, agent.name) or _check(target, target_name)
+        if reason:
+            msg = f"{agent.name} cannot reproduce: {reason}"
+            self._log(tick, msg)
+            agent.add_memory(f"I tried to reproduce with {target_name} but failed: {reason}")
+            return {"success": False, "message": msg, "effects": {}}
+
+        # Find an empty adjacent land tile for the child
+        child_pos = self._find_spawn_near(agent.x, agent.y, target.x, target.y)
+        if child_pos is None:
+            msg = f"{agent.name} and {target_name} tried to reproduce but found no space for a child."
+            self._log(tick, msg)
+            agent.add_memory(f"I tried to reproduce with {target_name} but there was no room for a child.")
+            return {"success": False, "message": msg, "effects": {}}
+
+        # Apply costs to both parents
+        agent.modify_life(-REPRODUCE_LIFE_COST)
+        agent.modify_hunger(REPRODUCE_HUNGER_COST)
+        agent.modify_energy(-REPRODUCE_ENERGY_COST)
+        target.modify_life(-REPRODUCE_LIFE_COST)
+        target.modify_hunger(REPRODUCE_HUNGER_COST)
+        target.modify_energy(-REPRODUCE_ENERGY_COST)
+
+        # Update cooldowns
+        agent.last_reproduce_tick = tick
+        target.last_reproduce_tick = tick
+
+        # Bond parents to each other
+        agent.update_relationship(target_name, delta=BONDING_TRUST_THRESHOLD, tick=tick, is_cooperation=True)
+        target.update_relationship(agent.name, delta=BONDING_TRUST_THRESHOLD, tick=tick, is_cooperation=True)
+
+        msg = (
+            f"💞 {agent.name} and {target_name} reproduced! "
+            f"A child will be born at {child_pos}."
+        )
+        self._log(tick, msg)
+        agent.add_memory(
+            f"I reproduced with {target_name}! The child will be born nearby. "
+            f"Life: {agent.life}, Hunger: {agent.hunger}, Energy: {agent.energy}."
+        )
+        target.add_memory(
+            f"{agent.name} and I reproduced! The child will be born nearby. "
+            f"Life: {target.life}, Hunger: {target.hunger}, Energy: {target.energy}."
+        )
+
+        return {
+            "success": True,
+            "message": msg,
+            "effects": {
+                "life": -REPRODUCE_LIFE_COST,
+                "hunger": REPRODUCE_HUNGER_COST,
+                "energy": -REPRODUCE_ENERGY_COST,
+            },
+            "child_spawn": {
+                "parent_a": agent.name,
+                "parent_b": target_name,
+                "pos": child_pos,
+            },
+        }
+
+    def _find_spawn_near(self, ax: int, ay: int, bx: int, by: int) -> Optional[tuple[int, int]]:
+        """Find an adjacent empty land tile near the two parents."""
+        occupied = {(a.x, a.y) for a in self.current_tick_agents if a.alive}
+        center_x = (ax + bx) // 2
+        center_y = (ay + by) // 2
+        # Check all tiles within distance 2 of the midpoint, closest first
+        candidates = []
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                cx, cy = center_x + dx, center_y + dy
+                tile = self.world.get_tile(cx, cy)
+                if tile is not None and tile in ("land", "sand") and (cx, cy) not in occupied:
+                    dist = abs(dx) + abs(dy)
+                    candidates.append((dist, cx, cy))
+        candidates.sort()
+        if candidates:
+            _, cx, cy = candidates[0]
+            return (cx, cy)
+        return None
 
     # --- Innovated (custom) actions ---
 
