@@ -285,3 +285,21 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Rejected alternatives**: Programmatic call into `main()` (tight coupling to internals, fragile to CLI changes), shell script (harder to maintain, no structured config or summary), parallel execution (race conditions on W&B, harder to diagnose failures).
 - **Consequences**: Each experiment is a fully isolated subprocess — no shared state between runs. The `VALID_KEYS` set in `run_batch.py` must be kept in sync with `main.py` CLI flags when new flags are added. Batch runs always continue on failure (no abort-on-error mode).
 
+### DEC-030: Replace AuditRecorder with always-on canonical EventEmitter
+
+**Date:** 2026-03-10
+**Status:** Implemented
+
+**Decision:** Replace the opt-in `AuditRecorder` (activated via `--audit`) with a new always-on `EventEmitter` that writes to `data/runs/<run_id>/events.jsonl` every run.
+
+**Motivation:** The metrics plan (docs/plans/2026-03-10-metrics.md) requires a canonical, always-present event stream as the authoritative data source for all computed metrics. The old AuditRecorder had a narrow per-agent-per-tick schema and was buried in the `logs/` directory.
+
+**Key changes:**
+- `simulation/event_emitter.py` — new class, writes `meta.json` + `events.jsonl`
+- Output directory: `data/runs/<run_id>/` (UUID-keyed, not timestamp-keyed)
+- Event types (PR1): `run_start`, `agent_decision`, `oracle_resolution`, `agent_state`, `run_end`
+- `action_origin` field: `"base"` for built-in actions, `"innovation"` for custom actions
+- `simulation/audit_recorder.py` and `simulation/audit_compare.py` deleted
+
+**Trade-offs:** Slight I/O overhead on every run (minimal; line-buffered). The A/B comparison CLI (`audit_compare.py`) is lost — a future metrics layer (PR3) will replace it by reading from `events.jsonl`.
+
