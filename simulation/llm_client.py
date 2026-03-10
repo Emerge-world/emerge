@@ -65,7 +65,9 @@ class LLMClient:
             raw = response.choices[0].message.content or ""
             self.last_call["raw_response"] = raw
             logger.debug(f"LLM response: {raw[:200]}...")
-            return response_model.model_validate_json(raw)
+            # Strip control characters that vllm occasionally injects into string values
+            sanitized = "".join(ch for ch in raw if ch >= " " or ch in "\n\r\t")
+            return response_model.model_validate_json(sanitized)
         except Exception as e:
             logger.error(f"Error calling vllm: {e}")
             return None
