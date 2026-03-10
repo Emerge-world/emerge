@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--wandb-run-name", default=None,
                         help="W&B run name (useful for batch experiments)")
     parser.add_argument("--model", default=None,
-                        help=f"Ollama model to use (default: {sim_config.OLLAMA_MODEL})")
+                        help=f"vllm model to use (default: {sim_config.VLLM_MODEL})")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -68,7 +68,7 @@ def main():
             "width": args.width,
             "height": args.height,
             "start_hour": args.start_hour,
-            "LLM_MODEL": args.model or sim_config.OLLAMA_MODEL,
+            "LLM_MODEL": args.model or sim_config.VLLM_MODEL,
             "LLM_TEMPERATURE": sim_config.LLM_TEMPERATURE,
             "MOVE_ENERGY_COST": sim_config.ENERGY_COST_MOVE,
             "REST_ENERGY_GAIN": sim_config.ENERGY_RECOVERY_REST,

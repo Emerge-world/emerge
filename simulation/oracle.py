@@ -177,8 +177,9 @@ class Oracle:
         default = {"possible": True, "reason": "Default: allowed."}
 
         if self.llm:
+            from simulation.schemas import PhysicalReflectionResponse
             system = prompt_loader.load("oracle/physical_system")
-            result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.2)
+            typed = self.llm.generate_structured(prompt, PhysicalReflectionResponse, system_prompt=system, temperature=0.2)
             if self.sim_logger and self.llm.last_call:
                 lc = self.llm.last_call
                 self.sim_logger.log_oracle_llm_call(
@@ -186,9 +187,10 @@ class Oracle:
                     system_prompt=lc.get("system_prompt", ""),
                     user_prompt=lc.get("user_prompt", ""),
                     raw_response=lc.get("raw_response", ""),
-                    parsed_result=result,
+                    parsed_result=typed.model_dump() if typed is not None else None,
                 )
-            if result and "possible" in result:
+            if typed is not None:
+                result = typed.model_dump()
                 self.precedents[situation_key] = result
                 logger.info(f"Oracle established physical rule: [{situation_key}] → {result}")
                 return result
@@ -423,10 +425,11 @@ class Oracle:
                 agent, new_action_name, description, tick,
                 produces=action.get("produces"),
             )
-            if not validation["approved"]:
-                msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {validation['reason']}."
+            if not validation.get("approved", True):
+                reason = validation.get("reason", "unknown reason")
+                msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {reason}."
                 self._log(tick, msg)
-                agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {validation['reason']}.")
+                agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {reason}.")
                 return {"success": False, "message": msg, "effects": {}}
             category = validation.get("category", "SURVIVAL")
             _aggressive = validation.get("aggressive", False)
@@ -928,9 +931,10 @@ If this action involves aggression toward another agent (stealing, attacking, th
   "aggressive": true, "trust_impact": <float 0.05-0.5 based on severity>
 Otherwise omit both fields."""
 
+        from simulation.schemas import InnovationValidationResponse
         system = prompt_loader.load("oracle/innovation_system")
 
-        result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.3)
+        typed = self.llm.generate_structured(prompt, InnovationValidationResponse, system_prompt=system, temperature=0.3)
 
         if self.sim_logger and self.llm.last_call:
             lc = self.llm.last_call
@@ -939,11 +943,11 @@ Otherwise omit both fields."""
                 system_prompt=lc.get("system_prompt", ""),
                 user_prompt=lc.get("user_prompt", ""),
                 raw_response=lc.get("raw_response", ""),
-                parsed_result=result,
+                parsed_result=typed.model_dump() if typed is not None else None,
             )
 
-        if result and "approved" in result:
-            return result
+        if typed is not None:
+            return typed.model_dump()
         return {"approved": True, "reason": "Oracle could not decide, defaulting to approved.", "category": "SURVIVAL"}
 
     def _oracle_judge_custom_action(self, agent: Agent, action: dict, description: str, tick: int = 0) -> Optional[dict]:
@@ -978,9 +982,10 @@ Respond with JSON:
     }}
 }}"""
 
+        from simulation.schemas import CustomActionOutcomeResponse
         system = prompt_loader.load("oracle/custom_action_system")
 
-        result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.3)
+        typed = self.llm.generate_structured(prompt, CustomActionOutcomeResponse, system_prompt=system, temperature=0.3)
 
         if self.sim_logger and self.llm.last_call:
             lc = self.llm.last_call
@@ -989,9 +994,10 @@ Respond with JSON:
                 system_prompt=lc.get("system_prompt", ""),
                 user_prompt=lc.get("user_prompt", ""),
                 raw_response=lc.get("raw_response", ""),
-                parsed_result=result,
+                parsed_result=typed.model_dump() if typed is not None else None,
             )
 
+        result = typed.model_dump() if typed is not None else None
         if result and "effects" in result:
             result["effects"] = self._clamp_innovation_effects(result["effects"])
 
@@ -1006,8 +1012,9 @@ Respond with JSON:
         # First time: establish the value
         value = 20  # Deterministic base value
         if self.llm:
+            from simulation.schemas import FruitEffectResponse
             prompt = prompt_loader.load("oracle/fruit_effect")
-            result = self.llm.generate_json(prompt, temperature=0.2)
+            typed = self.llm.generate_structured(prompt, FruitEffectResponse, temperature=0.2)
             if self.sim_logger and self.llm.last_call:
                 lc = self.llm.last_call
                 self.sim_logger.log_oracle_llm_call(
@@ -1015,10 +1022,10 @@ Respond with JSON:
                     system_prompt=lc.get("system_prompt", ""),
                     user_prompt=lc.get("user_prompt", ""),
                     raw_response=lc.get("raw_response", ""),
-                    parsed_result=result,
+                    parsed_result=typed.model_dump() if typed is not None else None,
                 )
-            if result and "value" in result:
-                value = max(10, min(30, int(result["value"])))
+            if typed is not None:
+                value = max(10, min(30, typed.value))
 
         self.precedents[key] = {"value": value}
         logger.info(f"Oracle established: eating fruit reduces hunger by {value} points.")
@@ -1061,6 +1068,7 @@ Respond with JSON:
         )
 
         if self.llm:
+            from simulation.schemas import ItemEatEffectResponse
             system = prompt_loader.load("oracle/item_eat_effect")
             prompt = (
                 f"A human in a primitive survival world tries to eat: {item_type}.\n"
@@ -1069,7 +1077,7 @@ Respond with JSON:
                 f"Respond with JSON: {{\"possible\": true/false, \"hunger_reduction\": 10, "
                 f"\"life_change\": 0, \"reason\": \"brief explanation\"}}"
             )
-            result = self.llm.generate_json(prompt, system_prompt=system, temperature=0.2)
+            typed = self.llm.generate_structured(prompt, ItemEatEffectResponse, system_prompt=system, temperature=0.2)
             if self.sim_logger and self.llm.last_call:
                 lc = self.llm.last_call
                 self.sim_logger.log_oracle_llm_call(
@@ -1077,14 +1085,14 @@ Respond with JSON:
                     system_prompt=lc.get("system_prompt", ""),
                     user_prompt=lc.get("user_prompt", ""),
                     raw_response=lc.get("raw_response", ""),
-                    parsed_result=result,
+                    parsed_result=typed.model_dump() if typed is not None else None,
                 )
-            if result and "possible" in result:
+            if typed is not None:
                 effect = {
-                    "possible": bool(result["possible"]),
-                    "hunger_reduction": max(0, min(30, int(result.get("hunger_reduction", 0)))),
-                    "life_change": max(-20, min(5, int(result.get("life_change", 0)))),
-                    "reason": result.get("reason", ""),
+                    "possible": typed.possible,
+                    "hunger_reduction": max(0, min(30, typed.hunger_reduction)),
+                    "life_change": max(-20, min(5, typed.life_change)),
+                    "reason": typed.reason,
                 }
                 self.precedents[key] = effect
                 logger.info(f"Oracle established: eating {item_type} → {effect}")
