@@ -25,6 +25,7 @@ from simulation.wandb_logger import WandbLogger
 from simulation.day_cycle import DayCycle
 from simulation.lineage import LineageTracker
 from simulation.personality import Personality
+from simulation.metrics_builder import MetricsBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,7 @@ class SimulationEngine:
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
+            MetricsBuilder(self.event_emitter.run_dir).build()
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -626,6 +628,7 @@ class SimulationEngine:
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
+            MetricsBuilder(self.event_emitter.run_dir).build()
 
         self._log_overview_end()
 
