@@ -9,7 +9,13 @@ from typing import TypeVar, Type
 from openai import OpenAI
 from pydantic import BaseModel
 
-from simulation.config import VLLM_BASE_URL, VLLM_MODEL, VLLM_API_KEY, LLM_TEMPERATURE, LLM_MAX_TOKENS
+from simulation.config import (
+    VLLM_BASE_URL,
+    VLLM_MODEL,
+    VLLM_API_KEY,
+    LLM_TEMPERATURE,
+    LLM_MAX_TOKENS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +57,10 @@ class LLMClient:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=LLM_MAX_TOKENS,
-                extra_body={"guided_json": response_model.model_json_schema()},
+                extra_body={
+                    "guided_json": response_model.model_json_schema(),
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
             )
             raw = response.choices[0].message.content or ""
             self.last_call["raw_response"] = raw
