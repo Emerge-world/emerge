@@ -89,8 +89,7 @@ project-root/
 │   ├── sim_logger.py          # Per-run markdown logging (logs/ dir)
 │   ├── prompt_loader.py       # string.Template loader, cached
 │   ├── memory.py              # Dual memory system (episodic + semantic) — DEC-009
-│   ├── audit_recorder.py      # Behavioral audit recording — DEC-008
-│   └── audit_compare.py       # Audit run comparison CLI
+│   └── event_emitter.py       # Always-on canonical event stream → data/runs/<run_id>/ — DEC-030
 ├── prompts/
 │   ├── agent/
 │   │   ├── system.txt         # Fixed system prompt (name, actions, grid legend, few-shot examples)
@@ -104,7 +103,7 @@ project-root/
 │       ├── custom_action_system.txt
 │       └── fruit_effect.txt
 ├── tests/
-│   ├── test_audit.py          # Audit system tests
+│   ├── test_event_emitter.py  # EventEmitter tests — DEC-030
 │   └── test_memory.py         # Dual memory system tests
 ├── data/
 └── project-cornerstone/       # This knowledge base

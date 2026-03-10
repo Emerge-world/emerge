@@ -6,6 +6,7 @@ import time
 import json
 import logging
 import threading
+import uuid
 from typing import Optional, Callable
 
 from simulation.config import (
@@ -19,7 +20,7 @@ from simulation.agent import Agent
 from simulation.oracle import Oracle
 from simulation.llm_client import LLMClient
 from simulation.sim_logger import SimLogger
-from simulation.audit_recorder import AuditRecorder
+from simulation.event_emitter import EventEmitter
 from simulation.wandb_logger import WandbLogger
 from simulation.day_cycle import DayCycle
 from simulation.lineage import LineageTracker
@@ -37,7 +38,6 @@ class SimulationEngine:
         world_seed: Optional[int] = None,
         use_llm: bool = True,
         max_ticks: int = MAX_TICKS,
-        audit: bool = False,
         start_hour: int = WORLD_START_HOUR,
         world_width: int = WORLD_WIDTH,
         world_height: int = WORLD_HEIGHT,
@@ -99,17 +99,20 @@ class SimulationEngine:
         # Web server: per-tick event collector (populated by run_with_callback)
         self._tick_events: list[dict] = []
 
-        # Audit recorder
-        self.recorder: Optional[AuditRecorder] = None
-        if audit:
-            audit_config = {
-                "max_ticks": max_ticks,
-                "num_agents": num_agents,
-                "use_llm": self.use_llm,
-                "world_seed": world_seed,
-                "world_size": f"{world_width}x{world_height}",
-            }
-            self.recorder = AuditRecorder(self.sim_logger.run_dir, audit_config)
+        # Always-on canonical event emitter (data/runs/<run_id>/)
+        self.run_id = str(uuid.uuid4())
+        _model_id = self.llm.model if self.llm else "none"
+        self.event_emitter = EventEmitter(
+            run_id=self.run_id,
+            seed=world_seed,
+            world_width=world_width,
+            world_height=world_height,
+            max_ticks=max_ticks,
+            agent_count=len(self.agents),
+            agent_names=[a.name for a in self.agents],
+            model_id=_model_id,
+            day_cycle=self.day_cycle,
+        )
 
         # W&B logger (optional)
         self.wandb_logger: Optional[WandbLogger] = wandb_logger
@@ -120,6 +123,14 @@ class SimulationEngine:
         """Run the complete simulation."""
         self._print_header()
         self._log_overview_start()
+        self.event_emitter.emit_run_start(
+            agent_names=[a.name for a in self.agents],
+            model_id=self.llm.model if self.llm else "none",
+            world_seed=self._world_seed,
+            width=self.world.width,
+            height=self.world.height,
+            max_ticks=self.max_ticks,
+        )
 
         try:
             for tick in range(1, self.max_ticks + 1):
@@ -140,6 +151,9 @@ class SimulationEngine:
                 self._precedents_path, self.current_tick, self._world_seed
             )
             self.lineage.save(self._lineage_path)
+            survivors = [a.name for a in self.agents if a.alive]
+            self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
+            self.event_emitter.close()
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -182,11 +196,6 @@ class SimulationEngine:
                 agent, alive_agents, vision_radius
             )
 
-            # Audit: snapshot stats before action
-            if self.recorder:
-                stats_before = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
-                position_before = (agent.x, agent.y)
-
             # Snapshot inventory before oracle resolves the action
             inventory_before = dict(agent.inventory.items)
 
@@ -203,6 +212,9 @@ class SimulationEngine:
             # 3. Log the decision (extract and remove the trace before passing to oracle)
             llm_trace = action.pop("_llm_trace", None)
             action_source = "llm" if (llm_trace and llm_trace.get("raw_response")) else "fallback"
+            self.event_emitter.emit_agent_decision(
+                tick, agent.name, action, parse_ok=(action_source == "llm")
+            )
             if action_source == "llm":
                 self.sim_logger.log_agent_decision(
                     tick, agent,
@@ -218,6 +230,7 @@ class SimulationEngine:
 
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
+            self.event_emitter.emit_oracle_resolution(tick, agent.name, result)
             crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
 
@@ -290,22 +303,7 @@ class SimulationEngine:
                 if self.wandb_logger:
                     tick_data["innovations"] += 1
 
-            # Audit: record event after all effects applied
-            if self.recorder:
-                stats_after = {"life": agent.life, "hunger": agent.hunger, "energy": agent.energy}
-                self.recorder.record_event(
-                    tick=tick,
-                    agent_name=agent.name,
-                    stats_before=stats_before,
-                    position_before=position_before,
-                    action=action_str,
-                    action_source=action_source,
-                    oracle_success=result["success"],
-                    effects=result.get("effects", {}),
-                    stats_after=stats_after,
-                    position_after=(agent.x, agent.y),
-                    nearby_tiles=nearby,
-                )
+            self.event_emitter.emit_agent_state(tick, agent)
 
         # World update: resource regeneration at dawn
         regenerated = self.world.update_resources(tick)
@@ -548,11 +546,6 @@ class SimulationEngine:
         # Write final overview to log folder
         self._log_overview_end()
 
-        # Finalize audit recording
-        if self.recorder:
-            self.recorder.finalize(self.max_ticks)
-            print(f"  📊 Audit data: {self.recorder.audit_dir}/")
-
         print(f"  📂 Detailed logs: {self.sim_logger.run_dir}/")
 
     # ------------------------------------------------------------------
@@ -574,6 +567,14 @@ class SimulationEngine:
         # Skip emoji console decorations (breaks on Windows cp1252 terminals).
         # The web server uses structured logging instead.
         self._log_overview_start()
+        self.event_emitter.emit_run_start(
+            agent_names=[a.name for a in self.agents],
+            model_id=self.llm.model if self.llm else "none",
+            world_seed=self._world_seed,
+            width=self.world.width,
+            height=self.world.height,
+            max_ticks=self.max_ticks,
+        )
 
         try:
             for tick in range(1, self.max_ticks + 1):
@@ -610,6 +611,9 @@ class SimulationEngine:
                 self._precedents_path, self.current_tick, self._world_seed
             )
             self.lineage.save(self._lineage_path)
+            survivors = [a.name for a in self.agents if a.alive]
+            self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
+            self.event_emitter.close()
 
         self._log_overview_end()
 
