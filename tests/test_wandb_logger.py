@@ -188,3 +188,42 @@ class TestWandbLoggerLogTick:
         assert m["world/total_resources"] == 5  # 3 + 2
         assert m["oracle/precedent_count"] == 7
         assert m["sim/is_daytime"] == 1
+
+
+class TestWandbLoggerRunName:
+    """Tests for run_name parameter support."""
+
+    def test_wandb_logger_passes_run_name_to_init(self, tmp_path):
+        """WandbLogger should pass run_name to wandb.init as name=."""
+        with patch("simulation.wandb_logger.wandb") as mock_wandb:
+            mock_wandb.init.return_value = MagicMock()
+            mock_wandb.Artifact.return_value = MagicMock()
+
+            from simulation.wandb_logger import WandbLogger
+            WandbLogger(
+                project="test-proj",
+                entity=None,
+                run_config={},
+                prompts_dir=tmp_path,
+                run_name="my_run_01",
+            )
+
+            init_kwargs = mock_wandb.init.call_args.kwargs
+            assert init_kwargs.get("name") == "my_run_01"
+
+    def test_wandb_logger_no_run_name_defaults_to_none(self, tmp_path):
+        """WandbLogger without run_name should not pass name= to wandb.init."""
+        with patch("simulation.wandb_logger.wandb") as mock_wandb:
+            mock_wandb.init.return_value = MagicMock()
+            mock_wandb.Artifact.return_value = MagicMock()
+
+            from simulation.wandb_logger import WandbLogger
+            WandbLogger(
+                project="test-proj",
+                entity=None,
+                run_config={},
+                prompts_dir=tmp_path,
+            )
+
+            init_kwargs = mock_wandb.init.call_args.kwargs
+            assert init_kwargs.get("name") is None

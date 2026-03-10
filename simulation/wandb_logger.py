@@ -20,13 +20,14 @@ class WandbLogger:
         entity: Optional[str],
         run_config: dict,
         prompts_dir: Path,
+        run_name: Optional[str] = None,
     ) -> None:
         prompt_hashes = self._hash_prompts(prompts_dir)
         config = {
             **run_config,
             **{f"prompt/{k}": v["sha256"] for k, v in prompt_hashes.items()},
         }
-        wandb.init(project=project, entity=entity, config=config)
+        wandb.init(project=project, entity=entity, config=config, name=run_name)
         if prompt_hashes:
             self._upload_prompt_artifact(prompts_dir, prompt_hashes)
 
