@@ -1,7 +1,6 @@
 """Tests for simulation/event_emitter.py."""
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
