@@ -49,11 +49,18 @@ def _make_oracle(world: World, llm=None) -> Oracle:
     return Oracle(world=world, llm=llm)
 
 
+def _typed(d: dict):
+    """Wrap a dict as a typed-model-like MagicMock (simulate generate_structured result)."""
+    m = MagicMock()
+    m.model_dump.return_value = d
+    return m
+
+
 def _mock_llm(response: dict):
-    """Return a MagicMock LLM whose generate_json always returns response."""
+    """Return a MagicMock LLM whose generate_structured always returns response."""
     llm = MagicMock()
-    llm.generate_json.return_value = response
-    llm.last_call = None
+    llm.generate_structured.return_value = _typed(response)
+    llm.last_call = {}
     return llm
 
 
@@ -276,7 +283,7 @@ class TestInnovationLLMValidation:
         )
         assert result["success"] is True
         assert "craft_spear" in agent.actions
-        assert llm.generate_json.called
+        assert llm.generate_structured.called
 
     def test_llm_stores_category_in_precedent(self):
         world = _make_world()
@@ -324,7 +331,7 @@ class TestInnovationLLMValidation:
             },
             tick=1,
         )
-        llm.generate_json.assert_not_called()
+        llm.generate_structured.assert_not_called()
 
     def test_llm_fallback_on_missing_approved_key(self):
         """If LLM returns unexpected JSON, default to approved."""
@@ -389,9 +396,9 @@ class TestEffectBoundsClamping:
         # LLM: first call approves innovation, second call judges the action effect
         llm = MagicMock()
         llm.last_call = None
-        llm.generate_json.side_effect = [
-            {"approved": True, "reason": "OK", "category": "SURVIVAL"},      # innovation validation
-            {"success": True, "message": "worked", "effects": {"energy": -500, "hunger": -500}},  # custom action
+        llm.generate_structured.side_effect = [
+            _typed({"approved": True, "reason": "OK", "category": "SURVIVAL"}),
+            _typed({"success": True, "message": "worked", "effects": {"energy": -500, "hunger": -500, "life": 0}}),
         ]
         oracle = _make_oracle(world, llm=llm)
 
@@ -506,9 +513,9 @@ class TestCraftingExecution:
 
         llm = MagicMock()
         llm.last_call = None
-        llm.generate_json.side_effect = [
-            {"approved": True, "reason": "Makes sense.", "category": "CRAFTING"},
-            {"success": True, "message": "You shaped the stones into a blade.", "effects": {"energy": -8}},
+        llm.generate_structured.side_effect = [
+            _typed({"approved": True, "reason": "Makes sense.", "category": "CRAFTING"}),
+            _typed({"success": True, "message": "You shaped the stones into a blade.", "effects": {"energy": -8, "hunger": 0, "life": 0}}),
         ]
 
         oracle = _make_oracle(world, llm=llm)
@@ -533,7 +540,7 @@ class TestCraftingExecution:
 
         llm = MagicMock()
         llm.last_call = None
-        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        llm.generate_structured.return_value = _typed({"approved": True, "reason": "ok", "category": "CRAFTING"})
         oracle = _make_oracle(world, llm=llm)
 
         oracle.resolve_action(
@@ -560,7 +567,7 @@ class TestCraftingExecution:
 
         llm = MagicMock()
         llm.last_call = None
-        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        llm.generate_structured.return_value = _typed({"approved": True, "reason": "ok", "category": "CRAFTING"})
         oracle = _make_oracle(world, llm=llm)
 
         oracle.resolve_action(
@@ -587,7 +594,7 @@ class TestCraftingExecution:
 
         llm = MagicMock()
         llm.last_call = None
-        llm.generate_json.return_value = {"approved": True, "reason": "ok", "category": "CRAFTING"}
+        llm.generate_structured.return_value = _typed({"approved": True, "reason": "ok", "category": "CRAFTING"})
         oracle = _make_oracle(world, llm=llm)
 
         oracle.resolve_action(
@@ -601,11 +608,11 @@ class TestCraftingExecution:
             },
             tick=1,
         )
-        calls_after_innovation = llm.generate_json.call_count
+        calls_after_innovation = llm.generate_structured.call_count
         agent.inventory.items.clear()
 
         oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
-        assert llm.generate_json.call_count == calls_after_innovation
+        assert llm.generate_structured.call_count == calls_after_innovation
 
     def test_crafting_consumes_items_on_success(self):
         """After successful crafting, required items are removed from inventory."""

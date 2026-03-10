@@ -79,10 +79,11 @@ class Memory:
                 existing_knowledge=existing_knowledge,
             )
 
-            result = llm.generate_json(prompt, temperature=0.3)
+            from simulation.schemas import MemoryCompressionResponse
+            typed = llm.generate_structured(prompt, MemoryCompressionResponse, temperature=0.3)
 
-            if result and isinstance(result.get("learnings"), list):
-                learnings = result["learnings"]
+            if typed is not None:
+                learnings = typed.learnings
                 for lesson in learnings:
                     if isinstance(lesson, str) and lesson.strip():
                         self.add_knowledge(lesson.strip())
