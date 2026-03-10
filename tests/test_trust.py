@@ -118,13 +118,15 @@ def test_communicate_builds_trust():
 def test_aggressive_innovation_sets_trust_impact():
     """Validate that oracle stores trust_impact in precedent for aggressive innovations."""
     mock_llm = MagicMock()
-    mock_llm.generate_json.return_value = {
+    _typed = MagicMock()
+    _typed.model_dump.return_value = {
         "approved": True,
         "reason": "Physically plausible aggression.",
         "category": "SOCIAL",
         "aggressive": True,
         "trust_impact": 0.3,
     }
+    mock_llm.generate_structured.return_value = _typed
     mock_world = MagicMock()
     mock_world.get_tile.return_value = "land"
     oracle = Oracle(world=mock_world, llm=mock_llm)
@@ -149,14 +151,17 @@ def test_aggressive_innovation_sets_trust_impact():
 def test_aggressive_innovation_applies_trust_damage():
     """On execution, aggressive innovated actions damage trust between attacker and victim."""
     mock_llm = MagicMock()
+
+    def _typed_r(d):
+        m = MagicMock()
+        m.model_dump.return_value = d
+        return m
+
     # First call: validate innovation → aggressive
-    mock_llm.generate_json.return_value = {
-        "approved": True,
-        "reason": "Plausible.",
-        "category": "SOCIAL",
-        "aggressive": True,
-        "trust_impact": 0.3,
-    }
+    mock_llm.generate_structured.side_effect = [
+        _typed_r({"approved": True, "reason": "Plausible.", "category": "SOCIAL", "aggressive": True, "trust_impact": 0.3}),
+        _typed_r({"success": True, "message": "Kai grabs food from Bruno.", "effects": {"hunger": -10, "energy": 0, "life": 0}}),
+    ]
     mock_world = MagicMock()
     mock_world.get_tile.return_value = "land"
     oracle = Oracle(world=mock_world, llm=mock_llm)
@@ -177,11 +182,6 @@ def test_aggressive_innovation_applies_trust_damage():
     oracle.resolve_action(attacker, innovate_action, tick=1)
 
     # 2. Execute it — second LLM call judges the outcome
-    mock_llm.generate_json.return_value = {
-        "success": True,
-        "message": "Kai grabs food from Bruno.",
-        "effects": {"hunger": -10},
-    }
     exec_action = {"action": "steal_food", "target": "Bruno"}
     oracle.resolve_action(attacker, exec_action, tick=2)
 

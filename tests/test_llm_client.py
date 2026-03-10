@@ -1,48 +1,85 @@
 """
-Tests for LLMClient JSON parsing and repair.
+Tests for LLMClient structured output generation.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from simulation.llm_client import LLMClient
+from simulation.schemas import AgentDecisionResponse, PhysicalReflectionResponse
 
 
-class TestGenerateJsonRepair:
-    """generate_json recovers from common LLM malformations."""
+class TestGenerateStructured:
+    """generate_structured returns typed Pydantic models via vllm guided_json."""
 
-    def _client_returning(self, raw: str) -> LLMClient:
+    def _client_with_response(self, content: str) -> LLMClient:
         client = LLMClient()
-        client.generate = MagicMock(return_value=raw)
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = content
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
         return client
 
-    def test_valid_json_parsed_normally(self):
-        client = self._client_returning('{"learnings": ["lesson A"]}')
-        result = client.generate_json("prompt")
-        assert result == {"learnings": ["lesson A"]}
+    def test_returns_typed_model_on_valid_json(self):
+        payload = '{"action": "move", "reason": "need food", "direction": "north"}'
+        client = self._client_with_response(payload)
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+        assert isinstance(result, AgentDecisionResponse)
+        assert result.action == "move"
+        assert result.direction == "north"
 
-    def test_repairs_split_arrays(self):
-        """LLM emits {"learnings": ["A"], ["B"]} — must recover both lessons."""
-        malformed = '{"learnings": ["lesson A"], ["lesson B"]}'
-        client = self._client_returning(malformed)
-        result = client.generate_json("prompt")
+    def test_optional_fields_default_to_none(self):
+        payload = '{"action": "rest", "reason": "tired"}'
+        client = self._client_with_response(payload)
+        result = client.generate_structured("prompt", AgentDecisionResponse)
         assert result is not None
-        assert result.get("learnings") == ["lesson A", "lesson B"]
+        assert result.direction is None
+        assert result.target is None
 
-    def test_repairs_three_split_arrays(self):
-        malformed = '{"learnings": ["A"], ["B"], ["C"]}'
-        client = self._client_returning(malformed)
-        result = client.generate_json("prompt")
-        assert result is not None
-        assert result.get("learnings") == ["A", "B", "C"]
+    def test_physical_reflection_response(self):
+        payload = '{"possible": true, "reason": "terrain is passable", "life_damage": 0}'
+        client = self._client_with_response(payload)
+        result = client.generate_structured("prompt", PhysicalReflectionResponse)
+        assert isinstance(result, PhysicalReflectionResponse)
+        assert result.possible is True
+        assert result.life_damage == 0
 
-    def test_returns_none_on_unrecoverable_garbage(self):
-        client = self._client_returning("not json at all, no strings")
-        result = client.generate_json("prompt")
+    def test_returns_none_on_connection_error(self):
+        client = LLMClient()
+        client._client = MagicMock()
+        client._client.chat.completions.create.side_effect = Exception("connection refused")
+        result = client.generate_structured("prompt", AgentDecisionResponse)
         assert result is None
 
-    def test_returns_none_on_empty_response(self):
-        client = self._client_returning("")
-        result = client.generate_json("prompt")
-        assert result is None
+    def test_last_call_populated_on_success(self):
+        payload = '{"action": "eat", "reason": "hungry"}'
+        client = self._client_with_response(payload)
+        client.generate_structured("my prompt", AgentDecisionResponse, system_prompt="sys")
+        assert client.last_call["user_prompt"] == "my prompt"
+        assert client.last_call["system_prompt"] == "sys"
+        assert client.last_call["raw_response"] == payload
+
+    def test_guided_json_schema_passed_to_api(self):
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"}'
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+        client.generate_structured("prompt", AgentDecisionResponse)
+        call_kwargs = client._client.chat.completions.create.call_args[1]
+        assert "extra_body" in call_kwargs
+        assert "guided_json" in call_kwargs["extra_body"]
+        assert call_kwargs["extra_body"]["guided_json"] == AgentDecisionResponse.model_json_schema()
+
+    def test_system_prompt_included_in_messages(self):
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"}'
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+        client.generate_structured("user msg", AgentDecisionResponse, system_prompt="be helpful")
+        messages = client._client.chat.completions.create.call_args[1]["messages"]
+        assert messages[0] == {"role": "system", "content": "be helpful"}
+        assert messages[1] == {"role": "user", "content": "user msg"}

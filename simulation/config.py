@@ -95,11 +95,12 @@ HEAL_PER_TICK = 1            # life recovered per tick when conditions met
 # Perception
 AGENT_VISION_RADIUS = 3  # tiles in each direction
 
-# --- LLM / Ollama ---
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen3.5:4b"
+# --- LLM / vllm ---
+VLLM_BASE_URL   = "http://localhost:8000/v1"
+VLLM_MODEL      = "Qwen/Qwen2.5-3B-Instruct"
+VLLM_API_KEY    = "EMPTY"
 LLM_TEMPERATURE = 0.7
-LLM_MAX_TOKENS = 768
+LLM_MAX_TOKENS  = 768
 
 # --- Simulation ---
 MAX_TICKS = 72   # maximum ticks per run (3 full in-world days)

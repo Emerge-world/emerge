@@ -103,9 +103,9 @@ class TestCompression:
             mem.add_episode(f"I moved to position {i}")
 
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
-            "learnings": ["Moving explores new areas", "Each move costs energy"]
-        }
+        typed = MagicMock()
+        typed.learnings = ["Moving explores new areas", "Each move costs energy"]
+        mock_llm.generate_structured.return_value = typed
 
         mem.compress(llm=mock_llm, tick=10, agent_name="Ada")
         assert len(mem.semantic) == 2
@@ -158,9 +158,9 @@ class TestCompression:
         mem.add_episode("something")
 
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
-            "learnings": ["valid lesson", "", "  ", "another lesson"]
-        }
+        typed = MagicMock()
+        typed.learnings = ["valid lesson", "", "  ", "another lesson"]
+        mock_llm.generate_structured.return_value = typed
 
         mem.compress(llm=mock_llm, tick=10, agent_name="Ada")
         assert len(mem.semantic) == 2

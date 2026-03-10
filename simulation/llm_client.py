@@ -1,119 +1,86 @@
 """
-Client for communicating with Ollama (Qwen 2.5-3B).
+Client for communicating with vllm (OpenAI-compatible API).
+Uses outlines guided_json for constrained token generation.
 """
 
-import json
-import re
-import requests
 import logging
+from typing import TypeVar, Type
 
+from openai import OpenAI
+from pydantic import BaseModel
 
-def _repair_learnings_json(text: str) -> dict | None:
-    """Recover from split-array malformation: {"learnings": ["A"], ["B"]} → {"learnings": ["A", "B"]}.
-
-    Extracts all quoted string values from any array literals in the text,
-    filtering out JSON key names, and reassembles a valid learnings dict.
-    """
-    strings = re.findall(r'"((?:[^"\\]|\\.)*)"', text)
-    lessons = [s for s in strings if s != "learnings" and s.strip()]
-    if not lessons:
-        return None
-    return {"learnings": lessons}
-
-from simulation.config import OLLAMA_BASE_URL, OLLAMA_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS
+from simulation.config import (
+    VLLM_BASE_URL,
+    VLLM_MODEL,
+    VLLM_API_KEY,
+    LLM_TEMPERATURE,
+    LLM_MAX_TOKENS,
+)
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class LLMClient:
-    """Wrapper around the Ollama API."""
+    """Wrapper around the vllm OpenAI-compatible API with structured output support."""
 
-    def __init__(self, base_url: str = OLLAMA_BASE_URL, model: str = OLLAMA_MODEL):
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str = VLLM_BASE_URL, model: str = VLLM_MODEL):
         self.model = model
+        self._client = OpenAI(base_url=base_url, api_key=VLLM_API_KEY)
         # Stores the last call's prompts and raw response for logging
         self.last_call: dict = {}
 
-    def generate(self, prompt: str, system_prompt: str = "", temperature: float = LLM_TEMPERATURE) -> str:
-        """
-        Send a prompt to Ollama and return the response as text.
-        """
-        url = f"{self.base_url}/api/generate"
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "system": system_prompt,
-            "stream": False,
-            "think": False,
-            "options": {
-                "temperature": temperature,
-                "num_predict": LLM_MAX_TOKENS,
-            },
+    def generate_structured(
+        self,
+        prompt: str,
+        response_model: Type[T],
+        system_prompt: str = "",
+        temperature: float = LLM_TEMPERATURE,
+    ) -> T | None:
+        """Calls vllm with guided_json constraint. Returns typed model or None on error."""
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        self.last_call = {
+            "system_prompt": system_prompt,
+            "user_prompt": prompt,
+            "raw_response": "",
         }
 
         try:
             logger.debug(f"LLM request to {self.model}: {prompt[:120]}...")
-            response = requests.post(url, json=payload, timeout=250)
-            # write the request in a log for debugging
-            logger.debug(f"LLM request payload: {payload}")
-            response.raise_for_status()
-            data = response.json()
-            raw = data.get("response", "")
-            # Qwen3 CoT: strip <think>...</think> blocks before returning
-            result = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-            logger.debug(f"LLM response: {result[:200]}...")
-            self.last_call = {
-                "system_prompt": system_prompt,
-                "user_prompt": prompt,
-                "raw_response": result,
-            }
-            return result
-        except requests.exceptions.ConnectionError:
-            logger.error(f"Cannot connect to Ollama at {self.base_url}. Is it running?")
-            self.last_call = {"system_prompt": system_prompt, "user_prompt": prompt, "raw_response": ""}
-            return ""
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=LLM_MAX_TOKENS,
+                extra_body={
+                    "guided_json": response_model.model_json_schema(),
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
+            )
+            raw = response.choices[0].message.content or ""
+            self.last_call["raw_response"] = raw
+            logger.debug(f"LLM response: {raw[:200]}...")
+            # Strip control characters that vllm occasionally injects into string values
+            sanitized = "".join(ch for ch in raw if ch >= " " or ch in "\n\r\t")
+            # Extract just the JSON object — vllm sometimes appends trailing text
+            start = sanitized.find("{")
+            end = sanitized.rfind("}") + 1
+            if start != -1 and end > start:
+                sanitized = sanitized[start:end]
+            return response_model.model_validate_json(sanitized)
         except Exception as e:
-            logger.error(f"Error calling Ollama: {e}")
-            self.last_call = {"system_prompt": system_prompt, "user_prompt": prompt, "raw_response": ""}
-            return ""
-
-    def generate_json(self, prompt: str, system_prompt: str = "", temperature: float = LLM_TEMPERATURE) -> dict | None:
-        """
-        Send a prompt and expect a JSON response. Attempts to parse the result.
-        """
-        full_system = system_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No extra text, no markdown, no code fences."
-        raw = self.generate(prompt, system_prompt=full_system, temperature=temperature)
-
-        if not raw:
-            return None
-
-        # Try to clean up the response
-        cleaned = raw.strip()
-        # Remove possible code fences
-        if cleaned.startswith("```"):
-            lines = cleaned.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
-            cleaned = "\n".join(lines).strip()
-
-        # Find JSON within the response
-        start = cleaned.find("{")
-        end = cleaned.rfind("}") + 1
-        if start != -1 and end > start:
-            cleaned = cleaned[start:end]
-
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            repaired = _repair_learnings_json(cleaned)
-            if repaired is not None:
-                return repaired
-            logger.warning(f"Could not parse JSON from LLM response: {raw[:300]}")
+            logger.error(f"Error calling vllm: {e}")
             return None
 
     def is_available(self) -> bool:
-        """Check if Ollama is available."""
+        """Check if vllm is available."""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
+            self._client.models.list()
+            return True
         except Exception:
             return False

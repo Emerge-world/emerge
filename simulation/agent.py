@@ -276,14 +276,16 @@ class Agent:
                                                   nearby_agents=nearby_agents or [],
                                                   all_agents=all_agents)
 
-        result = self.llm.generate_json(user_prompt, system_prompt=system_prompt)
-        
-        logger.debug(f"[{self.name}] LLM raw response: {result}")
-        
-        # Capture LLM trace for the sim logger (uses the underlying generate() call's last_call)
+        from simulation.schemas import AgentDecisionResponse
+        typed = self.llm.generate_structured(user_prompt, AgentDecisionResponse, system_prompt=system_prompt)
+
+        logger.debug(f"[{self.name}] LLM raw response: {typed}")
+
+        # Capture LLM trace for the sim logger
         llm_trace = dict(self.llm.last_call) if self.llm.last_call else {}
 
-        if result and "action" in result:
+        if typed is not None:
+            result = typed.model_dump()
             logger.debug(f"[{self.name}] LLM decided: {result}")
             result["_llm_trace"] = llm_trace
             return result
