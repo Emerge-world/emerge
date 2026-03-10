@@ -25,8 +25,10 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
         max_ticks=72,
         agent_count=3,
         agent_names=["Ada", "Bruno", "Clara"],
-        model_id="test-model",
+        agent_model_id="test-agent-model",
+        oracle_model_id="test-oracle-model",
         day_cycle=day_cycle,
+        precedents_file="data/precedents_42.json",
     )
     return em
 
@@ -72,7 +74,11 @@ class TestMeta:
         assert meta["max_ticks"] == 72
         assert meta["agent_count"] == 3
         assert meta["agent_names"] == ["Ada", "Bruno", "Clara"]
-        assert meta["model_id"] == "test-model"
+        assert meta["agent_model_id"] == "test-agent-model"
+        assert meta["oracle_model_id"] == "test-oracle-model"
+        assert "git_commit" in meta
+        assert "prompt_hashes" in meta
+        assert meta["precedents_file"] == "data/precedents_42.json"
         assert "created_at" in meta
 
     def test_events_jsonl_created(self, tmp_path, monkeypatch):
@@ -269,6 +275,150 @@ class TestRunEnd:
         em.emit_run_end(72, [], 72)
         em.close()
         assert _read_events(tmp_path)[0]["payload"]["total_ticks"] == 72
+
+
+# ------------------------------------------------------------------ #
+# Integration / ordering
+# ------------------------------------------------------------------ #
+
+# ------------------------------------------------------------------ #
+# Blob writing
+# ------------------------------------------------------------------ #
+
+class TestBlobs:
+    def test_write_blob_creates_file(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        rel, sha = em._write_blob("prompts", "test_blob", "hello world")
+        em.close()
+        blob_path = tmp_path / "data" / "runs" / "test-run-1234" / rel
+        assert blob_path.exists()
+        assert blob_path.read_text(encoding="utf-8") == "hello world"
+
+    def test_write_blob_returns_rel_path(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        rel, sha = em._write_blob("llm_raw", "resp_1_Ada", "raw response text")
+        em.close()
+        assert rel == "blobs/llm_raw/resp_1_Ada.txt"
+
+    def test_write_blob_dedup_same_content(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        content = "identical content"
+        rel1, sha1 = em._write_blob("prompts", "blob_a", content)
+        rel2, sha2 = em._write_blob("prompts", "blob_b", content)
+        em.close()
+        # Same sha, same path returned (first wins)
+        assert sha1 == sha2
+        assert rel1 == rel2
+        # Only one file written (the second name never created)
+        blob_b = tmp_path / "data" / "runs" / "test-run-1234" / "blobs" / "prompts" / "blob_b.txt"
+        assert not blob_b.exists()
+
+    def test_write_blob_different_content_both_written(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em._write_blob("prompts", "blob_a", "content A")
+        em._write_blob("prompts", "blob_b", "content B")
+        em.close()
+        assert (tmp_path / "data" / "runs" / "test-run-1234" / "blobs" / "prompts" / "blob_a.txt").exists()
+        assert (tmp_path / "data" / "runs" / "test-run-1234" / "blobs" / "prompts" / "blob_b.txt").exists()
+
+    def test_blobs_dirs_created_on_init(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.close()
+        run_dir = tmp_path / "data" / "runs" / "test-run-1234"
+        assert (run_dir / "blobs" / "prompts").is_dir()
+        assert (run_dir / "blobs" / "llm_raw").is_dir()
+
+
+class TestAgentDecisionBlobs:
+    def _make_trace(self, system="sys", user="usr", raw="raw"):
+        return {"system_prompt": system, "user_prompt": user, "raw_response": raw}
+
+    def test_with_llm_trace_creates_blobs(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_agent_decision(3, "Ada", {"action": "move"}, parse_ok=True,
+                               llm_trace=self._make_trace())
+        em.close()
+        run_dir = tmp_path / "data" / "runs" / "test-run-1234"
+        assert (run_dir / "blobs" / "prompts" / "prompt_3_Ada.txt").exists()
+        assert (run_dir / "blobs" / "llm_raw" / "resp_3_Ada.txt").exists()
+
+    def test_with_llm_trace_payload_has_refs(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_agent_decision(3, "Ada", {"action": "move"}, parse_ok=True,
+                               llm_trace=self._make_trace())
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["prompt_ref"] == "blobs/prompts/prompt_3_Ada.txt"
+        assert p["raw_response_ref"] == "blobs/llm_raw/resp_3_Ada.txt"
+        assert len(p["prompt_sha256"]) == 64
+        assert len(p["response_sha256"]) == 64
+
+    def test_without_llm_trace_no_blob_fields(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_agent_decision(3, "Ada", {"action": "move"}, parse_ok=False)
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert "prompt_ref" not in p
+        assert "raw_response_ref" not in p
+
+    def test_prompt_blob_combines_system_and_user(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_agent_decision(1, "Ada", {"action": "rest"}, parse_ok=True,
+                               llm_trace=self._make_trace(system="SYSTEM", user="USER"))
+        em.close()
+        blob = (tmp_path / "data" / "runs" / "test-run-1234" /
+                "blobs" / "prompts" / "prompt_1_Ada.txt").read_text()
+        assert "SYSTEM\n\n---\n\nUSER" == blob
+
+
+class TestOracleResolutionBlobs:
+    def _make_trace(self, system="sys", user="usr", raw="raw"):
+        return {"system_prompt": system, "user_prompt": user, "raw_response": raw}
+
+    def test_cache_hit_null_blob_refs(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_oracle_resolution(1, "Ada", {"success": True, "effects": {}},
+                                  cache_hit=True)
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["cache_hit"] is True
+        assert p["prompt_ref"] is None
+        assert p["raw_response_ref"] is None
+
+    def test_with_llm_trace_creates_blobs(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_oracle_resolution(2, "Ada", {"success": True, "effects": {}},
+                                  llm_trace=self._make_trace(),
+                                  oracle_context="physical_reflect",
+                                  cache_hit=False)
+        em.close()
+        run_dir = tmp_path / "data" / "runs" / "test-run-1234"
+        assert (run_dir / "blobs" / "prompts" / "oracle_2_physical_reflect.txt").exists()
+        assert (run_dir / "blobs" / "llm_raw" / "oracle_resp_2_physical_reflect.txt").exists()
+
+    def test_with_llm_trace_payload_has_refs(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_oracle_resolution(2, "Ada", {"success": True, "effects": {}},
+                                  llm_trace=self._make_trace(),
+                                  oracle_context="physical_reflect",
+                                  cache_hit=False)
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["cache_hit"] is False
+        assert p["prompt_ref"] == "blobs/prompts/oracle_2_physical_reflect.txt"
+        assert p["raw_response_ref"] == "blobs/llm_raw/oracle_resp_2_physical_reflect.txt"
+
+    def test_oracle_context_sanitized(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_oracle_resolution(1, "Ada", {"success": True, "effects": {}},
+                                  llm_trace=self._make_trace(),
+                                  oracle_context="validate_innovation_pick-fruit!",
+                                  cache_hit=False)
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        # Special chars replaced with underscores, safe_ctx truncated at 40
+        assert "!" not in p["prompt_ref"]
+        assert "-" not in p["prompt_ref"]
 
 
 # ------------------------------------------------------------------ #
