@@ -12,7 +12,7 @@ from simulation.schemas import AgentDecisionResponse, PhysicalReflectionResponse
 
 
 class TestGenerateStructured:
-    """generate_structured returns typed Pydantic models via vllm guided_json."""
+    """generate_structured returns typed Pydantic models via vllm json_schema."""
 
     def _client_with_response(self, content: str) -> LLMClient:
         client = LLMClient()
@@ -61,7 +61,7 @@ class TestGenerateStructured:
         assert client.last_call["system_prompt"] == "sys"
         assert client.last_call["raw_response"] == payload
 
-    def test_guided_json_schema_passed_to_api(self):
+    def test_json_schema_passed_to_api(self):
         client = LLMClient()
         mock_response = MagicMock()
         mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"}'
@@ -69,9 +69,11 @@ class TestGenerateStructured:
         client._client.chat.completions.create.return_value = mock_response
         client.generate_structured("prompt", AgentDecisionResponse)
         call_kwargs = client._client.chat.completions.create.call_args[1]
-        assert "extra_body" in call_kwargs
-        assert "guided_json" in call_kwargs["extra_body"]
-        assert call_kwargs["extra_body"]["guided_json"] == AgentDecisionResponse.model_json_schema()
+        assert "response_format" in call_kwargs
+        response_format = call_kwargs["response_format"]
+        assert response_format["type"] == "json_schema"
+        assert response_format["json_schema"]["name"] == "AgentDecisionResponse"
+        assert response_format["json_schema"]["schema"] == AgentDecisionResponse.model_json_schema()
 
     def test_system_prompt_included_in_messages(self):
         client = LLMClient()

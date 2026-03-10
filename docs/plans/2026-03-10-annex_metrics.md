@@ -483,23 +483,3 @@ different populations
 ```
 
 ---
-
-# Appendix I — Future Research Directions
-
-Potential next phases:
-
-1. **cultural evolution**
-2. **technology diffusion**
-3. **collective problem solving**
-4. **environment modification**
-5. **long-horizon planning**
-
-These represent transitions from **individual emergence** to **open-ended societal emergence**.
-
----
-
-If you want, I can also produce **three additional things that would significantly strengthen the research**:
-
-1. **A formal paper outline (NeurIPS / ALIFE style)**
-2. **A mathematical model explaining why innovation emerges in this architecture**
-3. **A simulation benchmark protocol so other researchers can reproduce your results**.
