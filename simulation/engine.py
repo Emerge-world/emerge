@@ -42,6 +42,7 @@ class SimulationEngine:
         world_width: int = WORLD_WIDTH,
         world_height: int = WORLD_HEIGHT,
         wandb_logger: Optional["WandbLogger"] = None,
+        ollama_model: Optional[str] = None,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -53,7 +54,8 @@ class SimulationEngine:
         # Initialize LLM
         self.llm: Optional[LLMClient] = None
         if use_llm:
-            self.llm = LLMClient()
+            kwargs = {"model": ollama_model} if ollama_model else {}
+            self.llm = LLMClient(**kwargs)
             if not self.llm.is_available():
                 logger.warning("⚠️  Ollama is not available. Running in fallback mode (no LLM).")
                 self.llm = None

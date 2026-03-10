@@ -50,6 +50,8 @@ def main():
                         help="W&B project name (default: emerge)")
     parser.add_argument("--wandb-entity", default=None,
                         help="W&B entity/team (default: your W&B account)")
+    parser.add_argument("--model", default=None,
+                        help=f"Ollama model to use (default: {sim_config.OLLAMA_MODEL})")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -64,7 +66,7 @@ def main():
             "width": args.width,
             "height": args.height,
             "start_hour": args.start_hour,
-            "LLM_MODEL": sim_config.OLLAMA_MODEL,
+            "LLM_MODEL": args.model or sim_config.OLLAMA_MODEL,
             "LLM_TEMPERATURE": sim_config.LLM_TEMPERATURE,
             "MOVE_ENERGY_COST": sim_config.ENERGY_COST_MOVE,
             "REST_ENERGY_GAIN": sim_config.ENERGY_RECOVERY_REST,
@@ -97,6 +99,7 @@ def main():
         world_width=args.width,
         world_height=args.height,
         wandb_logger=wandb_logger,
+        ollama_model=args.model,
     )
 
     try:

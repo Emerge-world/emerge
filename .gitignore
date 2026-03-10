@@ -47,3 +47,6 @@ wandb/
 
 # Git worktrees
 .worktrees/
+
+# Peon Ping files
+*.wav
