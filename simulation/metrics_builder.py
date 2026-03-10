@@ -156,9 +156,9 @@ class MetricsBuilder:
             b = tick_buckets[t]
             alive_states = [s for s in b["states"] if s.get("alive", True)]
             n = len(alive_states)
-            mean_life = round(sum(s["life"] for s in alive_states) / n, 2) if n else 0.0
-            mean_hunger = round(sum(s["hunger"] for s in alive_states) / n, 2) if n else 0.0
-            mean_energy = round(sum(s["energy"] for s in alive_states) / n, 2) if n else 0.0
+            mean_life = round(sum(s.get("life", 0) for s in alive_states) / n, 2) if n else 0.0
+            mean_hunger = round(sum(s.get("hunger", 0) for s in alive_states) / n, 2) if n else 0.0
+            mean_energy = round(sum(s.get("energy", 0) for s in alive_states) / n, 2) if n else 0.0
             suc = b["oracle_success"]
             oracle_rate = round(sum(suc) / len(suc), 4) if suc else 0.0
             timeseries.append({
