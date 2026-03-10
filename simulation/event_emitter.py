@@ -43,6 +43,9 @@ class EventEmitter:
         run_dir = Path("data") / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
+        # store run_dir so engine can reference it (e.g. MetricsBuilder)
+        self.run_dir: Path = run_dir
+
         # Write meta.json immediately so it's available even if the run crashes
         meta = {
             "run_id": run_id,
@@ -156,6 +159,37 @@ class EventEmitter:
             "survivors": survivors,
             "total_ticks": total_ticks,
         })
+
+    def emit_innovation_attempt(self, tick: int, agent_name: str, action: dict):
+        """Emit before oracle validates an innovate action."""
+        self._emit("innovation_attempt", tick, {
+            "name": action.get("new_action_name", ""),
+            "description": action.get("description", ""),
+            "requires": action.get("requires"),
+            "produces": action.get("produces"),
+        }, agent_id=agent_name)
+
+    def emit_innovation_validated(self, tick: int, agent_name: str, result: dict):
+        """Emit after oracle approves or rejects an innovate action."""
+        self._emit("innovation_validated", tick, {
+            "name": result.get("name", ""),
+            "approved": result["success"],
+            "category": result.get("category"),
+            "reason_code": result.get("reason_code", "INNOVATION_APPROVED" if result["success"] else "INNOVATION_REJECTED"),
+        }, agent_id=agent_name)
+
+    def emit_custom_action_executed(self, tick: int, agent_name: str, action: dict, result: dict):
+        """Emit when an agent uses a previously approved innovation."""
+        effects = result.get("effects", {})
+        self._emit("custom_action_executed", tick, {
+            "name": action.get("action", ""),
+            "success": result["success"],
+            "effects": {
+                "hunger": effects.get("hunger", 0),
+                "energy": effects.get("energy", 0),
+                "life": effects.get("life", 0),
+            },
+        }, agent_id=agent_name)
 
     def close(self):
         """Flush and close the events.jsonl file handle. Safe to call twice."""
