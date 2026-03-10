@@ -13,7 +13,7 @@ from simulation.config import (
     MAX_AGENTS, MAX_TICKS, TICK_DELAY_SECONDS,
     AGENT_VISION_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, WORLD_START_HOUR,
     AGENT_NAME_POOL, CHILD_START_LIFE, CHILD_START_HUNGER, CHILD_START_ENERGY,
-    BONDING_TRUST_THRESHOLD,
+    BONDING_TRUST_THRESHOLD, BASE_ACTIONS,
 )
 from simulation.world import World
 from simulation.agent import Agent
@@ -27,6 +27,8 @@ from simulation.lineage import LineageTracker
 from simulation.personality import Personality
 
 logger = logging.getLogger(__name__)
+
+_BASE_ACTIONS: frozenset[str] = frozenset(BASE_ACTIONS)
 
 
 class SimulationEngine:
@@ -228,9 +230,19 @@ class SimulationEngine:
 
             print(f"  🧠 {agent.name} decides: {action_str}" + (f" ({reason})" if reason else ""))
 
+            # Emit innovation attempt before validation
+            if action_str == "innovate":
+                self.event_emitter.emit_innovation_attempt(tick, agent.name, action)
+
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
             self.event_emitter.emit_oracle_resolution(tick, agent.name, result)
+
+            # Emit innovation outcome events
+            if action_str == "innovate":
+                self.event_emitter.emit_innovation_validated(tick, agent.name, result)
+            elif action_str not in _BASE_ACTIONS and action_str in agent.actions:
+                self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
             crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
 
