@@ -39,7 +39,6 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
     parser.add_argument("--save-log", action="store_true", help="Save log on completion")
     parser.add_argument("--save-state", action="store_true", help="Save world state on completion")
-    parser.add_argument("--audit", action="store_true", help="Record behavioral audit data for prompt A/B testing")
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
                         help=f"In-world hour the simulation starts at (0-23, default: {WORLD_START_HOUR})")
     parser.add_argument("--width",  type=int, default=WORLD_WIDTH,  help=f"World width in tiles (default: {WORLD_WIDTH})")
@@ -97,7 +96,6 @@ def main():
         world_seed=args.seed,
         use_llm=not args.no_llm,
         max_ticks=args.ticks,
-        audit=args.audit,
         start_hour=args.start_hour,
         world_width=args.width,
         world_height=args.height,
