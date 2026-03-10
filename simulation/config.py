@@ -97,7 +97,7 @@ AGENT_VISION_RADIUS = 3  # tiles in each direction
 
 # --- LLM / vllm ---
 VLLM_BASE_URL   = "http://localhost:8000/v1"
-VLLM_MODEL      = "Qwen/Qwen2.5-3B-Instruct"
+VLLM_MODEL      = "cyankiwi/Qwen3.5-35B-A3B-AWQ-4bit"
 VLLM_API_KEY    = "EMPTY"
 LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS  = 768

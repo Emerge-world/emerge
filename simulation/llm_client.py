@@ -1,6 +1,6 @@
 """
 Client for communicating with vllm (OpenAI-compatible API).
-Uses outlines guided_json for constrained token generation.
+Uses outlines structured_outputs for constrained token generation.
 """
 
 import logging
@@ -38,7 +38,7 @@ class LLMClient:
         system_prompt: str = "",
         temperature: float = LLM_TEMPERATURE,
     ) -> T | None:
-        """Calls vllm with guided_json constraint. Returns typed model or None on error."""
+        """Calls vllm with structured_outputs constraint. Returns typed model or None on error."""
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -57,8 +57,14 @@ class LLMClient:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=LLM_MAX_TOKENS,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_model.__name__,
+                        "schema": response_model.model_json_schema(),
+                    },
+                },
                 extra_body={
-                    "guided_json": response_model.model_json_schema(),
                     "chat_template_kwargs": {"enable_thinking": False},
                 },
             )
