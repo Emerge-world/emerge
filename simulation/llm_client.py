@@ -67,6 +67,11 @@ class LLMClient:
             logger.debug(f"LLM response: {raw[:200]}...")
             # Strip control characters that vllm occasionally injects into string values
             sanitized = "".join(ch for ch in raw if ch >= " " or ch in "\n\r\t")
+            # Extract just the JSON object — vllm sometimes appends trailing text
+            start = sanitized.find("{")
+            end = sanitized.rfind("}") + 1
+            if start != -1 and end > start:
+                sanitized = sanitized[start:end]
             return response_model.model_validate_json(sanitized)
         except Exception as e:
             logger.error(f"Error calling vllm: {e}")
