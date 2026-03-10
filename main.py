@@ -50,6 +50,8 @@ def main():
                         help="W&B project name (default: emerge)")
     parser.add_argument("--wandb-entity", default=None,
                         help="W&B entity/team (default: your W&B account)")
+    parser.add_argument("--wandb-run-name", default=None,
+                        help="W&B run name (useful for batch experiments)")
     parser.add_argument("--model", default=None,
                         help=f"Ollama model to use (default: {sim_config.OLLAMA_MODEL})")
 
@@ -85,6 +87,7 @@ def main():
             entity=args.wandb_entity,
             run_config=run_config,
             prompts_dir=prompts_dir,
+            run_name=args.wandb_run_name,
         )
 
     print("🧬 Starting autonomous agent life simulation...\n")

@@ -278,3 +278,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Rejected alternatives**: Custom dashboard (high effort, limited comparison features), TensorBoard (not designed for simulation metrics), CSV export (no built-in comparison or visualization).
 - **Consequences**: Zero performance impact when `--wandb` is not set (`wandb_logger=None`, all calls skipped). Requires `wandb` package (~50MB). W&B free tier sufficient for project needs. Two additional CLI flags: `--wandb-project` (default: "emerge"), `--wandb-entity`.
 
+### DEC-029: Subprocess-based batch experiment runner
+- **Date**: 2026-03-10
+- **Context**: Running multiple experiments with different seeds, agent counts, or model configs required manual repetition of `uv run main.py ...` commands. No way to systematically sweep configurations or ensure consistent W&B run naming across a batch.
+- **Decision**: Added `run_batch.py` at the project root. It reads a YAML config (`experiments.yaml` by default), validates entries against an explicit `VALID_KEYS` allowlist, expands `runs: N` into N individually named entries (e.g. `baseline_run1`, `baseline_run2`), then calls `subprocess.run(["uv", "run", "main.py", ...])` sequentially for each. `WandbLogger` was extended with an optional `run_name` parameter forwarded to `wandb.init(name=...)`, and `main.py` gained a `--wandb-run-name` flag. `wandb` defaults to `true` in batch configs since batch runs are typically for experiment comparison. Failures are logged but do not abort the batch.
+- **Rejected alternatives**: Programmatic call into `main()` (tight coupling to internals, fragile to CLI changes), shell script (harder to maintain, no structured config or summary), parallel execution (race conditions on W&B, harder to diagnose failures).
+- **Consequences**: Each experiment is a fully isolated subprocess — no shared state between runs. The `VALID_KEYS` set in `run_batch.py` must be kept in sync with `main.py` CLI flags when new flags are added. Batch runs always continue on failure (no abort-on-error mode).
+
