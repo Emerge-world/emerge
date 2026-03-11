@@ -163,7 +163,7 @@ class SimulationEngine:
             try:
                 MetricsBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
-                logger.warning("MetricsBuilder failed", error=str(exc))
+                logger.warning("MetricsBuilder failed: %s", exc)
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -251,6 +251,10 @@ class SimulationEngine:
                 oracle_context=self.oracle.last_llm_context,
                 cache_hit=self.oracle.last_cache_hit,
             )
+            if action_str == "innovate":
+                self.event_emitter.emit_innovation_validated(tick, agent.name, result)
+            elif action_str not in _BASE_ACTIONS:
+                self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
             crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
 
@@ -637,7 +641,7 @@ class SimulationEngine:
             try:
                 MetricsBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
-                logger.warning("MetricsBuilder failed", error=str(exc))
+                logger.warning("MetricsBuilder failed: %s", exc)
 
         self._log_overview_end()
 

@@ -48,7 +48,8 @@ class EventEmitter:
         self.seed = seed
         self._day_cycle = day_cycle
 
-        run_dir = Path("data") / "runs" / run_id
+        self.run_dir = Path("data") / "runs" / run_id
+        run_dir = self.run_dir
         run_dir.mkdir(parents=True, exist_ok=True)
 
         # Create blob subdirectories

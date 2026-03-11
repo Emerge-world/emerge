@@ -214,7 +214,7 @@ class Oracle:
     # --- Base actions ---
 
     def _resolve_move(self, agent: Agent, action: dict, tick: int) -> dict:
-        direction = action.get("direction", "north").lower()
+        direction = (action.get("direction") or "north").lower()
         delta = DIRECTION_DELTAS.get(direction)
         if delta is None:
             return {"success": False, "message": f"Unknown direction: {direction}", "effects": {}}
