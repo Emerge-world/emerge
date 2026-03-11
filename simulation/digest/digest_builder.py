@@ -360,8 +360,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Build LLM digest for a simulation run")
     parser.add_argument("run_dir", help="Path to run directory (data/runs/<run_id>)")
-    parser.add_argument("--no-render-md", action="store_true", help="Skip markdown rendering")
-    parser.add_argument("--agents", nargs="*", help="Limit to specific agents")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 

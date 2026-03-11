@@ -69,10 +69,10 @@ class BehaviorSegmenter:
         by_tick: dict[int, dict] = {}
 
         for ev in events:
-            if ev.get("agent_id") != agent_id and ev.get("agent_id") is not None:
-                # include world-level events (agent_id=None) but not other agents
-                if ev.get("agent_id") is not None:
-                    continue
+            ev_agent = ev.get("agent_id")
+            if ev_agent is not None and ev_agent != agent_id:
+                # Skip events from other agents; world-level events (agent_id=None) are included
+                continue
             t = ev.get("tick", 0)
             if t == 0:
                 continue
