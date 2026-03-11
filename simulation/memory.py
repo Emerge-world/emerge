@@ -55,22 +55,23 @@ class Memory:
             return False
         return True
 
-    def compress(self, llm, tick: int, agent_name: str):
+    def compress(self, llm, tick: int, agent_name: str) -> list[str]:
         """Ask the LLM to extract learnings from recent episodes into semantic memory.
 
         Three-layer fallback: null LLM check, try/except, result validation.
-        Never crashes.
+        Never crashes. Returns the list of accepted learnings (empty on any failure).
         """
         if not llm:
             logger.debug(f"[{agent_name}] No LLM available, skipping memory compression")
             self._last_compression_tick = tick
-            return
+            return []
 
         from simulation import prompt_loader
 
         episodes_text = "\n".join(f"- {ep}" for ep in self.episodic)
         existing_knowledge = "\n".join(f"- {k}" for k in self.semantic) if self.semantic else "None yet."
 
+        accepted: list[str] = []
         try:
             prompt = prompt_loader.render(
                 "agent/memory_compression",
@@ -87,7 +88,8 @@ class Memory:
                 for lesson in learnings:
                     if isinstance(lesson, str) and lesson.strip():
                         self.add_knowledge(lesson.strip())
-                logger.info(f"[{agent_name}] Compressed {len(self.episodic)} episodes into {len(learnings)} learnings")
+                        accepted.append(lesson.strip())
+                logger.info(f"[{agent_name}] Compressed {len(self.episodic)} episodes into {len(accepted)} learnings")
             else:
                 logger.warning(f"[{agent_name}] Memory compression returned invalid format, skipping")
 
@@ -95,6 +97,7 @@ class Memory:
             logger.warning(f"[{agent_name}] Memory compression failed: {e}")
 
         self._last_compression_tick = tick
+        return accepted
 
     def to_prompt(self) -> str:
         """Format both memory stores for the decision prompt."""

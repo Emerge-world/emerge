@@ -26,6 +26,7 @@ from simulation.day_cycle import DayCycle
 from simulation.lineage import LineageTracker
 from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
+from simulation.ebs_builder import EBSBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +163,9 @@ class SimulationEngine:
             self.event_emitter.close()
             try:
                 MetricsBuilder(self.event_emitter.run_dir).build()
+                EBSBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
-                logger.warning("MetricsBuilder failed: %s", exc)
+                logger.warning("MetricsBuilder/EBSBuilder failed: %s", exc)
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -209,6 +211,21 @@ class SimulationEngine:
             # Snapshot inventory before oracle resolves the action
             inventory_before = dict(agent.inventory.items)
 
+            # Emit perception snapshot before decision (used by EBSBuilder for Autonomy)
+            resources_nearby = [
+                {"type": t["resource"], "tile": t.get("type", ""), "dx": t["x"] - agent.x, "dy": t["y"] - agent.y}
+                for t in nearby
+                if t.get("resource")
+            ]
+            self.event_emitter.emit_agent_perception(
+                tick, agent.name,
+                pos={"x": agent.x, "y": agent.y},
+                hunger=agent.hunger,
+                energy=agent.energy,
+                life=agent.life,
+                resources_nearby=resources_nearby,
+            )
+
             # 2. Agent decides its action
             action = agent.decide_action(nearby, tick, time_description,
                                          nearby_agents=nearby_agent_list,
@@ -252,7 +269,10 @@ class SimulationEngine:
                 cache_hit=self.oracle.last_cache_hit,
             )
             if action_str == "innovate":
-                self.event_emitter.emit_innovation_validated(tick, agent.name, result)
+                self.event_emitter.emit_innovation_validated(
+                    tick, agent.name, result,
+                    requires=action.get("requires"), produces=action.get("produces"),
+                )
             elif action_str not in _BASE_ACTIONS:
                 self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
             crafting_event = result.get("crafting_event")
@@ -349,7 +369,11 @@ class SimulationEngine:
         # Memory compression
         for agent in alive_agents:
             if agent.alive and agent.memory_system.should_compress(tick):
-                agent.memory_system.compress(llm=self.llm, tick=tick, agent_name=agent.name)
+                episode_count = len(agent.memory_system.episodic)
+                learnings = agent.memory_system.compress(llm=self.llm, tick=tick, agent_name=agent.name)
+                self.event_emitter.emit_memory_compression_result(
+                    tick, agent.name, episode_count=episode_count, learnings=learnings
+                )
 
         # Log tick to W&B
         if self.wandb_logger:
@@ -640,8 +664,9 @@ class SimulationEngine:
             self.event_emitter.close()
             try:
                 MetricsBuilder(self.event_emitter.run_dir).build()
+                EBSBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
-                logger.warning("MetricsBuilder failed: %s", exc)
+                logger.warning("MetricsBuilder/EBSBuilder failed: %s", exc)
 
         self._log_overview_end()
 

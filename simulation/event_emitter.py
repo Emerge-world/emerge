@@ -245,6 +245,28 @@ class EventEmitter:
             "total_ticks": total_ticks,
         })
 
+    def emit_agent_perception(
+        self, tick: int, agent_name: str, *, pos: dict, hunger: float, energy: float,
+        life: float, resources_nearby: list
+    ):
+        """Emit pre-decision perception snapshot (used by EBSBuilder for Autonomy scoring)."""
+        self._emit("agent_perception", tick, {
+            "pos": pos,
+            "hunger": hunger,
+            "energy": energy,
+            "life": life,
+            "resources_nearby": resources_nearby,
+        }, agent_id=agent_name)
+
+    def emit_memory_compression_result(
+        self, tick: int, agent_name: str, *, episode_count: int, learnings: list[str]
+    ):
+        """Emit after memory compression (used by EBSBuilder for Stability scoring)."""
+        self._emit("memory_compression_result", tick, {
+            "episode_count": episode_count,
+            "learnings": learnings,
+        }, agent_id=agent_name)
+
     def emit_innovation_attempt(self, tick: int, agent_name: str, action: dict):
         """Emit before oracle validates an innovate action."""
         self._emit("innovation_attempt", tick, {
@@ -254,13 +276,17 @@ class EventEmitter:
             "produces": action.get("produces"),
         }, agent_id=agent_name)
 
-    def emit_innovation_validated(self, tick: int, agent_name: str, result: dict):
+    def emit_innovation_validated(
+        self, tick: int, agent_name: str, result: dict, *, requires=None, produces=None
+    ):
         """Emit after oracle approves or rejects an innovate action."""
         self._emit("innovation_validated", tick, {
             "name": result.get("name", ""),
             "approved": result["success"],
             "category": result.get("category"),
             "reason_code": result.get("reason_code", "INNOVATION_APPROVED" if result["success"] else "INNOVATION_REJECTED"),
+            "requires": requires,
+            "produces": produces,
         }, agent_id=agent_name)
 
     def emit_custom_action_executed(self, tick: int, agent_name: str, action: dict, result: dict):
