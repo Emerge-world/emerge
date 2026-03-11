@@ -1,125 +1,70 @@
-# 🧬 EMERGE — Master Plan
+# 🧬 EMERGE — Master Plan (Codebase-Aligned)
 
-> Life and evolution simulation using autonomous agents controlled by LLM.
+_Last updated: 2026-03-11 (aligned with current repository state)_
 
 ## Vision
 
-Build an emergent world where agents controlled by language models learn to survive, innovate tools, develop culture and evolve as a species — without hardcoded rules beyond the physics of the world.
+Build a persistent emergent world where LLM-driven agents survive, cooperate, invent, reproduce, and form long-term cultural dynamics under deterministic world rules.
 
-## Design Principles
+## Current Product Reality
 
-1. **Emergence over prescription**: We don't program behaviors; agents discover them.
-2. **Oracle determinism**: Same action + same context = same result. Always.
-3. **Memory as identity**: Agents are their memories. Without memory, there's no personality.
-4. **Incremental complexity**: Each phase must work stably BEFORE moving forward.
-5. **LLM-agnostic**: The architecture doesn't depend on a specific model. Ollama today, API tomorrow.
+The repository is **beyond the original Phase 1 scope** and already includes:
 
----
+- Rich world generation (OpenSimplex biomes + rivers + resources)
+- Social actions (`communicate`, `give_item`, `teach`) with trust/relationship tracking
+- Reproduction, inheritance, generations, and lineage persistence
+- FastAPI + WebSocket simulation server and React UI
+- Always-on event stream (`data/runs/<run_id>/events.jsonl`) and metrics builder
+- Optional W&B experiment telemetry and batch execution (`run_batch.py`)
 
-## Phase Roadmap
+## Phase Status (as implemented)
 
-### PHASE 0 — Foundation ✅ (COMPLETED)
-- [x] 2D World (10x10 default, configurable) with tiles (water, land, tree)
-- [x] Agents with life, hunger, energy
-- [x] Original base actions: move, eat, rest, innovate
-- [x] Oracle with validation and precedents
-- [x] Simulation engine with ticks
-- [x] Fallback mode without LLM
-- [x] Console output with stat bars
+### Phase 0 — Foundation ✅
+- Grid world + agent loop + Oracle validation + fallback without LLM
 
-Current startup action set: `move`, `eat`, `rest`, `innovate`, `pickup`, `communicate`, `give_item`, `teach`.
-`reproduce` is built-in but unlocks only after an agent has been alive for 100 ticks.
+### Phase 1 — Intelligence ✅
+- Dual memory (episodic + semantic)
+- Prompt template system (`prompts/` + `prompt_loader.py`)
+- Innovation validation with effect bounds, categories, prerequisites
+- Precedent persistence
 
-### PHASE 1 — Intelligence ✅ (COMPLETED)
-- [x] Improved prompts for smarter decisions (compact ASCII grid, resource hints, few-shot examples, `prompts/` template system)
-- [x] Structured logging (markdown `sim_logger.py`; structlog JSON planned for later in Phase 1)
-- [x] Short and long-term memory (episodic + semantic)
-- [x] Improved innovation system with robust validation (`requires` prerequisites, effect bounds, categories, redundancy via LLM prompt — see DEC-011)
-- [x] Unit and integration tests (MockLLM) — `test_audit`, `test_memory`, `test_day_cycle`, `test_innovation` (20 tests)
-- [x] Precedent persistence (JSON save/load) — (DEC-013)
-- **Context**: `01-architecture/`, `03-agents/`, `05-llm-integration/`
+### Phase 2 — Survival Depth ✅
+- Day/sunset/night cycle with vision and energy modifiers
+- Expanded biome tiles and resource model
+- Inventory + pickup + crafting via innovations
+- Passive healing, tile-specific risks/rest bonuses
 
-### PHASE 2 — Survival Depth ✅ (COMPLETED)
-- [x] Day/night cycle with effects on agents (1 tick=1 hour, 3 periods, vision reduction, night energy ×1.5 — see DEC-010)
-- [x] Resource regeneration (trees give fruit periodically) — see DEC-015
-- [x] New tile types and resources (stone, rivers, caves) — see DEC-016
-- [x] Object inventory for agents (see DEC-017)
-- [x] Basic crafting as an innovatable action (see DEC-018)
-- [x] Rethink agent and oracle prompts to incorporate new world complexity
-- [x] Logging updates to assess new mechanics visually (see DEC-019)
-- **Context**: `02-world/`, `06-innovation-system/`
+### Phase 3 — Social ✅
+- Personality traits and nearby-agent perception
+- Communication and relationship/trust system
+- Cooperation (`give_item`) and deterministic knowledge transfer (`teach`)
 
-### PHASE 3 — Social ✅ (COMPLETED)
-- [x] Personality system (courage, curiosity, patience) — individual behavioral traits — Phase 3a
-- [x] Sociability trait as bridge between personality and social behaviors — Phase 3a
-- [x] Perception of other agents — Phase 3a
-- [x] Communication (speak, signal) — Phase 3b PR 1
-- [x] Cooperation (`give_item`: transfer any inventory item to adjacent agent) — Phase 3c PR 1
-- [x] Conflict (emergent via innovated actions + trust penalties) — Phase 3b PR 2
-- [x] Knowledge transmission (`teach`: deterministic innovation copy, no LLM) — Phase 3c PR 2
-- [x] Reputation and relationships — Phase 3b PR 2
-- **Context**: `07-interaction/`
+### Phase 4 — Evolution 🚧 (partially implemented)
+- ✅ Reproduction gating + parent costs + child spawn
+- ✅ Trait inheritance/mutation and family prompt context
+- ✅ Lineage tracking/persistence
+- ⏳ Emergent language protocols and role specialization
+- ⏳ Selection pressure analytics across generations
 
-### PHASE 4 — Culture & Evolution
-- [x] Reproduction and inheritance (traits, base memory)
-- [x] Generations and lineage
-- [ ] Emergent language between agents
-- [ ] Emergent roles (gatherer, explorer, builder)
-- [ ] Settlements and territory
-- [ ] Natural selection by fitness
-- **Context**: `08-evolution/`
+### Phase 5 — Visualization & Analysis 🚧 (partially implemented)
+- ✅ Real-time web UI (FastAPI + WebSocket + React/Vite)
+- ✅ Live world/agent state panels and pause/resume controls
+- ✅ Canonical event stream + metrics extraction pipeline
+- ⏳ Replay UI and timeline scrubbing
+- ⏳ Genealogy visualization and richer analytics dashboards
 
-### PHASE 5 — Visualization & Analysis
-- [ ] Web dashboard with real-time 2D grid
-- [ ] Agent stats charts
-- [ ] Simulation replay
-- [ ] Activity heatmaps
-- [ ] Genealogical tree
-- [ ] Video export
-- **Context**: `09-visualization/`
+## Priority Next Arc (recommended)
 
-### PHASE 6 — Future Work
-- [ ] Weather (rain, drought) affecting resources
-- [ ] Social memory (who did what to whom)
-- [ ] Emergence measurement plan (check docs/plans/2026-03-07-emergence-measurement.md)
-- **Context**: `02-world/`
+1. **Metrics maturity:** standard KPI schema (survival, innovation utility, cooperation, lineage fitness)
+2. **Replayability:** event-sourced replay in UI from persisted runs
+3. **Culture experiments:** emergent vocabulary/coordination protocols and measurement
+4. **World pressure:** weather and scarcity cycles to test adaptation robustness
+5. **Determinism hardening:** stronger oracle/audit checks for long-run reproducibility
 
----
+## Constraints to preserve
 
-## Tech Stack
-
-| Component         | Technology              | Reason                             |
-|-------------------|-------------------------|------------------------------------|
-| Core              | Python 3.12+            | ML ecosystem, fast dev             |
-| LLM               | Ollama (Qwen 3.5-4B)   | Local, free, fast                  |
-| Future LLM        | Claude API / OpenAI     | When we need more capacity         |
-| Testing           | pytest + hypothesis     | Property-based testing for sim     |
-| Logging           | `sim_logger.py` (markdown per-run); structlog (JSON lines) planned | Parseable, queryable |
-| Visualization     | FastAPI + React/Pixi.js | When we reach Phase 5              |
-| CI/CD             | GitHub Actions          | Automatic tests on each PR         |
-| Data              | SQLite → PostgreSQL     | To persist simulations             |
-
----
-
-## Rules for Claude Code
-
-Any Claude Code session working on this project MUST:
-
-1. **Read first** the MASTER_PLAN.md and the relevant section context.
-2. **Don't break existing tests** — run `pytest` before committing.
-3. **Follow the current phase** — don't implement features from future phases.
-4. **Document decisions** in the relevant context if there's ambiguity.
-5. **One PR = one feature** — atomic changes, not massive refactors.
-
----
-
-## Success Metrics per Phase
-
-| Phase | Metric                                                     |
-|-------|-------------------------------------------------------------|
-| 0     | Simulation runs 100 ticks without crash                     |
-| 1     | Agents make coherent decisions >80% of the time             |
-| 2     | Agents survive >50 ticks on average with active weather     |
-| 3     | Agents cooperate spontaneously at least once in 100 ticks   |
-| 4     | At least 1 differentiated role emerges without programming  |
-| 5     | Dashboard shows simulation in real-time without lag         |
+1. LLM calls must always have robust fallback paths.
+2. Agent stats remain clamped and dead agents never act.
+3. Oracle + precedents preserve deterministic outcomes where intended.
+4. Keep changes atomic (one coherent feature per PR).
+5. Update cornerstone docs whenever architecture or behavior shifts.
