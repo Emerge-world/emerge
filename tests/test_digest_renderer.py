@@ -109,3 +109,15 @@ class TestDigestRenderer:
         loaded = json.loads((tmp_path / "llm_digest" / "generation_manifest.json").read_text())
         assert loaded["mode"] == "deterministic"
         assert loaded["llm_overlay"] is None
+
+    def test_agent_md_handles_pos_as_list(self, tmp_path):
+        """DigestRenderer must handle pos stored as [x, y] list (real engine format)."""
+        renderer = DigestRenderer(tmp_path)
+        agent_digest = _minimal_agent_digest()
+        agent_digest["final_state"]["pos"] = [3, 7]  # list format as emitted by real engine
+        renderer.render(_minimal_run_digest(),
+                        agent_digests={"Ada": agent_digest},
+                        evidence_index={}, manifest={})
+        md = (tmp_path / "llm_digest" / "agents" / "Ada.md").read_text()
+        assert "(3, 7)" in md
+        assert "None" not in md
