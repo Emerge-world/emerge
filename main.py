@@ -53,6 +53,8 @@ def main():
                         help="W&B run name (useful for batch experiments)")
     parser.add_argument("--model", default=None,
                         help=f"vllm model to use (default: {sim_config.VLLM_MODEL})")
+    parser.add_argument("--no-digest", action="store_true",
+                        help="Skip LLM digest generation after run")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
@@ -101,6 +103,7 @@ def main():
         world_height=args.height,
         wandb_logger=wandb_logger,
         ollama_model=args.model,
+        run_digest=not args.no_digest,
     )
 
     try:

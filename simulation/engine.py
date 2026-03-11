@@ -47,6 +47,7 @@ class SimulationEngine:
         world_height: int = WORLD_HEIGHT,
         wandb_logger: Optional["WandbLogger"] = None,
         ollama_model: Optional[str] = None,
+        run_digest: bool = True,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -123,6 +124,7 @@ class SimulationEngine:
 
         # W&B logger (optional)
         self.wandb_logger: Optional[WandbLogger] = wandb_logger
+        self.run_digest = run_digest
 
         logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
@@ -166,6 +168,12 @@ class SimulationEngine:
                 EBSBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
                 logger.warning("MetricsBuilder/EBSBuilder failed: %s", exc)
+            if self.run_digest:
+                try:
+                    from simulation.digest.digest_builder import DigestBuilder
+                    DigestBuilder(self.event_emitter.run_dir).build()
+                except Exception as exc:
+                    logger.warning("DigestBuilder failed: %s", exc)
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -669,6 +677,12 @@ class SimulationEngine:
                 EBSBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
                 logger.warning("MetricsBuilder/EBSBuilder failed: %s", exc)
+            if self.run_digest:
+                try:
+                    from simulation.digest.digest_builder import DigestBuilder
+                    DigestBuilder(self.event_emitter.run_dir).build()
+                except Exception as exc:
+                    logger.warning("DigestBuilder failed: %s", exc)
 
         self._log_overview_end()
 
