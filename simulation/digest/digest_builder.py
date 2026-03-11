@@ -170,7 +170,7 @@ class DigestBuilder:
 
         return {
             "run_id": run_id,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now().isoformat(),
             "meta": {
                 "seed": meta.get("seed"),
                 "ticks": total_ticks or self._count_ticks(events),
@@ -341,7 +341,7 @@ class DigestBuilder:
     def _build_manifest(self) -> dict:
         return {
             "mode": "deterministic",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now().isoformat(),
             "digest_builder_version": _DIGEST_BUILDER_VERSION,
             "source_files": {
                 "events_jsonl": "events.jsonl",
