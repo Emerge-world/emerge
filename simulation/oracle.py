@@ -372,12 +372,12 @@ class Oracle:
         if not new_action_name:
             msg = f"{agent.name} tried to innovate but didn't propose any action."
             self._log(tick, msg)
-            return {"success": False, "message": msg, "effects": {}}
+            return {"success": False, "message": msg, "effects": {}, "name": "", "category": None, "reason_code": "INNOVATION_NO_NAME"}
 
         if new_action_name in agent.actions:
             msg = f"{agent.name} tried to innovate '{new_action_name}' but already knows it."
             self._log(tick, msg)
-            return {"success": False, "message": msg, "effects": {}}
+            return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_DUPLICATE"}
 
         # Validate prerequisites declared by the agent (no LLM call needed)
         requires = action.get("requires")
@@ -394,7 +394,7 @@ class Oracle:
                     agent.add_memory(
                         f"I tried to innovate '{new_action_name}' but I need to be on {required_tile} (I'm on {current_tile})."
                     )
-                    return {"success": False, "message": msg, "effects": {}}
+                    return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_WRONG_TILE"}
 
             min_energy = requires.get("min_energy")
             if min_energy is not None and agent.energy < int(min_energy):
@@ -406,7 +406,7 @@ class Oracle:
                 agent.add_memory(
                     f"I tried to innovate '{new_action_name}' but I need at least {min_energy} energy."
                 )
-                return {"success": False, "message": msg, "effects": {}}
+                return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_INSUFFICIENT_ENERGY"}
 
             # Check item prerequisites (inventory)
             required_items = requires.get("items")
@@ -427,7 +427,7 @@ class Oracle:
                             f"I tried to innovate '{new_action_name}' but I need "
                             f"{qty_int}x {item} (I have {agent.inventory.items.get(item, 0)})."
                         )
-                        return {"success": False, "message": msg, "effects": {}}
+                        return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_MISSING_ITEMS"}
 
         # Ask the oracle LLM to validate if the innovation makes sense
         category = "SURVIVAL"
@@ -443,7 +443,7 @@ class Oracle:
                 msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {reason}."
                 self._log(tick, msg)
                 agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {reason}.")
-                return {"success": False, "message": msg, "effects": {}}
+                return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_REJECTED"}
             category = validation.get("category", "SURVIVAL")
             _aggressive = validation.get("aggressive", False)
             _trust_impact = float(validation.get("trust_impact", 0.2)) if _aggressive else None
@@ -482,6 +482,9 @@ class Oracle:
             "success": True,
             "message": msg,
             "effects": {"energy": -ENERGY_COST_INNOVATE, "new_action": new_action_name},
+            "name": new_action_name,
+            "category": category,
+            "reason_code": "INNOVATION_APPROVED",
         }
 
     def _resolve_pickup(self, agent: Agent, tick: int) -> dict:

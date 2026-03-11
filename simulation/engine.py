@@ -13,7 +13,7 @@ from simulation.config import (
     MAX_AGENTS, MAX_TICKS, TICK_DELAY_SECONDS,
     AGENT_VISION_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, WORLD_START_HOUR,
     AGENT_NAME_POOL, CHILD_START_LIFE, CHILD_START_HUNGER, CHILD_START_ENERGY,
-    BONDING_TRUST_THRESHOLD,
+    BONDING_TRUST_THRESHOLD, BASE_ACTIONS,
 )
 from simulation.world import World
 from simulation.agent import Agent
@@ -25,8 +25,11 @@ from simulation.wandb_logger import WandbLogger
 from simulation.day_cycle import DayCycle
 from simulation.lineage import LineageTracker
 from simulation.personality import Personality
+from simulation.metrics_builder import MetricsBuilder
 
 logger = logging.getLogger(__name__)
+
+_BASE_ACTIONS: frozenset[str] = frozenset(BASE_ACTIONS)
 
 
 class SimulationEngine:
@@ -157,6 +160,10 @@ class SimulationEngine:
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
+            try:
+                MetricsBuilder(self.event_emitter.run_dir).build()
+            except Exception as exc:
+                logger.warning("MetricsBuilder failed", error=str(exc))
             if self.wandb_logger:
                 self.wandb_logger.finish()
 
@@ -231,6 +238,10 @@ class SimulationEngine:
                 self.sim_logger.log_agent_fallback_decision(tick, agent, action)
 
             print(f"  🧠 {agent.name} decides: {action_str}" + (f" ({reason})" if reason else ""))
+
+            # Emit innovation attempt before validation
+            if action_str == "innovate":
+                self.event_emitter.emit_innovation_attempt(tick, agent.name, action)
 
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
@@ -623,6 +634,10 @@ class SimulationEngine:
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
+            try:
+                MetricsBuilder(self.event_emitter.run_dir).build()
+            except Exception as exc:
+                logger.warning("MetricsBuilder failed", error=str(exc))
 
         self._log_overview_end()
 

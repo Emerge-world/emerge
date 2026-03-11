@@ -458,3 +458,101 @@ class TestIntegration:
         em.close()
         st = _read_events(tmp_path)[0]["sim_time"]
         assert st["hour"] == 21
+
+
+# ------------------------------------------------------------------ #
+# Innovation events
+# ------------------------------------------------------------------ #
+
+class TestInnovationEvents:
+    def test_emit_innovation_attempt_event_type(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_attempt(3, "Ada", {
+            "new_action_name": "gather_wood",
+            "description": "Collect wood from trees",
+            "requires": {"tile": "forest"},
+            "produces": {"wood": 1},
+        })
+        em.close()
+        ev = _read_events(tmp_path)[0]
+        assert ev["event_type"] == "innovation_attempt"
+
+    def test_emit_innovation_attempt_payload(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_attempt(3, "Ada", {
+            "new_action_name": "gather_wood",
+            "description": "Collect wood",
+            "requires": {"tile": "forest"},
+            "produces": {"wood": 1},
+        })
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["name"] == "gather_wood"
+        assert p["description"] == "Collect wood"
+        assert p["requires"] == {"tile": "forest"}
+        assert p["produces"] == {"wood": 1}
+
+    def test_emit_innovation_attempt_agent_id(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_attempt(3, "Ada", {"new_action_name": "foo"})
+        em.close()
+        assert _read_events(tmp_path)[0]["agent_id"] == "Ada"
+
+    def test_emit_innovation_validated_approved(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_validated(3, "Ada", {
+            "success": True,
+            "name": "gather_wood",
+            "category": "CRAFTING",
+            "reason_code": "INNOVATION_APPROVED",
+            "effects": {"energy": -10, "new_action": "gather_wood"},
+            "message": "ok",
+        })
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["approved"] is True
+        assert p["name"] == "gather_wood"
+        assert p["category"] == "CRAFTING"
+        assert p["reason_code"] == "INNOVATION_APPROVED"
+
+    def test_emit_innovation_validated_rejected(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_validated(3, "Ada", {
+            "success": False,
+            "name": "fly",
+            "category": None,
+            "reason_code": "INNOVATION_REJECTED",
+            "effects": {},
+            "message": "nope",
+        })
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["approved"] is False
+        assert p["name"] == "fly"
+        assert p["reason_code"] == "INNOVATION_REJECTED"
+
+    def test_emit_custom_action_executed_success(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_custom_action_executed(5, "Ada",
+            action={"action": "gather_wood"},
+            result={"success": True, "effects": {"energy": -5}, "message": "done"},
+        )
+        em.close()
+        p = _read_events(tmp_path)[0]["payload"]
+        assert p["name"] == "gather_wood"
+        assert p["success"] is True
+        assert p["effects"]["energy"] == -5
+
+    def test_emit_custom_action_executed_failure(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_custom_action_executed(5, "Ada",
+            action={"action": "gather_wood"},
+            result={"success": False, "effects": {}, "message": "failed"},
+        )
+        em.close()
+        assert _read_events(tmp_path)[0]["payload"]["success"] is False
+
+    def test_run_dir_attribute(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.close()
+        assert em.run_dir.resolve() == (tmp_path / "data" / "runs" / "test-run-1234").resolve()
