@@ -136,3 +136,82 @@ def test_communicate_insufficient_energy():
     action = {"action": "communicate", "target": "Bruno", "message": "Hi!", "intent": "share_info"}
     result = oracle.resolve_action(sender, action, tick=1)
     assert result["success"] is False
+
+
+def test_communicate_token_budget_enforced():
+    sender, target = make_two_agents()
+    oracle = make_oracle(sender, target)
+    action = {
+        "action": "communicate",
+        "target": "Bruno",
+        "intent": "share_info",
+        "message_tokens": ["a", "b", "c", "d", "e", "f", "g"],
+    }
+    result = oracle.resolve_action(sender, action, tick=1)
+    assert result["success"] is False
+    assert "token budget" in result["message"].lower()
+
+
+def test_communicate_with_structured_tokens_and_legacy_message_compat():
+    sender, target = make_two_agents()
+    sender.lexicon.register_symbol("zi", "fruit", owned=True)
+    target.lexicon.register_symbol("zi", "fruit", owned=False)
+    oracle = make_oracle(sender, target)
+    action = {
+        "action": "communicate",
+        "target": "Bruno",
+        "message": "legacy text",
+        "message_tokens": ["zi", "east"],
+        "intent": "share_info",
+    }
+    result = oracle.resolve_action(sender, action, tick=2)
+    assert result["success"] is True
+    queued = target.incoming_messages[0]
+    assert queued.message == "zi east"
+    assert queued.interpreted_message.startswith("fruit")
+
+
+def test_deterministic_misunderstanding_same_input_same_output():
+    sender, target = make_two_agents()
+    sender.lexicon.register_symbol("ka", "water", owned=True)
+    target.lexicon.register_symbol("ka", "water", owned=False)
+    oracle = make_oracle(sender, target)
+    action = {
+        "action": "communicate",
+        "target": "Bruno",
+        "message_tokens": ["ka", "north"],
+        "intent": "warn",
+    }
+    first = oracle.resolve_action(sender, action, tick=5)
+
+    sender2, target2 = make_two_agents()
+    sender2.lexicon.register_symbol("ka", "water", owned=True)
+    target2.lexicon.register_symbol("ka", "water", owned=False)
+    oracle2 = make_oracle(sender2, target2)
+    second = oracle2.resolve_action(sender2, action, tick=5)
+
+    assert first["communication"]["misunderstood"] == second["communication"]["misunderstood"]
+
+
+def test_receiver_learns_symbol_from_sender_lexicon():
+    sender, target = make_two_agents()
+    sender.lexicon.register_symbol("zu", "fruit", owned=True)
+    oracle = make_oracle(sender, target)
+    action = {
+        "action": "communicate",
+        "target": "Bruno",
+        "message_tokens": ["zu"],
+        "intent": "share_info",
+    }
+    result = oracle.resolve_action(sender, action, tick=3)
+    assert result["success"] is True
+    assert target.lexicon.get_meaning("zu") == "fruit"
+    assert "zu" in target.recently_learned_symbols
+
+
+def test_no_llm_fallback_decision_still_works_with_language_prompt_empty():
+    agent = Agent(name="Kai", x=0, y=0, llm=None)
+    prompt = agent.get_language_prompt()
+    assert prompt == ""
+    action = agent.decide_action(nearby_tiles=[], tick=1)
+    assert "action" in action

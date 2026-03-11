@@ -129,3 +129,30 @@ class Relationship:
 - Need to optimize before Phase 3: batch calls, faster models, or limit communications.
 - Interaction tests need minimum 2 agents. Mock one as "scripted" and test the other.
 - Main risk is that agents talk but say nonsense. Evaluate communication quality.
+
+## Proto-language v1 (deterministic, constrained)
+
+### Message format
+- Backward compatible: keep `message` (free text).
+- Optional structured compact form: `message_tokens: list[str]`.
+- Oracle enforces `COMMUNICATE_MAX_TOKENS` budget when `message_tokens` is provided.
+
+### Per-agent language state
+- Each agent has a lexicon map (`symbol -> meaning`) with:
+  - confidence in `[0,1]`
+  - usage count
+  - owned/not-owned marker
+- Agents track recently learned symbols for prompt context.
+
+### Oracle communication resolution rules (v1)
+- Compute distance using Manhattan metric.
+- Compute shared-symbol overlap from sender/receiver lexicons.
+- Derive misunderstanding probability from distance (+) and overlap (-).
+- Apply deterministic hash roll (`tick + sender + receiver + tokens`) to decide misunderstanding.
+- Store both raw and interpreted message in receiver inbox/memory.
+
+### Observability metrics
+- `symbol_adoptions`: newly learned symbols per tick/run.
+- `misunderstanding_rate`: misunderstood / total communications.
+- `shared_vocabulary_size`: overlap observed per communication.
+- Run-level hook: `language_tick_metrics` (mean shared vocabulary + mean lexicon size).

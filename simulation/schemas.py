@@ -56,7 +56,8 @@ class AgentDecisionResponse(BaseModel):
     new_action_name: Optional[str] = None  # innovate
     description: Optional[str] = None     # innovate
     target: Optional[str] = None          # communicate / give_item / teach / reproduce
-    message: Optional[str] = None         # communicate
+    message: Optional[str] = None         # communicate (legacy free-text)
+    message_tokens: Optional[list[str]] = None  # communicate (structured compact form)
     intent: Optional[str] = None          # communicate
     item: Optional[str] = None            # give_item
     quantity: Optional[int] = None        # give_item

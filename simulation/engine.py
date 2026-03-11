@@ -377,6 +377,21 @@ class SimulationEngine:
                     tick, agent.name, episode_count=episode_count, learnings=learnings
                 )
 
+        # Emit run-level language emergence metrics for this tick
+        living = [a for a in alive_agents if a.alive]
+        if living:
+            lexicon_mean_size = round(sum(len(a.lexicon) for a in living) / len(living), 3)
+            overlap_counts = []
+            for i, left in enumerate(living):
+                for right in living[i + 1:]:
+                    overlap_counts.append(len(left.lexicon.shared_symbols(right.lexicon)))
+            shared_vocabulary_mean = round(sum(overlap_counts) / len(overlap_counts), 3) if overlap_counts else 0.0
+            self.event_emitter.emit_language_metrics(
+                tick,
+                shared_vocabulary_mean=shared_vocabulary_mean,
+                lexicon_mean_size=lexicon_mean_size,
+            )
+
         # Log tick to W&B
         if self.wandb_logger:
             self.wandb_logger.log_tick(

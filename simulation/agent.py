@@ -19,6 +19,7 @@ from simulation.config import (
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
     AGENT_NAME_POOL,
+    LANGUAGE_PROMPT_SYMBOL_LIMIT,
 )
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
@@ -27,6 +28,7 @@ from simulation.personality import Personality
 from simulation import prompt_loader
 from simulation.message import IncomingMessage
 from simulation.relationship import Relationship
+from simulation.language import AgentLexicon
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,11 @@ class Agent:
 
         # Social relationship memory (persists across ticks)
         self.relationships: dict[str, Relationship] = {}
+
+        # Language subsystem (per-agent symbol lexicon)
+        self.lexicon = AgentLexicon()
+        self.owned_symbols: set[str] = set()
+        self.recently_learned_symbols: list[str] = []
 
         # Personality traits (injected into system prompt)
         self.personality = Personality.random()
@@ -211,8 +218,18 @@ class Agent:
             return ""
         lines = ["INCOMING MESSAGES:"]
         for msg in self.incoming_messages:
-            lines.append(f'- {msg.sender} (tick {msg.tick}): "{msg.message}" [{msg.intent}]')
+            interpreted = f' => interpreted: "{msg.interpreted_message}"' if msg.interpreted_message else ""
+            lines.append(f'- {msg.sender} (tick {msg.tick}): "{msg.message}" [{msg.intent}]{interpreted}')
         return "\n".join(lines)
+
+    def get_language_prompt(self) -> str:
+        lexicon_block = self.lexicon.known_symbols_section(limit=LANGUAGE_PROMPT_SYMBOL_LIMIT)
+        if not lexicon_block:
+            return ""
+        if self.recently_learned_symbols:
+            recent = ", ".join(self.recently_learned_symbols[-LANGUAGE_PROMPT_SYMBOL_LIMIT:])
+            return f"{lexicon_block}\nRECENTLY LEARNED: {recent}"
+        return lexicon_block
 
     def update_relationship(self, target_name: str, delta: float, tick: int, **kwargs):
         if target_name not in self.relationships:
@@ -387,6 +404,7 @@ class Agent:
         nearby_agents_text = self.nearby_agents_prompt(nearby_agents or [])
         incoming_messages_text = self.get_messages_prompt()
         relationships_text = self.get_relationships_prompt(current_tick=tick)
+        language_context = self.get_language_prompt()
         family_info = self.get_family_prompt(current_tick=tick, all_agents=all_agents)
         reproduction_hint = ""
         if "reproduce" in self.actions:
@@ -417,6 +435,7 @@ class Agent:
             nearby_agents=nearby_agents_text,
             incoming_messages=incoming_messages_text,
             relationships=relationships_text,
+            language_context=language_context,
             family_info=family_info,
             reproduction_hint=reproduction_hint,
         )

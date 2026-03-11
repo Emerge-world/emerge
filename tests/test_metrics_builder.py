@@ -64,7 +64,8 @@ def _minimal_run(run_id: str = "test-run") -> list[dict]:
          "payload": {"name": "gather_wood", "description": "cut trees", "requires": None, "produces": None}},
         {"run_id": run_id, "tick": 2, "sim_time": {"day": 1, "hour": 7},
          "event_type": "oracle_resolution", "agent_id": "Bruno",
-         "payload": {"success": True, "effects": {"energy": -10, "hunger": 0, "life": 0}}},
+         "payload": {"success": True, "effects": {"energy": -10, "hunger": 0, "life": 0},
+                    "communication": {"misunderstood": True, "new_symbols_learned": 2, "shared_vocabulary_size": 1}}},
         {"run_id": run_id, "tick": 2, "sim_time": {"day": 1, "hour": 7},
          "event_type": "innovation_validated", "agent_id": "Bruno",
          "payload": {"name": "gather_wood", "approved": True, "category": "CRAFTING", "reason_code": "INNOVATION_APPROVED"}},
@@ -80,6 +81,9 @@ def _minimal_run(run_id: str = "test-run") -> list[dict]:
         {"run_id": run_id, "tick": 2, "sim_time": {"day": 1, "hour": 7},
          "event_type": "agent_state", "agent_id": "Ada",
          "payload": {"life": 100, "hunger": 4, "energy": 100, "pos": [1, 1], "alive": True, "inventory": {}}},
+        {"run_id": run_id, "tick": 2, "sim_time": {"day": 1, "hour": 7},
+         "event_type": "language_tick_metrics", "agent_id": None,
+         "payload": {"shared_vocabulary_mean": 1.5, "lexicon_mean_size": 3.0}},
         # tick 3 — Bruno uses custom action; Ada dies
         {"run_id": run_id, "tick": 3, "sim_time": {"day": 1, "hour": 8},
          "event_type": "agent_decision", "agent_id": "Bruno",
@@ -315,3 +319,23 @@ class TestTimeseriesJsonl:
                     "innovations_attempted", "innovations_approved"}
         for row in rows:
             assert required.issubset(row.keys()), f"Missing fields in tick {row['tick']}: {required - row.keys()}"
+
+
+class TestLanguageMetrics:
+    def test_language_summary_metrics(self, tmp_path):
+        run_dir = tmp_path / "test-run"
+        _write_events(run_dir, _minimal_run())
+        MetricsBuilder(run_dir).build()
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        assert summary["language"]["communications"] == 1
+        assert summary["language"]["symbol_adoptions"] == 2
+        assert summary["language"]["misunderstanding_rate"] == 1.0
+
+    def test_language_timeseries_fields(self, tmp_path):
+        run_dir = tmp_path / "test-run"
+        _write_events(run_dir, _minimal_run())
+        MetricsBuilder(run_dir).build()
+        rows = [json.loads(line) for line in (run_dir / "metrics" / "timeseries.jsonl").read_text().splitlines() if line]
+        tick2 = next(r for r in rows if r["tick"] == 2)
+        assert tick2["symbol_adoptions"] == 2
+        assert tick2["run_shared_vocabulary_mean"] == 1.5

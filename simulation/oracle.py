@@ -3,6 +3,7 @@ Oracle: validates and resolves agent actions.
 Maintains a decision memory for determinism (consistency).
 """
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -13,6 +14,8 @@ from simulation.config import (
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
     TILE_RISKS, TILE_REST_BONUS,
     COMMUNICATE_ENERGY_COST, AGENT_VISION_RADIUS, COMMUNICATE_TRUST_DELTA,
+    COMMUNICATE_MAX_TOKENS, LANGUAGE_MISUNDERSTAND_DISTANCE_WEIGHT,
+    LANGUAGE_MISUNDERSTAND_OVERLAP_WEIGHT, LANGUAGE_RECENT_LEARNED_LIMIT,
     GIVE_ITEM_ENERGY_COST, GIVE_ITEM_TRUST_DELTA,
     TEACH_ENERGY_COST_TEACHER, TEACH_ENERGY_COST_LEARNER, TEACH_TRUST_DELTA,
     BASE_ACTIONS,
@@ -528,6 +531,27 @@ class Oracle:
         )
         return {"success": True, "message": msg, "effects": {"item_added": item_type}}
 
+    @staticmethod
+    def _deterministic_roll(key: str) -> float:
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0xFFFFFFFF
+
+    def _communication_tokens(self, agent: Agent, action: dict) -> tuple[list[str], str]:
+        structured_tokens = action.get("message_tokens") or []
+        if structured_tokens:
+            tokens = [str(t).strip().lower() for t in structured_tokens if str(t).strip()][:COMMUNICATE_MAX_TOKENS]
+            if not tokens:
+                fallback_message = str(action.get("message", "")).strip()
+                return agent.lexicon.encode_text(fallback_message, COMMUNICATE_MAX_TOKENS), fallback_message
+            return tokens, " ".join(tokens)
+
+        message_text = str(action.get("message", "")).strip()
+        encoded = agent.lexicon.encode_text(message_text, COMMUNICATE_MAX_TOKENS)
+        if encoded:
+            return encoded, message_text
+        raw_tokens = [tok.strip().lower() for tok in message_text.split() if tok.strip()][:COMMUNICATE_MAX_TOKENS]
+        return raw_tokens, message_text
+
     def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
         """Agent sends a message to a nearby agent."""
         intent = action.get("intent", "")
@@ -552,17 +576,79 @@ class Oracle:
         if dist > AGENT_VISION_RADIUS:
             return {"success": False, "message": f"{target_name} is too far away.", "effects": {}}
 
-        message_text = action.get("message", "")
+        if action.get("message_tokens") and len(action.get("message_tokens")) > COMMUNICATE_MAX_TOKENS:
+            return {"success": False, "message": "Message exceeds token budget.", "effects": {}}
+
+        message_tokens, raw_text = self._communication_tokens(agent, action)
+        if not message_tokens:
+            return {"success": False, "message": "Message is empty.", "effects": {}}
+
+        shared_symbols = agent.lexicon.shared_symbols(target.lexicon)
+        overlap = len(shared_symbols)
+        denominator = max(1, len(set(message_tokens)))
+        overlap_ratio = overlap / denominator
+        misunderstanding_prob = max(
+            0.0,
+            min(1.0, dist * LANGUAGE_MISUNDERSTAND_DISTANCE_WEIGHT - overlap_ratio * LANGUAGE_MISUNDERSTAND_OVERLAP_WEIGHT),
+        )
+        roll = self._deterministic_roll(f"{tick}:{agent.name}:{target.name}:{'|'.join(message_tokens)}")
+        misunderstood = roll < misunderstanding_prob
+
+        interpreted_message, unknown_tokens, _ = target.lexicon.decode_tokens(message_tokens)
+        if misunderstood and interpreted_message:
+            interpreted_message = " ".join(reversed(interpreted_message.split()))
+
+        newly_learned = 0
+        for symbol in message_tokens:
+            sender_meaning = agent.lexicon.get_meaning(symbol)
+            if not sender_meaning:
+                continue
+            if target.lexicon.get_meaning(symbol) is None:
+                target.lexicon.register_symbol(symbol, sender_meaning, confidence=0.45, usage_count=1, owned=False)
+                target.recently_learned_symbols.append(symbol)
+                target.recently_learned_symbols = target.recently_learned_symbols[-LANGUAGE_RECENT_LEARNED_LIMIT:]
+                newly_learned += 1
+
         agent.energy -= COMMUNICATE_ENERGY_COST
         self._communicated_this_tick.add(agent.name)
+        rendered_raw = raw_text or " ".join(message_tokens)
         target.incoming_messages.append(
-            IncomingMessage(sender=agent.name, tick=tick, message=message_text, intent=intent)
+            IncomingMessage(
+                sender=agent.name,
+                tick=tick,
+                message=rendered_raw,
+                intent=intent,
+                tokens=message_tokens,
+                interpreted_message=interpreted_message,
+                misunderstood=misunderstood,
+            )
         )
-        # Trust: sender trusts recipient a little more after reaching out
+        target.add_memory(
+            f"{agent.name} told me [{intent}] raw='{rendered_raw}' interpreted='{interpreted_message or rendered_raw}'."
+        )
+
         agent.update_relationship(target.name, delta=COMMUNICATE_TRUST_DELTA, tick=tick, is_cooperation=True)
-        msg = f"Message sent to {target_name}: \"{message_text}\""
-        self._log(tick, f"{agent.name} communicated with {target_name}: [{intent}] {message_text}")
-        return {"success": True, "message": msg, "effects": {}}
+        msg = f"Message sent to {target_name}: '{rendered_raw}' (interpreted='{interpreted_message or rendered_raw}')"
+        self._log(
+            tick,
+            f"{agent.name} communicated with {target_name}: [{intent}] raw={rendered_raw} interpreted={interpreted_message}",
+        )
+        return {
+            "success": True,
+            "message": msg,
+            "effects": {},
+            "communication": {
+                "raw_message": rendered_raw,
+                "interpreted_message": interpreted_message,
+                "tokens": message_tokens,
+                "misunderstood": misunderstood,
+                "token_count": len(message_tokens),
+                "max_tokens": COMMUNICATE_MAX_TOKENS,
+                "shared_vocabulary_size": overlap,
+                "new_symbols_learned": newly_learned,
+                "unknown_tokens": unknown_tokens,
+            },
+        }
 
     def _resolve_give_item(self, agent: Agent, action: dict, tick: int) -> dict:
         """Agent gives an item from their inventory to an adjacent agent."""

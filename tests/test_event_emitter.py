@@ -218,6 +218,26 @@ class TestOracleResolution:
         em.close()
         assert _read_events(tmp_path)[0]["payload"]["success"] is False
 
+    def test_communication_payload_passthrough(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_oracle_resolution(
+            2,
+            "Ada",
+            {
+                "success": True,
+                "effects": {},
+                "communication": {
+                    "misunderstood": True,
+                    "new_symbols_learned": 1,
+                    "shared_vocabulary_size": 2,
+                },
+            },
+        )
+        em.close()
+        payload = _read_events(tmp_path)[0]["payload"]
+        assert payload["communication"]["misunderstood"] is True
+        assert payload["communication"]["new_symbols_learned"] == 1
+
 
 # ------------------------------------------------------------------ #
 # agent_state
@@ -556,3 +576,14 @@ class TestInnovationEvents:
         em = _make_emitter(tmp_path, monkeypatch)
         em.close()
         assert em.run_dir.resolve() == (tmp_path / "data" / "runs" / "test-run-1234").resolve()
+
+
+class TestLanguageTickMetrics:
+    def test_language_tick_metrics_emitted(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_language_metrics(3, shared_vocabulary_mean=1.25, lexicon_mean_size=2.5)
+        em.close()
+        ev = _read_events(tmp_path)[0]
+        assert ev["event_type"] == "language_tick_metrics"
+        assert ev["payload"]["shared_vocabulary_mean"] == 1.25
+        assert ev["payload"]["lexicon_mean_size"] == 2.5

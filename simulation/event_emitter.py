@@ -203,6 +203,7 @@ class EventEmitter:
     ):
         """Emit after oracle.resolve_action(). Normalises missing effect keys to 0."""
         effects = result.get("effects", {})
+        communication = result.get("communication")
         payload: dict = {
             "success": result["success"],
             "effects": {
@@ -215,6 +216,7 @@ class EventEmitter:
             "prompt_sha256": None,
             "raw_response_ref": None,
             "response_sha256": None,
+            "communication": communication if communication else None,
         }
         if llm_trace and oracle_context:
             safe_ctx = re.sub(r'[^a-zA-Z0-9_]', '_', oracle_context)[:40]
@@ -257,6 +259,14 @@ class EventEmitter:
             "life": life,
             "resources_nearby": resources_nearby,
         }, agent_id=agent_name)
+
+
+    def emit_language_metrics(self, tick: int, *, shared_vocabulary_mean: float, lexicon_mean_size: float):
+        """Emit run-level language evolution signals per tick."""
+        self._emit("language_tick_metrics", tick, {
+            "shared_vocabulary_mean": shared_vocabulary_mean,
+            "lexicon_mean_size": lexicon_mean_size,
+        })
 
     def emit_memory_compression_result(
         self, tick: int, agent_name: str, *, episode_count: int, learnings: list[str]

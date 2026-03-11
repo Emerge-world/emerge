@@ -309,3 +309,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Split built-in actions into `INITIAL_ACTIONS` and `AGE_UNLOCKED_ACTIONS`. Agents start with `move`, `eat`, `rest`, `innovate`, `pickup`, `communicate`, `give_item`, and `teach`. `reproduce` remains a built-in non-innovation action, but it is not added to `agent.actions` until the agent reaches `REPRODUCE_MIN_TICKS_ALIVE`.
 - **Rejected alternatives**: Keeping `reproduce` in the startup list and relying on Oracle rejection only (misleading prompt surface); treating `reproduce` as an innovation (incorrect semantics, breaks teaching/classification rules).
 - **Consequences**: Prompt action lists now match true availability. Event/log/base-action classification still treats `reproduce` as built-in rather than innovative. Child agents inherit the initial action set and unlock `reproduce` only when they reach age 100 themselves.
+
+### DEC-032: Deterministic proto-language communication pressure loop
+- **Date**: 2026-03-11
+- **Context**: We need a constrained, observable communication substrate to test language emergence under compression pressure without introducing non-deterministic Oracle behavior.
+- **Decision**: Added a lightweight per-agent lexicon (`symbol -> meaning` with confidence/usage) and constrained `communicate` to a max token budget (`COMMUNICATE_MAX_TOKENS`). Oracle now accepts legacy `message` plus optional structured `message_tokens` for backward compatibility. Misunderstanding is deterministic, computed from Manhattan distance and shared-vocabulary overlap with a hash-based roll. Oracle stores raw + interpreted message, updates receiver memory, and exposes communication metadata for metrics.
+- **Rejected alternatives**: Free-form unconstrained strings (no compression pressure), random misunderstanding via RNG (breaks determinism), replacing legacy `message` outright (breaks compatibility with existing prompts/tests).
+- **Consequences**: Long runs can now quantify emergent shared vocabulary (adoption, overlap, misunderstanding trends). Communication remains deterministic and safe in no-LLM mode.

@@ -13,6 +13,7 @@ $resource_hints
 $nearby_agents
 $incoming_messages
 $relationships
+$language_context
 
 FAMILY:
 $family_info

@@ -131,3 +131,17 @@ Don't program roles. Monitor if they emerge:
 - We'll need complete persistence: world + agents + precedents + lineage between executions.
 - Evolution tests are inherently statistical: "in 10 runs of 500 ticks, at least 3 show X".
 - Consider using Claude API (Haiku) for this phase — 3B models probably don't have enough capacity for cultural narrative.
+
+## Language inheritance and cultural signal metrics (v1)
+
+Phase 4 runs now consume communication-layer metrics generated in Phase 1/3 implementation:
+- shared vocabulary mean over time
+- symbol adoption count (new lexicon entries)
+- misunderstanding rate under compression pressure
+
+These metrics are intended as culture precursors for generational analysis:
+- **Retention proxy**: do descendants keep/expand shared symbols?
+- **Transmission proxy**: does symbol adoption spike after high-contact periods?
+- **Efficiency proxy**: does misunderstanding decrease while token budgets remain fixed?
+
+For Phase 4 experiments, compare these language curves against lineage outcomes (survival, births, innovation spread) to test whether proto-language competence correlates with evolutionary fitness.
