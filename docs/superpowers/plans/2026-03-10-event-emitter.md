@@ -93,7 +93,7 @@ class EventEmitter:
             "agent_count": agent_count,
             "agent_names": agent_names,
             "model_id": model_id,
-            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.datetime.now().isoformat() + "Z",
         }
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
