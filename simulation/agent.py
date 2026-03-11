@@ -13,7 +13,8 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
-    BASE_ACTIONS, AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
+    INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS,
+    AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
@@ -81,8 +82,8 @@ class Agent:
         # Personality traits (injected into system prompt)
         self.personality = Personality.random()
 
-        # Available actions (starts with base actions, can innovate new ones)
-        self.actions: list[str] = list(BASE_ACTIONS)
+        # Available actions (starts with initial actions, can unlock or innovate more)
+        self.actions: list[str] = list(INITIAL_ACTIONS)
 
         # Generational tracking (Phase 4)
         self.generation: int = 0
@@ -155,6 +156,13 @@ class Agent:
         }
         cost = costs.get(action, 5)  # innovated actions: default cost 5
         return self.energy >= cost
+
+    def unlock_actions_for_tick(self, current_tick: int) -> None:
+        """Unlock built-in actions whose age requirements are now met."""
+        age = current_tick - self.born_tick
+        for action_name, min_age in AGE_UNLOCKED_ACTIONS.items():
+            if age >= min_age and action_name not in self.actions:
+                self.actions.append(action_name)
 
     # --- Memory ---
 
@@ -267,6 +275,8 @@ class Agent:
         if not self.alive:
             return {"action": "none", "reason": "I am dead"}
 
+        self.unlock_actions_for_tick(tick)
+
         if not self.llm:
             # Fallback without LLM: simple random action
             return self._fallback_decision(nearby_tiles)
@@ -355,6 +365,7 @@ class Agent:
                                time_description: str = "",
                                nearby_agents: list | None = None,
                                all_agents: list | None = None) -> str:
+        self.unlock_actions_for_tick(tick)
         ascii_grid = self._build_ascii_grid(nearby_tiles)
         # Current tile type — shown to agent so it can write valid requires.tile in innovations
         _current_tile = next(
@@ -377,6 +388,14 @@ class Agent:
         incoming_messages_text = self.get_messages_prompt()
         relationships_text = self.get_relationships_prompt(current_tick=tick)
         family_info = self.get_family_prompt(current_tick=tick, all_agents=all_agents)
+        reproduction_hint = ""
+        if "reproduce" in self.actions:
+            reproduction_hint = (
+                'To reproduce: {"action": "reproduce", "target": "<name>", "reason": "..."} '
+                "— requires both you and target to be adjacent, healthy "
+                "(life>=70, hunger<=30, energy>=50), and alive at least 100 ticks. "
+                "Costs both parents life-30, hunger+30, energy-30."
+            )
 
         return prompt_loader.render(
             "agent/decision",
@@ -399,6 +418,7 @@ class Agent:
             incoming_messages=incoming_messages_text,
             relationships=relationships_text,
             family_info=family_info,
+            reproduction_hint=reproduction_hint,
         )
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:

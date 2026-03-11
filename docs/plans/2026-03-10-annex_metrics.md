@@ -12,14 +12,21 @@ In this research, **emergent behaviour** is defined as:
 
 > Agent actions, strategies, or capabilities that are **not part of the initial action set**, and that arise through autonomous reasoning, environmental interaction, or innovation processes.
 
-Agents initially possess only a minimal primitive action set:
+Agents initially possess a built-in starting action set:
 
 ```
 move
 eat
 rest
 innovate
+pickup
+communicate
+give_item
+teach
 ```
+
+`reproduce` is built-in but not part of the initial set; it unlocks only after an
+agent has been alive for 100 ticks.
 
 All additional capabilities must arise from **agent-proposed innovations** evaluated by the **Oracle subsystem**.
 

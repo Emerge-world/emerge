@@ -303,3 +303,9 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 
 **Trade-offs:** Slight I/O overhead on every run (minimal; line-buffered). The A/B comparison CLI (`audit_compare.py`) is lost — a future metrics layer (PR3) will replace it by reading from `events.jsonl`.
 
+### DEC-031: Built-in action taxonomy split into initial vs age-unlocked
+- **Date**: 2026-03-11
+- **Context**: The repo had diverged on what "actions available at the start of the simulation" meant. Docs still referenced the original 4-action set, prompts and Oracle already supported `communicate`, and `reproduce` was treated as built-in even though it is only valid after 100 ticks alive.
+- **Decision**: Split built-in actions into `INITIAL_ACTIONS` and `AGE_UNLOCKED_ACTIONS`. Agents start with `move`, `eat`, `rest`, `innovate`, `pickup`, `communicate`, `give_item`, and `teach`. `reproduce` remains a built-in non-innovation action, but it is not added to `agent.actions` until the agent reaches `REPRODUCE_MIN_TICKS_ALIVE`.
+- **Rejected alternatives**: Keeping `reproduce` in the startup list and relying on Oracle rejection only (misleading prompt surface); treating `reproduce` as an innovation (incorrect semantics, breaks teaching/classification rules).
+- **Consequences**: Prompt action lists now match true availability. Event/log/base-action classification still treats `reproduce` as built-in rather than innovative. Child agents inherit the initial action set and unlock `reproduce` only when they reach age 100 themselves.

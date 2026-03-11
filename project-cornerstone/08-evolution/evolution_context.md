@@ -56,8 +56,9 @@ child = Agent(
     # "Your parents taught you: fruit reduces hunger, the north has forests, shelter protects from storms"
     inherited_knowledge=compress_parental_knowledge(parent_a, parent_b),
     
-    # Actions: base actions + innovations shared by parents
-    actions=BASE_ACTIONS + shared_innovations(parent_a, parent_b),
+    # Actions: initial actions + innovations shared by parents
+    # Reproduce is built-in but unlocks only after 100 ticks alive
+    actions=INITIAL_ACTIONS + shared_innovations(parent_a, parent_b),
 )
 ```
 

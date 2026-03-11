@@ -21,11 +21,14 @@ Build an emergent world where agents controlled by language models learn to surv
 ### PHASE 0 — Foundation ✅ (COMPLETED)
 - [x] 2D World (10x10 default, configurable) with tiles (water, land, tree)
 - [x] Agents with life, hunger, energy
-- [x] Base actions: move, eat, rest, innovate
+- [x] Original base actions: move, eat, rest, innovate
 - [x] Oracle with validation and precedents
 - [x] Simulation engine with ticks
 - [x] Fallback mode without LLM
 - [x] Console output with stat bars
+
+Current startup action set: `move`, `eat`, `rest`, `innovate`, `pickup`, `communicate`, `give_item`, `teach`.
+`reproduce` is built-in but unlocks only after an agent has been alive for 100 ticks.
 
 ### PHASE 1 — Intelligence ✅ (COMPLETED)
 - [x] Improved prompts for smarter decisions (compact ASCII grid, resource hints, few-shot examples, `prompts/` template system)

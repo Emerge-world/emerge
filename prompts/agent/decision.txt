@@ -20,6 +20,6 @@ $family_info
 YOUR MEMORY:
 $memory_text
 
-To reproduce: {"action": "reproduce", "target": "<name>", "reason": "..."} — requires both you and target to be adjacent, healthy (life>=70, hunger<=30, energy>=50), and alive at least 100 ticks. Costs both parents life-30, hunger+30, energy-30.
+$reproduction_hint
 
 Respond with a JSON object.

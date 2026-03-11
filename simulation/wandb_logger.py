@@ -10,6 +10,8 @@ from typing import Optional
 
 import wandb
 
+from simulation.config import BASE_ACTIONS
+
 
 class WandbLogger:
     """Logs per-tick aggregate metrics to Weights & Biases."""
@@ -54,10 +56,7 @@ class WandbLogger:
             )
         wandb.log_artifact(artifact)
 
-    BASE_ACTION_TYPES = [
-        "move", "eat", "rest", "innovate",
-        "pickup", "give_item", "teach", "reproduce",
-    ]
+    BASE_ACTION_TYPES = BASE_ACTIONS
 
     def log_tick(
         self,

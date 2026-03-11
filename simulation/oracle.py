@@ -374,6 +374,11 @@ class Oracle:
             self._log(tick, msg)
             return {"success": False, "message": msg, "effects": {}, "name": "", "category": None, "reason_code": "INNOVATION_NO_NAME"}
 
+        if new_action_name in BASE_ACTIONS:
+            msg = f"{agent.name} tried to innovate '{new_action_name}' but it is a built-in action."
+            self._log(tick, msg)
+            return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_DUPLICATE"}
+
         if new_action_name in agent.actions:
             msg = f"{agent.name} tried to innovate '{new_action_name}' but already knows it."
             self._log(tick, msg)

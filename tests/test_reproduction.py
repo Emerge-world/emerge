@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 from simulation.agent import Agent
 from simulation.config import (
+    INITIAL_ACTIONS,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
     REPRODUCE_LIFE_COST, REPRODUCE_HUNGER_COST, REPRODUCE_ENERGY_COST,
@@ -43,6 +44,34 @@ def make_oracle(agent_a: Agent, agent_b: Agent, tile: str = "land") -> Oracle:
     oracle = Oracle(world=make_world_mock(tile), llm=None)
     oracle.current_tick_agents = [agent_a, agent_b]
     return oracle
+
+
+# ---------------------------------------------------------------------------
+# Agent action unlocks
+# ---------------------------------------------------------------------------
+
+def test_agent_starts_with_initial_actions_only():
+    agent = Agent(name="Ada", x=0, y=0)
+    assert agent.actions == INITIAL_ACTIONS
+    assert "reproduce" not in agent.actions
+
+
+def test_reproduce_unlocks_at_minimum_age():
+    agent = Agent(name="Ada", x=0, y=0)
+    agent.born_tick = 0
+
+    agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE - 1)
+    assert "reproduce" not in agent.actions
+
+    agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE)
+    assert "reproduce" in agent.actions
+
+
+def test_reproduce_unlock_is_idempotent():
+    agent = Agent(name="Ada", x=0, y=0)
+    agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE)
+    agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE + 1)
+    assert agent.actions.count("reproduce") == 1
 
 
 # ---------------------------------------------------------------------------

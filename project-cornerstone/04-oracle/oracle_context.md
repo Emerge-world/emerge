@@ -27,6 +27,9 @@ Agent decides action → Oracle.resolve_action()
   ├── move:     Validate walkability, move, spend energy
   ├── eat:      Search nearby resource, consume, reduce hunger
   ├── rest:     Recover energy
+  ├── pickup:   Collect 1 item from the current tile into inventory
+  ├── communicate / give_item / teach: Resolve social built-in actions deterministically
+  ├── reproduce: Validate age/health/adjacency/cooldown, then spawn child
   ├── innovate: Validate with LLM, register new action
   └── custom:   Search precedent or ask LLM to determine result
 ```

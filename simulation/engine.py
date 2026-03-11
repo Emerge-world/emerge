@@ -200,6 +200,8 @@ class SimulationEngine:
             if not agent.alive:
                 continue
 
+            agent.unlock_actions_for_tick(tick)
+
             # 1. Get environment perception (radius varies by time of day)
             nearby = self.world.get_nearby_tiles(agent.x, agent.y, vision_radius)
 
@@ -540,7 +542,7 @@ class SimulationEngine:
             lines.append(f"- Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energy}\n")
             lines.append(f"- Known actions: {', '.join(agent.actions)}\n")
             lines.append(f"- Memory entries: {len(agent.memory)}\n")
-            innovated = [a for a in agent.actions if a not in ["move", "eat", "rest", "innovate"]]
+            innovated = [a for a in agent.actions if a not in _BASE_ACTIONS]
             if innovated:
                 lines.append(f"- Innovations: {', '.join(innovated)}\n")
             lines.append("\n")
@@ -572,7 +574,7 @@ class SimulationEngine:
             print(f"    Memory entries: {len(agent.memory)}")
 
             # Show innovated actions
-            innovated = [a for a in agent.actions if a not in ["move", "eat", "rest", "innovate"]]
+            innovated = [a for a in agent.actions if a not in _BASE_ACTIONS]
             if innovated:
                 print(f"    🆕 Innovations: {', '.join(innovated)}")
 

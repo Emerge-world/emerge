@@ -1,6 +1,7 @@
 # tests/test_agent_prompts.py
 import pytest
 from simulation.agent import Agent
+from simulation.config import REPRODUCE_MIN_TICKS_ALIVE
 from simulation.personality import Personality
 
 def _make_nearby(center_tile: str, *extra: dict) -> list[dict]:
@@ -143,3 +144,20 @@ class TestNearbyAgentsInDecisionPrompt:
         # No LLM — uses fallback; should not raise
         result = agent_a.decide_action(nearby, tick=1, nearby_agents=[(agent_b, 1)])
         assert "action" in result
+
+
+class TestReproductionPrompt:
+    def setup_method(self):
+        Agent._id_counter = 0
+
+    def test_reproduce_hint_hidden_before_unlock(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        nearby = [{"x": 5, "y": 5, "tile": "land", "distance": 0}]
+        prompt = agent._build_decision_prompt(nearby, tick=REPRODUCE_MIN_TICKS_ALIVE - 1)
+        assert 'To reproduce: {"action": "reproduce"' not in prompt
+
+    def test_reproduce_hint_shown_after_unlock(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        nearby = [{"x": 5, "y": 5, "tile": "land", "distance": 0}]
+        prompt = agent._build_decision_prompt(nearby, tick=REPRODUCE_MIN_TICKS_ALIVE)
+        assert 'To reproduce: {"action": "reproduce"' in prompt

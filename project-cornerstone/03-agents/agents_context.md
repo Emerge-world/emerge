@@ -21,7 +21,8 @@ Each agent has:
   - **Passive healing**: agents regenerate +1 life/tick when hunger < 50 AND energy > 30 (DEC-011)
 - **Posición**: (x, y) in the grid
 - **Memoria**: `Memory` class with episodic (max 20, raw events) + semantic (max 30, compressed knowledge)
-- **Acciones**: string list starting with `["move", "eat", "rest", "innovate"]`
+- **Acciones iniciales**: `["move", "eat", "rest", "innovate", "pickup", "communicate", "give_item", "teach"]`
+  - `reproduce` is built-in but NOT available at birth; it unlocks once `current_tick - born_tick >= 100`
 - **LLM**: Ollama 
 
 ### Known Issues

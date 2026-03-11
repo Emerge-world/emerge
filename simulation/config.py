@@ -174,8 +174,26 @@ AGENT_NAME_POOL = [
     "Eli", "Fern",
 ]
 
-# --- Base actions ---
-BASE_ACTIONS = ["move", "eat", "rest", "innovate", "pickup", "give_item", "teach", "reproduce"]
+# --- Built-in actions ---
+# Initial actions are available from tick 0.
+INITIAL_ACTIONS = [
+    "move",
+    "eat",
+    "rest",
+    "innovate",
+    "pickup",
+    "communicate",
+    "give_item",
+    "teach",
+]
+
+# Unlockable actions are built-in, but not available from birth.
+AGE_UNLOCKED_ACTIONS = {
+    "reproduce": REPRODUCE_MIN_TICKS_ALIVE,
+}
+
+# BASE_ACTIONS remains the canonical built-in/non-innovation action list.
+BASE_ACTIONS = INITIAL_ACTIONS + list(AGE_UNLOCKED_ACTIONS)
 
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry
