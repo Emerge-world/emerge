@@ -303,6 +303,13 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 
 **Trade-offs:** Slight I/O overhead on every run (minimal; line-buffered). The A/B comparison CLI (`audit_compare.py`) is lost — a future metrics layer (PR3) will replace it by reading from `events.jsonl`.
 
+### DEC-032: LLM Digest Builder — post-run analysis pipeline (PR6)
+- **Date**: 2026-03-11
+- **Context**: After every simulation run, `events.jsonl` contains the full event stream but there was no automated way to extract behavioral insights, anomalies, or evidence mappings for LLM consumption. Post-run analysis was purely manual.
+- **Decision**: Build a deterministic, stdlib-only post-run digest pipeline under `simulation/digest/` that reads `events.jsonl` and produces structured JSON + markdown in `llm_digest/`. Five focused modules: `BehaviorSegmenter` (4-mode phase classification with hysteresis), `AnomalyDetector` (5 detection rules), `EvidenceIndexer` (claim→event-id mapping), `DigestBuilder` (orchestrator), `DigestRenderer` (pure serialization). Engine auto-invokes `DigestBuilder` after each run alongside `MetricsBuilder`/`EBSBuilder`.
+- **Rejected alternatives**: LLM-generated summaries at run-time (non-deterministic, expensive); single monolithic script (harder to test); adding pandas/numpy for analysis (new deps, YAGNI for simple aggregations).
+- **Consequences**: stdlib-only (no new runtime dependencies). Deferred import in engine so a broken digest module cannot crash simulations. `--no-digest` flag suppresses generation. `pos` field handled as both list and dict (engine emits list, tests use dict). `_event_id` format: `evt_{tick:04d}_{agent}_{event_type}`.
+
 ### DEC-031: Built-in action taxonomy split into initial vs age-unlocked
 - **Date**: 2026-03-11
 - **Context**: The repo had diverged on what "actions available at the start of the simulation" meant. Docs still referenced the original 4-action set, prompts and Oracle already supported `communicate`, and `reproduce` was treated as built-in even though it is only valid after 100 ticks alive.
