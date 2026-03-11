@@ -309,3 +309,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Split built-in actions into `INITIAL_ACTIONS` and `AGE_UNLOCKED_ACTIONS`. Agents start with `move`, `eat`, `rest`, `innovate`, `pickup`, `communicate`, `give_item`, and `teach`. `reproduce` remains a built-in non-innovation action, but it is not added to `agent.actions` until the agent reaches `REPRODUCE_MIN_TICKS_ALIVE`.
 - **Rejected alternatives**: Keeping `reproduce` in the startup list and relying on Oracle rejection only (misleading prompt surface); treating `reproduce` as an innovation (incorrect semantics, breaks teaching/classification rules).
 - **Consequences**: Prompt action lists now match true availability. Event/log/base-action classification still treats `reproduce` as built-in rather than innovative. Child agents inherit the initial action set and unlock `reproduce` only when they reach age 100 themselves.
+
+### DEC-032: Metrics explainer ships as a standalone docs page
+- **Date**: 2026-03-11
+- **Context**: The repository needs a reader-friendly explanation of population metrics and EBS scoring for non-technical audiences. The existing `UI/` app is an operational dashboard, which is the wrong surface for a narrative explainer.
+- **Decision**: Build the explainer as a standalone static page under `docs/metrics-explainer/`, separate from the live React frontend in `UI/`.
+- **Rejected alternatives**: Adding the explainer as a route inside `UI/` (too coupled to the product shell); keeping it as plain markdown only (less appealing and harder to scan with formulas and diagrams).
+- **Consequences**: The explainer can stay static, docs-owned, and easy to publish. It does not depend on backend APIs, websockets, or the simulation runtime.
