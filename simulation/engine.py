@@ -251,12 +251,6 @@ class SimulationEngine:
                 oracle_context=self.oracle.last_llm_context,
                 cache_hit=self.oracle.last_cache_hit,
             )
-
-            # Emit innovation outcome events
-            if action_str == "innovate":
-                self.event_emitter.emit_innovation_validated(tick, agent.name, result)
-            elif action_str not in _BASE_ACTIONS and action_str in agent.actions:
-                self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
             crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
 

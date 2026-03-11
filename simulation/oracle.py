@@ -189,15 +189,19 @@ class Oracle:
             from simulation.schemas import PhysicalReflectionResponse
             system = prompt_loader.load("oracle/physical_system")
             typed = self.llm.generate_structured(prompt, PhysicalReflectionResponse, system_prompt=system, temperature=0.2)
-            if self.sim_logger and self.llm.last_call:
+            if self.llm.last_call:
                 lc = self.llm.last_call
-                self.sim_logger.log_oracle_llm_call(
-                    tick=tick, context=f"Physical reflection: {situation_key}",
-                    system_prompt=lc.get("system_prompt", ""),
-                    user_prompt=lc.get("user_prompt", ""),
-                    raw_response=lc.get("raw_response", ""),
-                    parsed_result=typed.model_dump() if typed is not None else None,
-                )
+                if self.sim_logger:
+                    self.sim_logger.log_oracle_llm_call(
+                        tick=tick, context=f"Physical reflection: {situation_key}",
+                        system_prompt=lc.get("system_prompt", ""),
+                        user_prompt=lc.get("user_prompt", ""),
+                        raw_response=lc.get("raw_response", ""),
+                        parsed_result=typed.model_dump() if typed is not None else None,
+                    )
+                self.last_llm_trace = lc.copy()
+                self.last_llm_context = "physical_reflect"
+                self.last_cache_hit = False
             if typed is not None:
                 result = typed.model_dump()
                 self.precedents[situation_key] = result
@@ -948,15 +952,19 @@ Otherwise omit both fields."""
 
         typed = self.llm.generate_structured(prompt, InnovationValidationResponse, system_prompt=system, temperature=0.3)
 
-        if self.sim_logger and self.llm.last_call:
+        if self.llm.last_call:
             lc = self.llm.last_call
-            self.sim_logger.log_oracle_llm_call(
-                tick=tick, context=f"Validate innovation '{action_name}' by {agent.name}",
-                system_prompt=lc.get("system_prompt", ""),
-                user_prompt=lc.get("user_prompt", ""),
-                raw_response=lc.get("raw_response", ""),
-                parsed_result=typed.model_dump() if typed is not None else None,
-            )
+            if self.sim_logger:
+                self.sim_logger.log_oracle_llm_call(
+                    tick=tick, context=f"Validate innovation '{action_name}' by {agent.name}",
+                    system_prompt=lc.get("system_prompt", ""),
+                    user_prompt=lc.get("user_prompt", ""),
+                    raw_response=lc.get("raw_response", ""),
+                    parsed_result=typed.model_dump() if typed is not None else None,
+                )
+            self.last_llm_trace = lc.copy()
+            self.last_llm_context = f"validate_innovation_{action_name}"
+            self.last_cache_hit = False
 
         if typed is not None:
             return typed.model_dump()
@@ -999,15 +1007,19 @@ Respond with JSON:
 
         typed = self.llm.generate_structured(prompt, CustomActionOutcomeResponse, system_prompt=system, temperature=0.3)
 
-        if self.sim_logger and self.llm.last_call:
+        if self.llm.last_call:
             lc = self.llm.last_call
-            self.sim_logger.log_oracle_llm_call(
-                tick=tick, context=f"Judge custom action '{action_type}' by {agent.name}",
-                system_prompt=lc.get("system_prompt", ""),
-                user_prompt=lc.get("user_prompt", ""),
-                raw_response=lc.get("raw_response", ""),
-                parsed_result=typed.model_dump() if typed is not None else None,
-            )
+            if self.sim_logger:
+                self.sim_logger.log_oracle_llm_call(
+                    tick=tick, context=f"Judge custom action '{action_type}' by {agent.name}",
+                    system_prompt=lc.get("system_prompt", ""),
+                    user_prompt=lc.get("user_prompt", ""),
+                    raw_response=lc.get("raw_response", ""),
+                    parsed_result=typed.model_dump() if typed is not None else None,
+                )
+            self.last_llm_trace = lc.copy()
+            self.last_llm_context = f"custom_action_{action_type}"
+            self.last_cache_hit = False
 
         result = typed.model_dump() if typed is not None else None
         if result and "effects" in result:
@@ -1027,15 +1039,19 @@ Respond with JSON:
             from simulation.schemas import FruitEffectResponse
             prompt = prompt_loader.load("oracle/fruit_effect")
             typed = self.llm.generate_structured(prompt, FruitEffectResponse, temperature=0.2)
-            if self.sim_logger and self.llm.last_call:
+            if self.llm.last_call:
                 lc = self.llm.last_call
-                self.sim_logger.log_oracle_llm_call(
-                    tick=tick, context="Determine fruit hunger reduction",
-                    system_prompt=lc.get("system_prompt", ""),
-                    user_prompt=lc.get("user_prompt", ""),
-                    raw_response=lc.get("raw_response", ""),
-                    parsed_result=typed.model_dump() if typed is not None else None,
-                )
+                if self.sim_logger:
+                    self.sim_logger.log_oracle_llm_call(
+                        tick=tick, context="Determine fruit hunger reduction",
+                        system_prompt=lc.get("system_prompt", ""),
+                        user_prompt=lc.get("user_prompt", ""),
+                        raw_response=lc.get("raw_response", ""),
+                        parsed_result=typed.model_dump() if typed is not None else None,
+                    )
+                self.last_llm_trace = lc.copy()
+                self.last_llm_context = "fruit_effect"
+                self.last_cache_hit = False
             if typed is not None:
                 value = max(10, min(30, typed.value))
 
@@ -1090,15 +1106,19 @@ Respond with JSON:
                 f"\"life_change\": 0, \"reason\": \"brief explanation\"}}"
             )
             typed = self.llm.generate_structured(prompt, ItemEatEffectResponse, system_prompt=system, temperature=0.2)
-            if self.sim_logger and self.llm.last_call:
+            if self.llm.last_call:
                 lc = self.llm.last_call
-                self.sim_logger.log_oracle_llm_call(
-                    tick=tick, context=f"Determine eat effect for {item_type}",
-                    system_prompt=lc.get("system_prompt", ""),
-                    user_prompt=lc.get("user_prompt", ""),
-                    raw_response=lc.get("raw_response", ""),
-                    parsed_result=typed.model_dump() if typed is not None else None,
-                )
+                if self.sim_logger:
+                    self.sim_logger.log_oracle_llm_call(
+                        tick=tick, context=f"Determine eat effect for {item_type}",
+                        system_prompt=lc.get("system_prompt", ""),
+                        user_prompt=lc.get("user_prompt", ""),
+                        raw_response=lc.get("raw_response", ""),
+                        parsed_result=typed.model_dump() if typed is not None else None,
+                    )
+                self.last_llm_trace = lc.copy()
+                self.last_llm_context = f"item_eat_{item_type}"
+                self.last_cache_hit = False
             if typed is not None:
                 effect = {
                     "possible": typed.possible,

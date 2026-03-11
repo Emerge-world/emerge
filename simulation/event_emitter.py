@@ -51,9 +51,6 @@ class EventEmitter:
         run_dir = Path("data") / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        # store run_dir so engine can reference it (e.g. MetricsBuilder)
-        self.run_dir: Path = run_dir
-
         # Create blob subdirectories
         (run_dir / "blobs" / "prompts").mkdir(parents=True, exist_ok=True)
         (run_dir / "blobs" / "llm_raw").mkdir(parents=True, exist_ok=True)
