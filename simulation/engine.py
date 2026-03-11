@@ -175,6 +175,13 @@ class SimulationEngine:
                 except Exception as exc:
                     logger.warning("DigestBuilder failed: %s", exc)
             if self.wandb_logger:
+                try:
+                    self.wandb_logger.log_post_run(
+                        self.event_emitter.run_dir,
+                        include_digest=self.run_digest,
+                    )
+                except Exception as exc:
+                    logger.warning("W&B post-run log failed: %s", exc)
                 self.wandb_logger.finish()
 
         self._print_summary()
@@ -683,6 +690,15 @@ class SimulationEngine:
                     DigestBuilder(self.event_emitter.run_dir).build()
                 except Exception as exc:
                     logger.warning("DigestBuilder failed: %s", exc)
+            if self.wandb_logger:
+                try:
+                    self.wandb_logger.log_post_run(
+                        self.event_emitter.run_dir,
+                        include_digest=self.run_digest,
+                    )
+                except Exception as exc:
+                    logger.warning("W&B post-run log failed: %s", exc)
+                self.wandb_logger.finish()
 
         self._log_overview_end()
 

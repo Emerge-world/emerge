@@ -4,6 +4,8 @@ Passive observer: receives tick data from the engine and logs per-tick
 aggregate metrics. Zero impact on the simulation when --wandb is not set.
 """
 import hashlib
+import json
+import logging
 import statistics
 from pathlib import Path
 from typing import Optional
@@ -11,6 +13,8 @@ from typing import Optional
 import wandb
 
 from simulation.config import BASE_ACTIONS
+
+logger = logging.getLogger(__name__)
 
 
 class WandbLogger:
@@ -121,6 +125,51 @@ class WandbLogger:
         metrics["sim/is_daytime"] = 1 if tick_data.get("is_daytime", True) else 0
 
         wandb.log(metrics, step=tick)
+
+    def log_post_run(self, run_dir: Path, include_digest: bool = True) -> None:
+        """Log post-run EBS scores, digest summary metrics, and upload llm_digest artifact."""
+        # --- EBS component scores (always attempted) ---
+        ebs_path = run_dir / "metrics" / "ebs.json"
+        try:
+            ebs_data = json.loads(ebs_path.read_text(encoding="utf-8"))
+            metrics: dict = {"post_run/ebs": ebs_data.get("ebs", 0.0)}
+            for name in ("novelty", "utility", "realization", "stability", "autonomy"):
+                metrics[f"post_run/ebs_{name}"] = ebs_data.get("components", {}).get(name, {}).get("score", 0.0)
+            wandb.log(metrics)
+        except Exception as exc:
+            logger.warning("W&B post-run EBS log failed: %s", exc)
+
+        # --- Digest summary metrics + artifact (only if digest was built) ---
+        if include_digest:
+            digest_path = run_dir / "llm_digest" / "run_digest.json"
+            try:
+                digest_data = json.loads(digest_path.read_text(encoding="utf-8"))
+                outcomes = digest_data.get("outcomes", {})
+                digest_metrics: dict = {
+                    "post_run/total_anomalies":             outcomes.get("total_anomalies", 0),
+                    "post_run/total_innovations_approved":  outcomes.get("total_innovations_approved", 0),
+                    "post_run/total_innovations_attempted": outcomes.get("total_innovations_attempted", 0),
+                }
+                for anom_type, count in outcomes.get("anomaly_counts_by_type", {}).items():
+                    digest_metrics[f"post_run/anomaly_type/{anom_type}"] = count
+                for agent in digest_data.get("agents", []):
+                    aid = agent.get("agent_id", "unknown")
+                    digest_metrics[f"post_run/agent/{aid}/dominant_mode"]    = agent.get("dominant_mode", "unknown")
+                    digest_metrics[f"post_run/agent/{aid}/phase_count"]      = agent.get("phase_count", 0)
+                    digest_metrics[f"post_run/agent/{aid}/anomaly_count"]    = agent.get("anomaly_count", 0)
+                    digest_metrics[f"post_run/agent/{aid}/innovation_count"] = agent.get("innovation_count", 0)
+                wandb.log(digest_metrics)
+            except Exception as exc:
+                logger.warning("W&B post-run digest metrics log failed: %s", exc)
+
+            digest_dir = run_dir / "llm_digest"
+            try:
+                if digest_dir.exists() and any(digest_dir.iterdir()):
+                    artifact = wandb.Artifact(name=f"{run_dir.name}-llm-digest", type="llm-digest")
+                    artifact.add_dir(str(digest_dir), name="llm_digest")
+                    wandb.log_artifact(artifact)
+            except Exception as exc:
+                logger.warning("W&B llm_digest artifact upload failed: %s", exc)
 
     def finish(self) -> None:
         """Signal end of run to W&B."""

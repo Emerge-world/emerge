@@ -1,5 +1,6 @@
 """Tests for WandbLogger — all wandb calls are mocked."""
 import hashlib
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -227,3 +228,174 @@ class TestWandbLoggerRunName:
 
             init_kwargs = mock_wandb.init.call_args.kwargs
             assert init_kwargs.get("name") is None
+
+
+# ---------------------------------------------------------------------------
+# Helpers for TestWandbLoggerPostRun
+# ---------------------------------------------------------------------------
+
+def _make_ebs_json(tmp_path: Path, ebs: float = 0.75, components: dict | None = None) -> Path:
+    """Write a minimal metrics/ebs.json and return the run_dir."""
+    run_dir = tmp_path / "run_001"
+    metrics_dir = run_dir / "metrics"
+    metrics_dir.mkdir(parents=True)
+    data = {
+        "ebs": ebs,
+        "components": components or {
+            "novelty":     {"score": 0.8},
+            "utility":     {"score": 0.7},
+            "realization": {"score": 0.6},
+            "stability":   {"score": 0.9},
+            "autonomy":    {"score": 0.5},
+        },
+    }
+    (metrics_dir / "ebs.json").write_text(json.dumps(data), encoding="utf-8")
+    return run_dir
+
+
+def _make_digest_json(run_dir: Path, agents: list | None = None, anomaly_counts: dict | None = None) -> None:
+    """Write a minimal llm_digest/run_digest.json."""
+    digest_dir = run_dir / "llm_digest"
+    digest_dir.mkdir(parents=True, exist_ok=True)
+    data = {
+        "outcomes": {
+            "total_anomalies": 3,
+            "total_innovations_approved": 2,
+            "total_innovations_attempted": 4,
+            "anomaly_counts_by_type": anomaly_counts or {"stuck": 2, "invalid_action": 1},
+        },
+        "agents": agents or [
+            {
+                "agent_id": "agent_0",
+                "dominant_mode": "explore",
+                "phase_count": 5,
+                "anomaly_count": 1,
+                "innovation_count": 2,
+            }
+        ],
+    }
+    (digest_dir / "run_digest.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _make_logger(mock_wandb, tmp_path: Path):
+    """Instantiate WandbLogger with mocked wandb."""
+    from simulation.wandb_logger import WandbLogger
+    mock_wandb.Artifact.return_value = MagicMock()
+    return WandbLogger(project="test", entity=None, run_config={}, prompts_dir=tmp_path)
+
+
+def _collect_log_calls(mock_wandb) -> dict:
+    """Aggregate all wandb.log call dicts into one flat dict."""
+    return {k: v for call_ in mock_wandb.log.call_args_list for k, v in call_[0][0].items()}
+
+
+class TestWandbLoggerPostRun:
+    """Tests for WandbLogger.log_post_run()."""
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_ebs_score(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path, ebs=0.75)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=False)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/ebs"] == 0.75
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_all_five_ebs_components(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=False)
+        logged = _collect_log_calls(mock_wandb)
+        for name in ("novelty", "utility", "realization", "stability", "autonomy"):
+            assert f"post_run/ebs_{name}" in logged
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_digest_summary_metrics(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        _make_digest_json(run_dir)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=True)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/total_anomalies"] == 3
+        assert logged["post_run/total_innovations_approved"] == 2
+        assert logged["post_run/total_innovations_attempted"] == 4
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_per_agent_metrics(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        _make_digest_json(run_dir)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=True)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/agent/agent_0/dominant_mode"] == "explore"
+        assert logged["post_run/agent/agent_0/phase_count"] == 5
+        assert logged["post_run/agent/agent_0/anomaly_count"] == 1
+        assert logged["post_run/agent/agent_0/innovation_count"] == 2
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_anomaly_type_breakdown(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        _make_digest_json(run_dir, anomaly_counts={"stuck": 2, "invalid_action": 1})
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=True)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/anomaly_type/stuck"] == 2
+        assert logged["post_run/anomaly_type/invalid_action"] == 1
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_uploads_llm_digest_artifact(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        _make_digest_json(run_dir)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_artifact = MagicMock()
+        mock_wandb.Artifact.return_value = mock_artifact
+        mock_wandb.log.reset_mock()
+        mock_wandb.Artifact.reset_mock()
+        mock_wandb.log_artifact.reset_mock()
+        wl.log_post_run(run_dir, include_digest=True)
+        mock_wandb.Artifact.assert_called_once_with(
+            name=f"{run_dir.name}-llm-digest", type="llm-digest"
+        )
+        mock_artifact.add_dir.assert_called_once()
+        mock_wandb.log_artifact.assert_called_once_with(mock_artifact)
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_skips_artifact_when_include_digest_false(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        _make_digest_json(run_dir)
+        mock_wandb.Artifact.return_value = MagicMock()
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.Artifact.reset_mock()
+        wl.log_post_run(run_dir, include_digest=False)
+        mock_wandb.Artifact.assert_not_called()
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_missing_ebs_json_does_not_crash(self, mock_wandb, tmp_path):
+        run_dir = tmp_path / "run_no_ebs"
+        run_dir.mkdir()
+        wl = _make_logger(mock_wandb, tmp_path)
+        # Must not raise
+        wl.log_post_run(run_dir, include_digest=False)
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_missing_digest_json_does_not_crash(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        # llm_digest dir not created
+        wl = _make_logger(mock_wandb, tmp_path)
+        wl.log_post_run(run_dir, include_digest=True)
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_empty_llm_digest_dir_skips_artifact(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        (run_dir / "llm_digest").mkdir(parents=True)
+        mock_wandb.Artifact.return_value = MagicMock()
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.Artifact.reset_mock()
+        wl.log_post_run(run_dir, include_digest=True)
+        # Artifact should not be created for empty dir
+        mock_wandb.Artifact.assert_not_called()
