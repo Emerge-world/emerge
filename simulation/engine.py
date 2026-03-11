@@ -104,7 +104,8 @@ class SimulationEngine:
 
         # Always-on canonical event emitter (data/runs/<run_id>/)
         self.run_id = str(uuid.uuid4())
-        _model_id = self.llm.model if self.llm else "none"
+        _agent_model_id = self.llm.model if self.llm else "none"
+        _oracle_model_id = self.oracle.llm.model if self.oracle.llm else "none"
         self.event_emitter = EventEmitter(
             run_id=self.run_id,
             seed=world_seed,
@@ -113,8 +114,10 @@ class SimulationEngine:
             max_ticks=max_ticks,
             agent_count=len(self.agents),
             agent_names=[a.name for a in self.agents],
-            model_id=_model_id,
+            agent_model_id=_agent_model_id,
+            oracle_model_id=_oracle_model_id,
             day_cycle=self.day_cycle,
+            precedents_file=self._precedents_path,
         )
 
         # W&B logger (optional)
@@ -220,7 +223,8 @@ class SimulationEngine:
             llm_trace = action.pop("_llm_trace", None)
             action_source = "llm" if (llm_trace and llm_trace.get("raw_response")) else "fallback"
             self.event_emitter.emit_agent_decision(
-                tick, agent.name, action, parse_ok=(action_source == "llm")
+                tick, agent.name, action, parse_ok=(action_source == "llm"),
+                llm_trace=llm_trace,
             )
             if action_source == "llm":
                 self.sim_logger.log_agent_decision(
@@ -241,7 +245,12 @@ class SimulationEngine:
 
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
-            self.event_emitter.emit_oracle_resolution(tick, agent.name, result)
+            self.event_emitter.emit_oracle_resolution(
+                tick, agent.name, result,
+                llm_trace=self.oracle.last_llm_trace,
+                oracle_context=self.oracle.last_llm_context,
+                cache_hit=self.oracle.last_cache_hit,
+            )
 
             # Emit innovation outcome events
             if action_str == "innovate":

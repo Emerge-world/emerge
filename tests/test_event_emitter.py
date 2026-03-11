@@ -25,7 +25,8 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
         max_ticks=72,
         agent_count=3,
         agent_names=["Ada", "Bruno", "Clara"],
-        model_id="test-model",
+        agent_model_id="test-model",
+        oracle_model_id="test-oracle-model",
         day_cycle=day_cycle,
     )
     return em
@@ -72,7 +73,8 @@ class TestMeta:
         assert meta["max_ticks"] == 72
         assert meta["agent_count"] == 3
         assert meta["agent_names"] == ["Ada", "Bruno", "Clara"]
-        assert meta["model_id"] == "test-model"
+        assert meta["agent_model_id"] == "test-model"
+        assert meta["oracle_model_id"] == "test-oracle-model"
         assert "created_at" in meta
 
     def test_events_jsonl_created(self, tmp_path, monkeypatch):

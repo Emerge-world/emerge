@@ -4,10 +4,16 @@ Canonical event emitter: writes an always-on JSONL event stream per run.
 Output: data/runs/<run_id>/
   meta.json     — run config, model, seed, timestamp (written at init)
   events.jsonl  — one JSON object per line, the authoritative data source
+  blobs/
+    prompts/    — rendered prompts (system + user) for agent and oracle LLM calls
+    llm_raw/    — raw LLM responses for agent and oracle calls
 """
 
 import datetime
+import hashlib
 import json
+import re
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -33,8 +39,10 @@ class EventEmitter:
         max_ticks: int,
         agent_count: int,
         agent_names: list[str],
-        model_id: str,
+        agent_model_id: str,
+        oracle_model_id: str,
         day_cycle: DayCycle,
+        precedents_file: Optional[str] = None,
     ):
         self.run_id = run_id
         self.seed = seed
@@ -46,6 +54,33 @@ class EventEmitter:
         # store run_dir so engine can reference it (e.g. MetricsBuilder)
         self.run_dir: Path = run_dir
 
+        # Create blob subdirectories
+        (run_dir / "blobs" / "prompts").mkdir(parents=True, exist_ok=True)
+        (run_dir / "blobs" / "llm_raw").mkdir(parents=True, exist_ok=True)
+
+        # SHA-256 dedup map: sha256 hex → relative path string
+        self._blob_sha_map: dict[str, str] = {}
+
+        # Compute git commit hash
+        try:
+            git_commit = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            ).decode().strip()
+        except Exception:
+            git_commit = "unknown"
+
+        # Compute SHA-256 hashes of all prompt templates (skip old_system)
+        prompts_dir = Path("prompts")
+        prompt_hashes: dict[str, str] = {}
+        if prompts_dir.is_dir():
+            for f in sorted(prompts_dir.rglob("*.txt")):
+                key = str(f.relative_to(prompts_dir).with_suffix(""))
+                if key == "agent/old_system":
+                    continue
+                content = f.read_text(encoding="utf-8")
+                prompt_hashes[key] = hashlib.sha256(content.encode()).hexdigest()
+
         # Write meta.json immediately so it's available even if the run crashes
         meta = {
             "run_id": run_id,
@@ -55,7 +90,11 @@ class EventEmitter:
             "max_ticks": max_ticks,
             "agent_count": agent_count,
             "agent_names": agent_names,
-            "model_id": model_id,
+            "agent_model_id": agent_model_id,
+            "oracle_model_id": oracle_model_id,
+            "git_commit": git_commit,
+            "prompt_hashes": prompt_hashes,
+            "precedents_file": precedents_file,
             "created_at": datetime.datetime.utcnow().isoformat() + "Z",
         }
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -66,6 +105,21 @@ class EventEmitter:
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
+
+    def _write_blob(self, subdir: str, name: str, content: str) -> tuple[str, str]:
+        """Write content to blobs/{subdir}/{name}.txt with SHA-256 dedup.
+
+        Returns (relative_path, sha256). If an identical blob already exists,
+        returns the existing path without writing.
+        """
+        sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        if sha in self._blob_sha_map:
+            return self._blob_sha_map[sha], sha
+        rel = f"blobs/{subdir}/{name}.txt"
+        path = Path("data") / "runs" / self.run_id / rel
+        path.write_text(content, encoding="utf-8")
+        self._blob_sha_map[sha] = rel
+        return rel, sha
 
     def _sim_time(self, tick: int) -> Optional[dict]:
         """Return {"day": N, "hour": H} for tick > 0, None for tick == 0."""
@@ -121,26 +175,59 @@ class EventEmitter:
         agent_name: str,
         action: dict,
         parse_ok: bool,
+        llm_trace: Optional[dict] = None,
     ):
         """Emit after agent.decide_action(). action must have _llm_trace stripped."""
         action_name = action.get("action", "none")
-        self._emit("agent_decision", tick, {
+        payload: dict = {
             "parsed_action": action,
             "parse_ok": parse_ok,
             "action_origin": self._action_origin(action_name),
-        }, agent_id=agent_name)
+        }
+        if llm_trace:
+            combined_prompt = llm_trace["system_prompt"] + "\n\n---\n\n" + llm_trace["user_prompt"]
+            p_ref, p_sha = self._write_blob("prompts", f"prompt_{tick}_{agent_name}", combined_prompt)
+            r_ref, r_sha = self._write_blob("llm_raw", f"resp_{tick}_{agent_name}", llm_trace["raw_response"])
+            payload["prompt_ref"] = p_ref
+            payload["prompt_sha256"] = p_sha
+            payload["raw_response_ref"] = r_ref
+            payload["response_sha256"] = r_sha
+        self._emit("agent_decision", tick, payload, agent_id=agent_name)
 
-    def emit_oracle_resolution(self, tick: int, agent_name: str, result: dict):
+    def emit_oracle_resolution(
+        self,
+        tick: int,
+        agent_name: str,
+        result: dict,
+        llm_trace: Optional[dict] = None,
+        oracle_context: Optional[str] = None,
+        cache_hit: bool = True,
+    ):
         """Emit after oracle.resolve_action(). Normalises missing effect keys to 0."""
         effects = result.get("effects", {})
-        self._emit("oracle_resolution", tick, {
+        payload: dict = {
             "success": result["success"],
             "effects": {
                 "hunger": effects.get("hunger", 0),
                 "energy": effects.get("energy", 0),
                 "life": effects.get("life", 0),
             },
-        }, agent_id=agent_name)
+            "cache_hit": cache_hit,
+            "prompt_ref": None,
+            "prompt_sha256": None,
+            "raw_response_ref": None,
+            "response_sha256": None,
+        }
+        if llm_trace and oracle_context:
+            safe_ctx = re.sub(r'[^a-zA-Z0-9_]', '_', oracle_context)[:40]
+            combined_prompt = llm_trace["system_prompt"] + "\n\n---\n\n" + llm_trace["user_prompt"]
+            p_ref, p_sha = self._write_blob("prompts", f"oracle_{tick}_{safe_ctx}", combined_prompt)
+            r_ref, r_sha = self._write_blob("llm_raw", f"oracle_resp_{tick}_{safe_ctx}", llm_trace["raw_response"])
+            payload["prompt_ref"] = p_ref
+            payload["prompt_sha256"] = p_sha
+            payload["raw_response_ref"] = r_ref
+            payload["response_sha256"] = r_sha
+        self._emit("oracle_resolution", tick, payload, agent_id=agent_name)
 
     def emit_agent_state(self, tick: int, agent):
         """Emit after agent.apply_tick_effects(). Captures final post-tick state."""

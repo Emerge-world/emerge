@@ -69,6 +69,11 @@ class Oracle:
         self.current_tick_agents: list = []
         self._communicated_this_tick: set[str] = set()
 
+        # LLM trace for the most recent resolve_action() call (set by helper methods)
+        self.last_llm_trace: Optional[dict] = None
+        self.last_llm_context: Optional[str] = None
+        self.last_cache_hit: bool = True
+
     def load_precedents(self, filepath: str) -> None:
         """Load precedents from a JSON file and merge into self.precedents.
 
@@ -133,6 +138,10 @@ class Oracle:
         Returns:
             dict with: {"success": bool, "message": str, "effects": dict}
         """
+        self.last_llm_trace = None
+        self.last_llm_context = None
+        self.last_cache_hit = True
+
         action_type = action.get("action", "none")
 
         if action_type == "move":
