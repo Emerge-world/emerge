@@ -1,103 +1,31 @@
-# 09 — Visualization (Phase 5)
+# 09 — Visualization (Current + Next)
 
-> DO NOT implement until Phase 3 stable. Plan stack beforehand.
+## What already exists in code
 
-## Concept
+- Backend: FastAPI server with REST + WebSocket (`server/server.py`).
+- Frontend: React + Vite app in `UI/`.
+- Live features implemented:
+  - world grid rendering
+  - agent selection panel and status cards
+  - pause/resume controls
+  - websocket auto-reconnect flow via `useSimulation`
 
-Real-time web dashboard showing the world, agents, and statistics. Replay capability.
+## Current architecture
 
-## Architecture
+- Simulation runs in a background thread.
+- Tick/control messages are fanned out by `server/event_bus.py`.
+- Browser receives `init`, `tick`, and `control` messages.
 
-```
-┌──────────────┐     WebSocket      ┌──────────────────────┐
-│  Simulation  │ ──────────────────→ │  Frontend (React)    │
-│  Engine      │  events stream     │  ├── Grid (Pixi.js)  │
-│  (Python)    │ ←────────────────── │  ├── Stats Panel     │
-└──────┬───────┘   controls          │  ├── Log Feed        │
-       │                             │  ├── Charts          │
-       │  REST API                   │  └── Replay Controls │
-       │                             └──────────────────────┘
-┌──────┴───────┐
-│  FastAPI     │
-│  Server      │
-│  - /ws       │  WebSocket for live events
-│  - /api/     │  REST for state queries
-│  - /replay/  │  Replay from saved logs
-└──────────────┘
-```
+## Gaps to reach full Phase 5 intent
 
-## Event Stream Format
+1. Replay interface from persisted run events (`data/runs/<run_id>/events.jsonl`)
+2. Time-series charts from `metrics_builder` artifacts
+3. Genealogy/lineage visual view
+4. Comparative run dashboard (multi-seed / multi-config)
 
-```json
-{
-    "tick": 42,
-    "timestamp": "2026-02-27T14:30:00",
-    "events": [
-        {
-            "type": "agent_move",
-            "agent": "Ada",
-            "from": [10, 15],
-            "to": [11, 15],
-            "stats": {"life": 85, "hunger": 30, "energy": 60}
-        },
-        {
-            "type": "agent_eat",
-            "agent": "Bruno",
-            "position": [5, 8],
-            "resource": "fruit",
-            "hunger_change": -20
-        },
-        {
-            "type": "innovation",
-            "agent": "Clara",
-            "action_name": "build_shelter",
-            "description": "..."
-        },
-        {
-            "type": "agent_death",
-            "agent": "Dante",
-            "cause": "starvation",
-            "survived_ticks": 67
-        }
-    ]
-}
-```
+## Recommended implementation order
 
-## Grid Rendering (Pixi.js)
-
-```
-Tile sprites:
-  water   → blue with animated wave
-  land    → green/brown
-  tree    → green with tree sprite
-  shelter → tile with structure (innovated)
-
-Agent sprites:
-  alive   → unique colored circle per agent
-  hungry  → blinking red border
-  tired   → semi-transparent sprite
-  dead    → red X
-
-Overlay:
-  vision radius → highlight tiles that selected agent can see
-  resource qty  → number on tiles with resources
-  paths         → line showing agent's recent movement
-```
-
-## Charts (Recharts / D3)
-
-```
-- Line chart: stats of each agent over time
-- Area chart: total resources in the world
-- Bar chart: actions by type per tick
-- Scatter: agent positions over time (heatmap)
-- Tree: genealogical tree (Phase 4)
-- Network: relationship graph (Phase 3)
-```
-
-## Considerations for Claude Code
-
-- Visualization should NOT couple the simulation to the frontend. Sim must be able to run without dashboard.
-- Use an Observer/EventBus pattern: engine emits events, server retransmits them.
-- Prioritize grid + stats. Charts and replay are nice-to-have.
-- Replay only needs event logs (JSON lines), not complete state.
+1. Read-only replay page (single run)
+2. Metrics panel (summary + timeseries)
+3. Lineage tree view
+4. Cross-run comparison table
