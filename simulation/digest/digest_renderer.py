@@ -172,8 +172,13 @@ Generated: {d.get('generated_at', '')}
         else:
             contra_section = "_No contradictions detected._"
 
-        pos = final.get("pos", {})
-        pos_str = f"({pos.get('x', '?')}, {pos.get('y', '?')})" if pos else "unknown"
+        pos = final.get("pos", None)
+        if isinstance(pos, list) and len(pos) >= 2:
+            pos_str = f"({pos[0]}, {pos[1]})"
+        elif isinstance(pos, dict):
+            pos_str = f"({pos.get('x', '?')}, {pos.get('y', '?')})"
+        else:
+            pos_str = "unknown"
 
         min_life = extrema.get("min_life", {})
         max_hunger = extrema.get("max_hunger", {})
