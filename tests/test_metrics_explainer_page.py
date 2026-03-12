@@ -68,3 +68,28 @@ class TestExplainerFixtures:
             "autonomy",
         }
         assert ebs["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] == 0.0
+
+
+class TestExplainerScaffold:
+    def test_entry_files_exist(self):
+        for rel in ("index.html", "styles.css", "script.js"):
+            assert (DOCS_DIR / rel).exists(), rel
+
+    def test_core_sections_present(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        for section_id in (
+            "hero",
+            "flow",
+            "population-metrics",
+            "time-based-metrics",
+            "ebs-score",
+            "limits",
+        ):
+            assert f'id="{section_id}"' in html
+
+    def test_run_explorer_controls_present(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        assert 'id="artifact-source-form"' in html
+        assert 'name="artifact-mode"' in html
+        assert 'id="artifact-path"' in html
+        assert 'id="artifact-status"' in html

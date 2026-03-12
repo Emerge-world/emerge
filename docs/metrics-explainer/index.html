@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emerge Metrics Explainer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section id="hero">
+        <form id="artifact-source-form">
+          <input type="radio" name="artifact-mode" value="sample" checked />
+          <input type="radio" name="artifact-mode" value="path" />
+          <input id="artifact-path" name="artifact-path" type="text" />
+          <button type="submit">Load artifacts</button>
+        </form>
+        <p id="artifact-status" aria-live="polite"></p>
+      </section>
+      <section id="flow"></section>
+      <section id="population-metrics"></section>
+      <section id="time-based-metrics"></section>
+      <section id="ebs-score"></section>
+      <section id="limits"></section>
+    </main>
+    <script src="script.js" defer></script>
+  </body>
+</html>
