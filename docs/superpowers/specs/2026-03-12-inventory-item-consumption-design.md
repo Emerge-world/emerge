@@ -22,7 +22,7 @@ Extend the existing `eat` action with an optional `item` field. When present, th
 Add an early-return branch at the top of `_resolve_eat`, before the world-resource loop:
 
 ```python
-item = action.get("item", "").strip()
+item = action.get("item", "").strip().lower()
 if item:
     if not agent.inventory.has(item):
         return {
@@ -30,7 +30,7 @@ if item:
             "message": f"{agent.name} tried to eat {item} but has none in inventory.",
             "effects": {},
         }
-    effect = self._get_item_eat_effect(item, tick)   # existing oracle LLM / precedent lookup
+    effect = self._get_item_eat_effect(item, tick)
     if not effect["possible"]:
         return {
             "success": False,
@@ -62,11 +62,21 @@ if item:
     }
 ```
 
-- `_get_item_eat_effect` already handles editability via LLM + precedent cache (returns `possible: false` for stone, water, etc.)
+Notes:
+- `.strip().lower()` normalises LLM output — item keys in inventory are always lowercase (set by `pickup` from `world.get_resource()`)
+- `_get_item_eat_effect` handles editability via LLM + precedent cache; returns `possible: false` for stone, water, etc.
 - No new oracle prompts needed.
-- No schema changes needed — `AgentDecisionResponse.item` is already `Optional[str]`.
+- No schema field additions needed — `AgentDecisionResponse.item` is already `Optional[str]`.
 
-### 2. Agent system prompt — `prompts/agent/system.txt`
+### 2. Schema comment — `simulation/schemas.py`
+
+Update the inline comment on the `item` field in `AgentDecisionResponse`:
+
+```python
+item: Optional[str] = None          # give_item / eat (inventory)
+```
+
+### 3. Agent system prompt — `prompts/agent/system.txt`
 
 Change the `eat` line:
 
@@ -80,14 +90,25 @@ Change the `eat` line:
 - eat: {"action": "eat", "reason": "..."} (eat food at current or adjacent tile; add "item": "<name>" to eat from inventory instead)
 ```
 
-No changes to `prompts/agent/decision.txt` — the existing `INVENTORY:` line already shows carried items. Agents will see their inventory and connect it to the updated `eat` format.
+The agent already sees their inventory contents via the existing `$inventory_info` variable in `decision.txt` (e.g., `INVENTORY: fruit x2 (2/10)`). No change to `decision.txt` is needed.
 
-### 3. Tests
+### 4. Tests
 
-Two new unit tests using `MockLLM`:
+Six new unit tests using the existing `MockLLM` pattern in `tests/test_eat.py` (or a new `tests/test_eat_inventory.py`).
 
-- **`test_eat_from_inventory_success`** — agent has `fruit x1` in inventory, no world resource nearby, action `{"action": "eat", "item": "fruit"}` → inventory decremented, hunger reduced, success.
-- **`test_eat_from_inventory_no_item`** — agent has no matching item, action `{"action": "eat", "item": "stone"}` → failure, inventory unchanged.
+**Test setup notes:**
+- All tests that require a specific eat effect (hunger reduction, life change) must **pre-seed the oracle precedent** rather than mocking `generate_structured`. This is the existing pattern used throughout `test_eat.py` (e.g., `oracle.precedents["item_eat:fruit"] = {...}`), and avoids the `generate_json` vs `generate_structured` mock ambiguity.
+- Tests that assert "no world resource nearby" must explicitly clear adjacent tiles: `for pos in [(x,y),(x+1,y),(x-1,y),(x,y+1),(x,y-1)]: world.resources.pop(pos, None)`.
+- Tests that assert on energy deduction must set a known starting energy before the call (e.g., `agent.energy = 50`) and assert `agent.energy == 50 - ENERGY_COST_EAT`.
+
+**Tests:**
+
+- **`test_eat_from_inventory_success`** — pre-seed `oracle.precedents["physical:eat:fruit"] = {"possible": True, "hunger_reduction": 20, "life_change": 0}`. Agent has `fruit x1` in inventory, all adjacent tiles cleared. Action `{"action": "eat", "item": "fruit"}` → result success, `agent.inventory.has("fruit") == False`, hunger reduced by 20, `result["effects"]["life"] == 0`.
+- **`test_eat_from_inventory_energy_cost`** — same setup, set `agent.energy = 50` before call → `agent.energy == 50 - ENERGY_COST_EAT`.
+- **`test_eat_from_inventory_memory_update`** — same setup → `assert any("inventory" in m for m in agent.memory)`.
+- **`test_eat_from_inventory_no_item`** — no stone in inventory, action `{"action": "eat", "item": "stone"}` → `result["success"] == False`, `agent.inventory.total() == 0`.
+- **`test_eat_from_inventory_life_change`** — pre-seed `oracle.precedents["physical:eat:mushroom"] = {"possible": True, "hunger_reduction": 5, "life_change": -10}`. Agent has `mushroom x1`. Action `{"action": "eat", "item": "mushroom"}` → `agent.life == initial_life - 10`.
+- **`test_eat_world_resource_when_inventory_nonempty`** — agent has `fruit x1` in inventory and a fruit tile is placed at an adjacent position. Action `{"action": "eat"}` (no `item` field) → world resource consumed, `agent.inventory.items == {"fruit": 1}` (unchanged).
 
 ## What does NOT change
 
@@ -95,12 +116,14 @@ Two new unit tests using `MockLLM`:
 - `_fallback_decision` — unchanged (no-LLM fallback stays world-resource only)
 - `pickup` action — unchanged
 - `give_item`, `teach`, `communicate` — unchanged
+- `prompts/agent/decision.txt` — unchanged
 - No new base actions added
 
 ## Touch Points
 
 | File | Change |
 |---|---|
-| `simulation/oracle.py` | Add inventory branch in `_resolve_eat` |
+| `simulation/oracle.py` | Add inventory branch in `_resolve_eat` (with `.strip().lower()` normalisation) |
+| `simulation/schemas.py` | Update `item` field comment to include `eat` |
 | `prompts/agent/system.txt` | Update `eat` action description |
-| `tests/` | 2 new unit tests |
+| `tests/` | 6 new unit tests |
