@@ -460,6 +460,16 @@ class TestIntegration:
         assert st["hour"] == 21
 
 
+class TestPlanningEvents:
+    def test_emit_plan_created(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_plan_created(3, "Ada", {"goal": "stabilize food", "subgoal_count": 2})
+        em.close()
+        ev = _read_events(tmp_path)[0]
+        assert ev["event_type"] == "plan_created"
+        assert ev["payload"]["goal"] == "stabilize food"
+
+
 # ------------------------------------------------------------------ #
 # Innovation events
 # ------------------------------------------------------------------ #
