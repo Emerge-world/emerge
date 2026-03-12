@@ -95,6 +95,16 @@ uv run main.py --no-llm --ticks 50
 uv run main.py --verbose --save-log --save-state
 ```
 
+### Experiment Toolkit
+
+For cohort-based experiment gating and prioritization, see [docs/experiment-toolkit-guide.md](docs/experiment-toolkit-guide.md).
+
+Quick start:
+
+```bash
+uv run experiment_toolkit.py tests/fixtures/experiments/gate_inventory_suite.yaml --output-dir /tmp/emerge-experiments
+```
+
 ## Web UI Features
 
 - **Top-down grid view** — 50×50 tile canvas with water, land, and tree tiles
