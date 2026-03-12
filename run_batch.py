@@ -52,6 +52,29 @@ def expand_experiments(experiments: list[dict]) -> list[dict]:
     return expanded
 
 
+def expand_suite_runs(suite: dict) -> list[dict]:
+    """Expand one cohort suite into concrete baseline and candidate runs."""
+    runs = []
+    groups = [suite["baseline"], *suite.get("candidates", [])]
+
+    for group in groups:
+        for seed in suite.get("seed_set", []):
+            config = dict(group.get("config", {}))
+            config["seed"] = seed
+            config["name"] = f"{suite['name']}_{group['name']}_seed{seed}"
+            runs.append(config)
+
+    return runs
+
+
+def load_experiments(data: dict) -> list[dict]:
+    """Load flat experiments plus any cohort suites into one run list."""
+    experiments = list(data.get("experiments", []))
+    for suite in data.get("suites", []):
+        experiments.extend(expand_suite_runs(suite))
+    return experiments
+
+
 def build_command(exp: dict) -> list[str]:
     """Build the uv run main.py command for one experiment."""
     cmd = ["uv", "run", "main.py"]
@@ -88,9 +111,9 @@ def run_batch(config_path: Path, dry_run: bool = False) -> None:
     with config_path.open() as f:
         data = yaml.safe_load(f) or {}
 
-    experiments = data.get("experiments", [])
+    experiments = load_experiments(data)
     if not experiments:
-        print("ERROR: no experiments found in config", file=sys.stderr)
+        print("ERROR: no experiments or suites found in config", file=sys.stderr)
         sys.exit(1)
 
     validate_experiments(experiments)

@@ -116,3 +116,32 @@ def test_build_command_no_llm_false_omitted():
     exp = {"name": "x", "no_llm": False}
     cmd = rb.build_command(exp)
     assert "--no-llm" not in cmd
+
+
+def test_run_batch_accepts_suite_config_dry_run(tmp_path, capsys):
+    rb = _load()
+    config_path = tmp_path / "suite.yaml"
+    config_path.write_text(
+        """
+suites:
+  - name: gate_inventory
+    seed_set: [11, 12]
+    baseline:
+      name: baseline
+      config:
+        agents: 3
+        ticks: 20
+    candidates:
+      - name: candidate
+        config:
+          agents: 3
+          ticks: 20
+""",
+        encoding="utf-8",
+    )
+
+    rb.run_batch(config_path, dry_run=True)
+
+    out = capsys.readouterr().out
+    assert "gate_inventory_baseline_seed11" in out
+    assert "gate_inventory_candidate_seed12" in out
