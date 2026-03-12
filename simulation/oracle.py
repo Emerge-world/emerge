@@ -283,7 +283,7 @@ class Oracle:
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
         # --- Inventory path: agent explicitly specifies item to eat ---
-        item = action.get("item", "").strip().lower()
+        item = (action.get("item") or "").strip().lower()
         if item:
             if not agent.inventory.has(item):
                 return {
