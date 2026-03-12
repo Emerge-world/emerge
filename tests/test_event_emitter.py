@@ -589,3 +589,31 @@ class TestInnovationEvents:
         em = _make_emitter(tmp_path, monkeypatch)
         em.close()
         assert em.run_dir.resolve() == (tmp_path / "data" / "runs" / "test-run-1234").resolve()
+
+
+class TestResourceEvents:
+    def test_emit_resource_consumed_writes_event(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_resource_consumed(3, agent_name="Ada", resource_type="fruit", position=(2, 4), quantity=1)
+        em.close()
+        event = _read_events(tmp_path)[0]
+        assert event["event_type"] == "resource_consumed"
+        assert event["agent_id"] == "Ada"
+        assert event["payload"] == {
+            "resource_type": "fruit",
+            "position": [2, 4],
+            "quantity": 1,
+        }
+
+    def test_emit_resource_regenerated_writes_event(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_resource_regenerated(24, resource_type="fruit", position=(3, 4), quantity=2)
+        em.close()
+        event = _read_events(tmp_path)[0]
+        assert event["event_type"] == "resource_regenerated"
+        assert event["agent_id"] is None
+        assert event["payload"] == {
+            "resource_type": "fruit",
+            "position": [3, 4],
+            "quantity": 2,
+        }

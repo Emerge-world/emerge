@@ -271,6 +271,37 @@ class EventEmitter:
             "learnings": learnings,
         }, agent_id=agent_name)
 
+    def emit_resource_consumed(
+        self,
+        tick: int,
+        *,
+        agent_name: Optional[str],
+        resource_type: str,
+        position: tuple[int, int],
+        quantity: int,
+    ):
+        """Emit when an action consumes a world resource."""
+        self._emit("resource_consumed", tick, {
+            "resource_type": resource_type,
+            "position": [position[0], position[1]],
+            "quantity": quantity,
+        }, agent_id=agent_name)
+
+    def emit_resource_regenerated(
+        self,
+        tick: int,
+        *,
+        resource_type: str,
+        position: tuple[int, int],
+        quantity: int,
+    ):
+        """Emit when world resources regenerate at dawn."""
+        self._emit("resource_regenerated", tick, {
+            "resource_type": resource_type,
+            "position": [position[0], position[1]],
+            "quantity": quantity,
+        })
+
     def emit_innovation_attempt(self, tick: int, agent_name: str, action: dict):
         """Emit before oracle validates an innovate action."""
         self._emit("innovation_attempt", tick, {
