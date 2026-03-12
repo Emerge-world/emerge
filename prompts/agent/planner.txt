@@ -1,0 +1,12 @@
+TICK $tick - Build or refresh your plan.
+
+CURRENT OBSERVATION:
+$observation_text
+
+CURRENT PLAN:
+$current_plan
+
+RELEVANT MEMORY:
+$planner_context
+
+Return a compact structured plan.
