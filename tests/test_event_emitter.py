@@ -14,7 +14,14 @@ from simulation.event_emitter import EventEmitter
 # Helpers
 # ------------------------------------------------------------------ #
 
-def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
+def _make_emitter(
+    tmp_path,
+    monkeypatch,
+    run_id="test-run-1234",
+    seed=42,
+    scarcity_config=None,
+    benchmark_metadata=None,
+):
     monkeypatch.chdir(tmp_path)
     day_cycle = DayCycle(start_hour=6)
     em = EventEmitter(
@@ -29,6 +36,8 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
         oracle_model_id="test-oracle-model",
         day_cycle=day_cycle,
         precedents_file="data/precedents_42.json",
+        scarcity_config=scarcity_config,
+        benchmark_metadata=benchmark_metadata,
     )
     return em
 
@@ -79,7 +88,31 @@ class TestMeta:
         assert "git_commit" in meta
         assert "prompt_hashes" in meta
         assert meta["precedents_file"] == "data/precedents_42.json"
+        assert meta["scarcity"] == {}
+        assert meta["benchmark"] == {}
         assert "created_at" in meta
+
+    def test_meta_json_includes_benchmark_and_scarcity(self, tmp_path, monkeypatch):
+        em = _make_emitter(
+            tmp_path,
+            monkeypatch,
+            run_id="scarcity-v1__mild__seed11",
+            scarcity_config={
+                "initial_resource_scale": 0.6,
+                "regen_chance_scale": 0.8,
+                "regen_amount_scale": 0.8,
+            },
+            benchmark_metadata={
+                "benchmark_id": "scarcity_v1_demo",
+                "benchmark_version": "scarcity_v1",
+                "scenario_id": "mild",
+                "candidate_label": "local",
+            },
+        )
+        em.close()
+        meta = json.loads((tmp_path / "data" / "runs" / "scarcity-v1__mild__seed11" / "meta.json").read_text())
+        assert meta["benchmark"]["scenario_id"] == "mild"
+        assert meta["scarcity"]["initial_resource_scale"] == 0.6
 
     def test_events_jsonl_created(self, tmp_path, monkeypatch):
         em = _make_emitter(tmp_path, monkeypatch)
@@ -556,3 +589,31 @@ class TestInnovationEvents:
         em = _make_emitter(tmp_path, monkeypatch)
         em.close()
         assert em.run_dir.resolve() == (tmp_path / "data" / "runs" / "test-run-1234").resolve()
+
+
+class TestResourceEvents:
+    def test_emit_resource_consumed_writes_event(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_resource_consumed(3, agent_name="Ada", resource_type="fruit", position=(2, 4), quantity=1)
+        em.close()
+        event = _read_events(tmp_path)[0]
+        assert event["event_type"] == "resource_consumed"
+        assert event["agent_id"] == "Ada"
+        assert event["payload"] == {
+            "resource_type": "fruit",
+            "position": [2, 4],
+            "quantity": 1,
+        }
+
+    def test_emit_resource_regenerated_writes_event(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_resource_regenerated(24, resource_type="fruit", position=(3, 4), quantity=2)
+        em.close()
+        event = _read_events(tmp_path)[0]
+        assert event["event_type"] == "resource_regenerated"
+        assert event["agent_id"] is None
+        assert event["payload"] == {
+            "resource_type": "fruit",
+            "position": [3, 4],
+            "quantity": 2,
+        }

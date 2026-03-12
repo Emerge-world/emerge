@@ -18,6 +18,7 @@ from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
 from pathlib import Path
 from simulation.wandb_logger import WandbLogger
 from simulation import config as sim_config
+from simulation.scarcity import BenchmarkMetadata, ScarcityConfig
 
 
 def setup_logging(verbose: bool = False):
@@ -37,6 +38,8 @@ def main():
     parser.add_argument("--seed", type=int, default=None, help="Seed for the world (reproducibility)")
     parser.add_argument("--no-llm", action="store_true", help="Run without LLM (rule-based fallback mode)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
+    parser.add_argument("--tick-delay", type=float, default=sim_config.TICK_DELAY_SECONDS,
+                        help=f"Delay between ticks in seconds (default: {sim_config.TICK_DELAY_SECONDS})")
     parser.add_argument("--save-log", action="store_true", help="Save log on completion")
     parser.add_argument("--save-state", action="store_true", help="Save world state on completion")
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
@@ -55,9 +58,60 @@ def main():
                         help=f"vllm model to use (default: {sim_config.VLLM_MODEL})")
     parser.add_argument("--no-digest", action="store_true",
                         help="Skip LLM digest generation after run")
+    parser.add_argument("--run-id", default=None,
+                        help="Optional run identifier (defaults to a generated UUID)")
+    parser.add_argument("--initial-resource-scale", type=float, default=1.0,
+                        help="Scale factor for initial food resources (default: 1.0)")
+    parser.add_argument("--regen-chance-scale", type=float, default=1.0,
+                        help="Scale factor for food regeneration chance (default: 1.0)")
+    parser.add_argument("--regen-amount-scale", type=float, default=1.0,
+                        help="Scale factor for food regeneration amounts (default: 1.0)")
+    parser.add_argument("--benchmark-id", default=None,
+                        help="Benchmark batch identifier for benchmark-driven runs")
+    parser.add_argument("--benchmark-version", default=None,
+                        help="Benchmark suite version for benchmark-driven runs")
+    parser.add_argument("--scenario-id", default=None,
+                        help="Scenario identifier for benchmark-driven runs")
+    parser.add_argument("--candidate-label", default=None,
+                        help="Candidate label for benchmark-driven runs")
+    parser.add_argument("--baseline-label", default=None,
+                        help="Optional baseline label for benchmark-driven runs")
 
     args = parser.parse_args()
     setup_logging(args.verbose)
+
+    scarcity_config = ScarcityConfig(
+        initial_resource_scale=args.initial_resource_scale,
+        regen_chance_scale=args.regen_chance_scale,
+        regen_amount_scale=args.regen_amount_scale,
+    )
+
+    benchmark_fields = {
+        "benchmark_id": args.benchmark_id,
+        "benchmark_version": args.benchmark_version,
+        "scenario_id": args.scenario_id,
+        "candidate_label": args.candidate_label,
+        "baseline_label": args.baseline_label,
+    }
+    benchmark_metadata = None
+    if any(value is not None for value in benchmark_fields.values()):
+        missing = [
+            field_name
+            for field_name in ("benchmark_id", "benchmark_version", "scenario_id", "candidate_label")
+            if not benchmark_fields[field_name]
+        ]
+        if missing:
+            parser.error(
+                "benchmark metadata requires "
+                + ", ".join(f"--{field_name.replace('_', '-')}" for field_name in missing)
+            )
+        benchmark_metadata = BenchmarkMetadata(
+            benchmark_id=args.benchmark_id,
+            benchmark_version=args.benchmark_version,
+            scenario_id=args.scenario_id,
+            candidate_label=args.candidate_label,
+            baseline_label=args.baseline_label,
+        )
 
     wandb_logger = None
     if args.wandb:
@@ -104,6 +158,10 @@ def main():
         wandb_logger=wandb_logger,
         ollama_model=args.model,
         run_digest=not args.no_digest,
+        run_id=args.run_id,
+        scarcity_config=scarcity_config,
+        benchmark_metadata=benchmark_metadata,
+        tick_delay_seconds=args.tick_delay,
     )
 
     try:

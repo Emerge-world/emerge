@@ -1,0 +1,32 @@
+benchmark_version: scarcity_v1
+defaults:
+  agents: 3
+  ticks: 150
+  width: 15
+  height: 15
+  no_llm: false
+  model: null
+  seeds:
+    - 11
+    - 22
+    - 33
+    - 44
+scenarios:
+  - id: mild
+    label: Mild Scarcity
+    scarcity:
+      initial_resource_scale: 0.75
+      regen_chance_scale: 0.8
+      regen_amount_scale: 0.9
+  - id: moderate
+    label: Moderate Scarcity
+    scarcity:
+      initial_resource_scale: 0.55
+      regen_chance_scale: 0.6
+      regen_amount_scale: 0.7
+  - id: severe
+    label: Severe Scarcity
+    scarcity:
+      initial_resource_scale: 0.35
+      regen_chance_scale: 0.35
+      regen_amount_scale: 0.5

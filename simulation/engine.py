@@ -27,6 +27,8 @@ from simulation.lineage import LineageTracker
 from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
 from simulation.ebs_builder import EBSBuilder
+from simulation.scarcity_metrics import ScarcityMetricsBuilder
+from simulation.scarcity import BenchmarkMetadata, ScarcityConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +50,18 @@ class SimulationEngine:
         wandb_logger: Optional["WandbLogger"] = None,
         ollama_model: Optional[str] = None,
         run_digest: bool = True,
+        run_id: Optional[str] = None,
+        scarcity_config: Optional[ScarcityConfig] = None,
+        benchmark_metadata: Optional[BenchmarkMetadata] = None,
+        tick_delay_seconds: float = TICK_DELAY_SECONDS,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
         self.use_llm = use_llm
         self._world_seed = world_seed
+        self.scarcity_config = scarcity_config or ScarcityConfig()
+        self.benchmark_metadata = benchmark_metadata
+        self.tick_delay_seconds = tick_delay_seconds
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
 
@@ -70,7 +79,12 @@ class SimulationEngine:
         self.day_cycle = DayCycle(start_hour=start_hour)
 
         # Create world
-        self.world = World(width=world_width, height=world_height, seed=world_seed)
+        self.world = World(
+            width=world_width,
+            height=world_height,
+            seed=world_seed,
+            scarcity=self.scarcity_config,
+        )
 
         # Create simulation logger
         self.sim_logger = SimLogger()
@@ -105,7 +119,7 @@ class SimulationEngine:
         self._tick_events: list[dict] = []
 
         # Always-on canonical event emitter (data/runs/<run_id>/)
-        self.run_id = str(uuid.uuid4())
+        self.run_id = run_id or str(uuid.uuid4())
         _agent_model_id = self.llm.model if self.llm else "none"
         _oracle_model_id = self.oracle.llm.model if self.oracle.llm else "none"
         self.event_emitter = EventEmitter(
@@ -120,6 +134,8 @@ class SimulationEngine:
             oracle_model_id=_oracle_model_id,
             day_cycle=self.day_cycle,
             precedents_file=self._precedents_path,
+            scarcity_config=self.scarcity_config.as_dict(),
+            benchmark_metadata=self.benchmark_metadata.as_dict() if self.benchmark_metadata else None,
         )
 
         # W&B logger (optional)
@@ -153,8 +169,8 @@ class SimulationEngine:
 
                 self._run_tick(tick, alive_agents)
 
-                if TICK_DELAY_SECONDS > 0:
-                    time.sleep(TICK_DELAY_SECONDS)
+                if self.tick_delay_seconds > 0:
+                    time.sleep(self.tick_delay_seconds)
         finally:
             self.oracle.save_precedents(
                 self._precedents_path, self.current_tick, self._world_seed
@@ -166,8 +182,9 @@ class SimulationEngine:
             try:
                 MetricsBuilder(self.event_emitter.run_dir).build()
                 EBSBuilder(self.event_emitter.run_dir).build()
+                ScarcityMetricsBuilder(self.event_emitter.run_dir).build()
             except Exception as exc:
-                logger.warning("MetricsBuilder/EBSBuilder failed: %s", exc)
+                logger.warning("Metrics builders failed: %s", exc)
             if self.run_digest:
                 try:
                     from simulation.digest.digest_builder import DigestBuilder
@@ -227,6 +244,7 @@ class SimulationEngine:
 
             # Snapshot inventory before oracle resolves the action
             inventory_before = dict(agent.inventory.items)
+            resources_before_action = {pos: dict(res) for pos, res in self.world.resources.items()}
 
             # Emit perception snapshot before decision (used by EBSBuilder for Autonomy)
             resources_nearby = [
@@ -279,11 +297,18 @@ class SimulationEngine:
 
             # 4. Oracle resolves the action
             result = self.oracle.resolve_action(agent, action, tick)
+            resources_after_action = {pos: dict(res) for pos, res in self.world.resources.items()}
             self.event_emitter.emit_oracle_resolution(
                 tick, agent.name, result,
                 llm_trace=self.oracle.last_llm_trace,
                 oracle_context=self.oracle.last_llm_context,
                 cache_hit=self.oracle.last_cache_hit,
+            )
+            self._emit_resource_consumption_events(
+                tick,
+                agent_name=agent.name,
+                before=resources_before_action,
+                after=resources_after_action,
             )
             if action_str == "innovate":
                 self.event_emitter.emit_innovation_validated(
@@ -367,12 +392,14 @@ class SimulationEngine:
             self.event_emitter.emit_agent_state(tick, agent)
 
         # World update: resource regeneration at dawn
+        resources_before_regen = {pos: dict(res) for pos, res in self.world.resources.items()}
         regenerated = self.world.update_resources(tick)
         if regenerated:
             logger.info("[tick %d] %d tree(s) regenerated fruit at dawn", tick, len(regenerated))
 
         # Log world state (resource changes + day/night period) for this tick
         resources_after = {pos: dict(res) for pos, res in self.world.resources.items()}
+        self._emit_resource_regeneration_events(tick, before=resources_before_regen, after=resources_after)
         self.sim_logger.log_tick_world_state(
             tick=tick,
             period=self.day_cycle.get_period(tick),
@@ -400,6 +427,46 @@ class SimulationEngine:
 
         # Show agent states
         self._print_agent_states()
+
+    def _emit_resource_consumption_events(
+        self,
+        tick: int,
+        *,
+        agent_name: str,
+        before: dict[tuple[int, int], dict],
+        after: dict[tuple[int, int], dict],
+    ):
+        for position, before_resource in before.items():
+            after_resource = after.get(position)
+            before_qty = before_resource.get("quantity", 0)
+            after_qty = after_resource.get("quantity", 0) if after_resource else 0
+            if after_qty < before_qty:
+                self.event_emitter.emit_resource_consumed(
+                    tick,
+                    agent_name=agent_name,
+                    resource_type=before_resource["type"],
+                    position=position,
+                    quantity=before_qty - after_qty,
+                )
+
+    def _emit_resource_regeneration_events(
+        self,
+        tick: int,
+        *,
+        before: dict[tuple[int, int], dict],
+        after: dict[tuple[int, int], dict],
+    ):
+        for position, after_resource in after.items():
+            before_resource = before.get(position)
+            before_qty = before_resource.get("quantity", 0) if before_resource else 0
+            after_qty = after_resource.get("quantity", 0)
+            if after_qty > before_qty:
+                self.event_emitter.emit_resource_regenerated(
+                    tick,
+                    resource_type=after_resource["type"],
+                    position=position,
+                    quantity=after_qty - before_qty,
+                )
 
     def _pick_child_name(self, parent_a_name: str, parent_b_name: str) -> str:
         """Pick an unused name from the pool; fall back to generation suffixes."""

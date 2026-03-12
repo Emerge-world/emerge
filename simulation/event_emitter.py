@@ -43,6 +43,8 @@ class EventEmitter:
         oracle_model_id: str,
         day_cycle: DayCycle,
         precedents_file: Optional[str] = None,
+        scarcity_config: Optional[dict] = None,
+        benchmark_metadata: Optional[dict] = None,
     ):
         self.run_id = run_id
         self.seed = seed
@@ -93,6 +95,8 @@ class EventEmitter:
             "git_commit": git_commit,
             "prompt_hashes": prompt_hashes,
             "precedents_file": precedents_file,
+            "scarcity": dict(scarcity_config or {}),
+            "benchmark": dict(benchmark_metadata or {}),
             "created_at": datetime.datetime.now().isoformat() + "Z",
         }
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -266,6 +270,37 @@ class EventEmitter:
             "episode_count": episode_count,
             "learnings": learnings,
         }, agent_id=agent_name)
+
+    def emit_resource_consumed(
+        self,
+        tick: int,
+        *,
+        agent_name: Optional[str],
+        resource_type: str,
+        position: tuple[int, int],
+        quantity: int,
+    ):
+        """Emit when an action consumes a world resource."""
+        self._emit("resource_consumed", tick, {
+            "resource_type": resource_type,
+            "position": [position[0], position[1]],
+            "quantity": quantity,
+        }, agent_id=agent_name)
+
+    def emit_resource_regenerated(
+        self,
+        tick: int,
+        *,
+        resource_type: str,
+        position: tuple[int, int],
+        quantity: int,
+    ):
+        """Emit when world resources regenerate at dawn."""
+        self._emit("resource_regenerated", tick, {
+            "resource_type": resource_type,
+            "position": [position[0], position[1]],
+            "quantity": quantity,
+        })
 
     def emit_innovation_attempt(self, tick: int, agent_name: str, action: dict):
         """Emit before oracle validates an innovate action."""
