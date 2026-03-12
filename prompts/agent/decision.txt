@@ -14,6 +14,15 @@ $nearby_agents
 $incoming_messages
 $relationships
 
+CURRENT GOAL:
+$current_goal
+
+ACTIVE SUBGOAL:
+$active_subgoal
+
+PLAN STATUS:
+$plan_status
+
 FAMILY:
 $family_info
 

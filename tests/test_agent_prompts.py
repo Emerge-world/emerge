@@ -3,6 +3,7 @@ import pytest
 from simulation.agent import Agent
 from simulation.config import REPRODUCE_MIN_TICKS_ALIVE
 from simulation.personality import Personality
+from simulation.planning_state import PlanningState, PlanningSubgoal
 
 def _make_nearby(center_tile: str, *extra: dict) -> list[dict]:
     """Build a nearby_tiles list with the agent at (5,5) on center_tile."""
@@ -161,3 +162,32 @@ class TestReproductionPrompt:
         nearby = [{"x": 5, "y": 5, "tile": "land", "distance": 0}]
         prompt = agent._build_decision_prompt(nearby, tick=REPRODUCE_MIN_TICKS_ALIVE)
         assert 'To reproduce: {"action": "reproduce"' in prompt
+
+
+class TestPlanningPrompt:
+    def setup_method(self):
+        Agent._id_counter = 0
+
+    def test_executor_prompt_includes_active_subgoal(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        agent.planning_state = PlanningState(
+            goal="stabilize food",
+            goal_type="survival",
+            subgoals=[PlanningSubgoal(description="move toward fruit", kind="move")],
+            active_subgoal_index=0,
+            status="active",
+            created_tick=1,
+            last_plan_tick=1,
+            last_progress_tick=1,
+            confidence=0.8,
+            horizon="short",
+            success_signals=["eat fruit"],
+            abort_conditions=[],
+            blockers=[],
+            rationale_summary="fruit visible",
+        )
+
+        prompt = agent._build_decision_prompt([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=2)
+
+        assert "ACTIVE SUBGOAL" in prompt
+        assert "move toward fruit" in prompt
