@@ -282,6 +282,47 @@ class Oracle:
         return {"success": True, "message": msg, "effects": effects}
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
+        # --- Inventory path: agent explicitly specifies item to eat ---
+        item = action.get("item", "").strip().lower()
+        if item:
+            if not agent.inventory.has(item):
+                return {
+                    "success": False,
+                    "message": f"{agent.name} tried to eat {item} but has none in inventory.",
+                    "effects": {},
+                }
+            effect = self._get_item_eat_effect(item, tick)
+            if not effect["possible"]:
+                return {
+                    "success": False,
+                    "message": f"{agent.name} cannot eat {item}: {effect['reason']}.",
+                    "effects": {},
+                }
+            agent.inventory.remove(item, 1)
+            agent.modify_hunger(-effect["hunger_reduction"])
+            if effect.get("life_change"):
+                agent.modify_life(effect["life_change"])
+            cost = self._apply_energy_cost(agent, ENERGY_COST_EAT, tick)
+            msg = (
+                f"{agent.name} ate {item} from inventory. "
+                f"Hunger -{effect['hunger_reduction']} → {agent.hunger}."
+            )
+            self._log(tick, msg)
+            agent.add_memory(
+                f"I ate {item} from my inventory. "
+                f"Hunger -{effect['hunger_reduction']} → {agent.hunger}. Energy: {agent.energy}."
+            )
+            return {
+                "success": True,
+                "message": msg,
+                "effects": {
+                    "hunger": -effect["hunger_reduction"],
+                    "life": effect.get("life_change", 0),
+                    "energy": -cost,
+                },
+            }
+
+        # --- World path: eat from tile at current or adjacent position ---
         positions_to_check = [
             (agent.x, agent.y),
             (agent.x + 1, agent.y), (agent.x - 1, agent.y),
