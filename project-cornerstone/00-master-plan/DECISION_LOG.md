@@ -337,3 +337,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Add a suite/cohort/policy decision layer above the canonical run artifacts. Keep per-run metrics as the source of truth, produce machine-readable gating and prioritization artifacts first, and add human-readable plugins later as renderers of the same artifacts.
 - **Rejected alternatives**: Replacing `metrics_builder` with a separate analytics stack, treating W&B as the authoritative decision layer, or leading with an LLM recommender before deterministic policies exist.
 - **Consequences**: Experiment configs evolve from flat runs toward cohort suites. Test coverage must include policy evaluation and golden decision regressions. Experiment artifacts become a first-class DevOps surface alongside run artifacts.
+
+### DEC-035: Scarcity benchmark uses explicit per-run scarcity config plus post-run comparison
+- **Date**: 2026-03-12
+- **Context**: The project needed an internal benchmark for the claim that later revisions adapt better under food scarcity, but resource scarcity had been implicit in static world constants and there was no benchmark-layer comparison artifact.
+- **Decision**: Add explicit per-run scarcity controls (`initial_resource_scale`, `regen_chance_scale`, `regen_amount_scale`) and carry them through `main.py`, `SimulationEngine`, `World`, and `meta.json`. Emit explicit `resource_consumed` and `resource_regenerated` events, derive `metrics/scarcity.json` per run, and compare frozen benchmark batches with a dedicated `run_benchmark.py` + `simulation/benchmark_report.py` pipeline.
+- **Rejected alternatives**: Reusing ad hoc `run_batch.py` configs as benchmarks, folding scarcity into EBS, or inferring food pressure indirectly from markdown logs.
+- **Consequences**: Benchmark suites become versioned YAML contracts under `benchmarks/`. `data/runs/<run_id>/` remains the source of truth, while `data/benchmarks/<benchmark_id>/` stores manifests and aggregate reports. Scarcity adaptation is measured separately from broader emergence scoring, so EBS remains diagnostic rather than the benchmark gate.
