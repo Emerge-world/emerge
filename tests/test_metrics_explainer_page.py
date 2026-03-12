@@ -121,3 +121,31 @@ class TestExplainerContent:
         assert "0.0" in html
         assert "Weights & Biases" in html
         assert "optional observer" in html
+
+
+class TestLoaderHooks:
+    def test_script_contains_loader_entrypoints(self):
+        script = (DOCS_DIR / "script.js").read_text(encoding="utf-8")
+        assert "async function loadArtifacts" in script
+        assert "async function loadSummary" in script
+        assert "async function loadTimeseries" in script
+        assert "async function loadEbs" in script
+        assert "function renderArtifactStatus" in script
+
+    def test_script_handles_partial_failures(self):
+        script = (DOCS_DIR / "script.js").read_text(encoding="utf-8")
+        assert "Promise.allSettled" in script
+        assert "summary:" in script
+        assert "timeseries:" in script
+        assert "ebs:" in script
+        assert "unavailable" in script.lower()
+
+    def test_index_contains_render_targets(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        for element_id in (
+            "summary-cards",
+            "timeseries-panel",
+            "ebs-panels",
+            "artifact-field-details",
+        ):
+            assert f'id="{element_id}"' in html
