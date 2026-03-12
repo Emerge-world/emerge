@@ -21,6 +21,7 @@ from simulation.config import (
     WORLD_HEIGHT_WATER, WORLD_HEIGHT_SAND, WORLD_HEIGHT_LAND,
     WORLD_HEIGHT_TREE, WORLD_HEIGHT_FOREST, WORLD_HEIGHT_MOUNTAIN, WORLD_HEIGHT_CAVE,
 )
+from simulation.scarcity import ScarcityConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,16 @@ logger = logging.getLogger(__name__)
 class World:
     """2D world of NxM tiles."""
 
-    def __init__(self, width: int = WORLD_WIDTH, height: int = WORLD_HEIGHT, seed: Optional[int] = None):
+    def __init__(
+        self,
+        width: int = WORLD_WIDTH,
+        height: int = WORLD_HEIGHT,
+        seed: Optional[int] = None,
+        scarcity: Optional[ScarcityConfig] = None,
+    ):
         self.width = width
         self.height = height
+        self.scarcity = scarcity or ScarcityConfig()
         self.grid: list[list[str]] = []
         self.resources: dict[tuple[int, int], dict] = {}  # (x,y) -> resource info
         self._rng = random.Random(seed)       # dedicated RNG for regeneration (deterministic)
@@ -77,9 +85,11 @@ class World:
                 # Spawn resources for resource-bearing tiles
                 spawn = TILE_RESOURCE_SPAWN.get(tile)
                 if spawn:
-                    qty = self._rng.randint(spawn["min"], spawn["max"])
-                    self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
                     self._resource_positions.setdefault(tile, []).append((x, y))
+                    qty = self._rng.randint(spawn["min"], spawn["max"])
+                    qty = self.scarcity.scale_initial_quantity(spawn["type"], qty)
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
 
             self.grid.append(row)
 
@@ -136,18 +146,22 @@ class World:
         regenerated = []
         for (x, y) in self._tree_positions:
             if (x, y) not in self.resources:  # tree is depleted
-                if self._rng.random() < RESOURCE_REGEN_CHANCE:
+                if self._rng.random() < self.scarcity.scale_regen_probability(RESOURCE_REGEN_CHANCE):
                     qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
-                    self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
-                    regenerated.append((x, y))
+                    qty = self.scarcity.scale_regen_quantity(qty)
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
+                        regenerated.append((x, y))
 
         # Mushroom regen for depleted forest tiles (same dawn trigger)
         for (x, y) in self._forest_positions:
             if (x, y) not in self.resources:
-                if self._rng.random() < RESOURCE_REGEN_CHANCE:
+                if self._rng.random() < self.scarcity.scale_regen_probability(RESOURCE_REGEN_CHANCE):
                     qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
-                    self.resources[(x, y)] = {"type": "mushroom", "quantity": qty}
-                    regenerated.append((x, y))
+                    qty = self.scarcity.scale_regen_quantity(qty)
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": "mushroom", "quantity": qty}
+                        regenerated.append((x, y))
 
         return regenerated
 

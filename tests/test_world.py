@@ -24,6 +24,7 @@ from simulation.config import (
     TILE_TREE,
     TILE_FOREST,
 )
+from simulation.scarcity import ScarcityConfig
 
 
 @pytest.fixture
@@ -193,6 +194,25 @@ def test_different_seeds_run_without_error():
     # At least the test runs without error; outcomes may differ
     assert isinstance(result_a, list)
     assert isinstance(result_b, list)
+
+
+def test_initial_resource_scale_reduces_food_spawn():
+    normal = World(width=10, height=10, seed=42)
+    scarce = World(
+        width=10,
+        height=10,
+        seed=42,
+        scarcity=ScarcityConfig(initial_resource_scale=0.25),
+    )
+
+    normal_total = sum(
+        res["quantity"] for res in normal.resources.values() if res["type"] in {"fruit", "mushroom"}
+    )
+    scarce_total = sum(
+        res["quantity"] for res in scarce.resources.values() if res["type"] in {"fruit", "mushroom"}
+    )
+
+    assert scarce_total < normal_total
 
 
 # ---------------------------------------------------------------------------

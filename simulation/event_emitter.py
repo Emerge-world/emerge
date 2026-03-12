@@ -43,6 +43,8 @@ class EventEmitter:
         oracle_model_id: str,
         day_cycle: DayCycle,
         precedents_file: Optional[str] = None,
+        scarcity_config: Optional[dict] = None,
+        benchmark_metadata: Optional[dict] = None,
     ):
         self.run_id = run_id
         self.seed = seed
@@ -93,6 +95,8 @@ class EventEmitter:
             "git_commit": git_commit,
             "prompt_hashes": prompt_hashes,
             "precedents_file": precedents_file,
+            "scarcity": dict(scarcity_config or {}),
+            "benchmark": dict(benchmark_metadata or {}),
             "created_at": datetime.datetime.now().isoformat() + "Z",
         }
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

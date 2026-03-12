@@ -27,6 +27,7 @@ from simulation.lineage import LineageTracker
 from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
 from simulation.ebs_builder import EBSBuilder
+from simulation.scarcity import BenchmarkMetadata, ScarcityConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +49,16 @@ class SimulationEngine:
         wandb_logger: Optional["WandbLogger"] = None,
         ollama_model: Optional[str] = None,
         run_digest: bool = True,
+        run_id: Optional[str] = None,
+        scarcity_config: Optional[ScarcityConfig] = None,
+        benchmark_metadata: Optional[BenchmarkMetadata] = None,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
         self.use_llm = use_llm
         self._world_seed = world_seed
+        self.scarcity_config = scarcity_config or ScarcityConfig()
+        self.benchmark_metadata = benchmark_metadata
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
 
@@ -70,7 +76,12 @@ class SimulationEngine:
         self.day_cycle = DayCycle(start_hour=start_hour)
 
         # Create world
-        self.world = World(width=world_width, height=world_height, seed=world_seed)
+        self.world = World(
+            width=world_width,
+            height=world_height,
+            seed=world_seed,
+            scarcity=self.scarcity_config,
+        )
 
         # Create simulation logger
         self.sim_logger = SimLogger()
@@ -105,7 +116,7 @@ class SimulationEngine:
         self._tick_events: list[dict] = []
 
         # Always-on canonical event emitter (data/runs/<run_id>/)
-        self.run_id = str(uuid.uuid4())
+        self.run_id = run_id or str(uuid.uuid4())
         _agent_model_id = self.llm.model if self.llm else "none"
         _oracle_model_id = self.oracle.llm.model if self.oracle.llm else "none"
         self.event_emitter = EventEmitter(
@@ -120,6 +131,8 @@ class SimulationEngine:
             oracle_model_id=_oracle_model_id,
             day_cycle=self.day_cycle,
             precedents_file=self._precedents_path,
+            scarcity_config=self.scarcity_config.as_dict(),
+            benchmark_metadata=self.benchmark_metadata.as_dict() if self.benchmark_metadata else None,
         )
 
         # W&B logger (optional)
