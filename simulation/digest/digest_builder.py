@@ -40,8 +40,9 @@ class DigestBuilder:
         events = self._load_events()
         run_meta = self._load_meta()
 
-        # Detect agents
-        agent_ids = self._extract_agent_ids(events, run_meta)
+        initial_agent_ids = self._extract_initial_agent_ids(events, run_meta)
+        lineage_by_agent = self._build_lineage_index(events, initial_agent_ids)
+        agent_ids = self._extract_agent_ids(events, initial_agent_ids)
 
         # Component: AnomalyDetector
         detector = AnomalyDetector()
@@ -56,7 +57,13 @@ class DigestBuilder:
 
         # Build per-agent digests
         agent_digests = {
-            agent_id: self._build_agent_digest(agent_id, events, segmentations[agent_id], anomalies)
+            agent_id: self._build_agent_digest(
+                agent_id,
+                events,
+                segmentations[agent_id],
+                anomalies,
+                lineage_by_agent.get(agent_id, self._default_lineage()),
+            )
             for agent_id in agent_ids
         }
 
@@ -71,7 +78,13 @@ class DigestBuilder:
         )
 
         # Assemble run_digest
-        run_digest = self._build_run_digest(events, run_meta, agent_ids, agent_digests, anomalies)
+        run_digest = self._build_run_digest(
+            events,
+            run_meta,
+            agent_ids,
+            agent_digests,
+            anomalies,
+        )
 
         # Build generation manifest
         manifest = self._build_manifest()
@@ -105,16 +118,94 @@ class DigestBuilder:
                 pass
         return {}
 
-    def _extract_agent_ids(self, events: list[dict], meta: dict) -> list[str]:
-        """Extract agent IDs from run_start event or meta.json."""
+    def _extract_initial_agent_ids(self, events: list[dict], meta: dict) -> list[str]:
+        """Extract the initial tick-0 roster from the run metadata."""
         for ev in events:
             if ev.get("event_type") == "run_start":
                 names = ev.get("payload", {}).get("config", {}).get("agent_names", [])
                 if names:
-                    return list(names)
-        # Fallback: collect from events
-        ids = sorted({ev["agent_id"] for ev in events if ev.get("agent_id")})
-        return ids
+                    return [str(name) for name in names if name]
+        return [str(name) for name in meta.get("agent_names", []) if name]
+
+    def _extract_agent_ids(self, events: list[dict], initial_agent_ids: list[str]) -> list[str]:
+        """Extract all agents in stable order, including children born after tick 0."""
+        ordered_ids: list[str] = []
+        seen: set[str] = set()
+
+        def add(agent_id) -> None:
+            if agent_id and agent_id not in seen:
+                seen.add(agent_id)
+                ordered_ids.append(agent_id)
+
+        for agent_id in initial_agent_ids:
+            add(agent_id)
+
+        for ev in events:
+            if ev.get("event_type") != "agent_birth":
+                continue
+            payload = ev.get("payload", {})
+            add(payload.get("child_name") or ev.get("agent_id"))
+
+        remaining_ids = sorted({
+            ev.get("agent_id")
+            for ev in events
+            if ev.get("agent_id") and ev.get("agent_id") not in seen
+        })
+        for agent_id in remaining_ids:
+            add(agent_id)
+
+        return ordered_ids
+
+    def _default_lineage(
+        self,
+        generation: int | None = None,
+        born_tick: int | None = None,
+        parent_ids: list[str] | None = None,
+        is_born_agent: bool = False,
+    ) -> dict:
+        return {
+            "generation": generation,
+            "born_tick": born_tick,
+            "parent_ids": list(parent_ids or []),
+            "is_born_agent": is_born_agent,
+        }
+
+    def _build_lineage_index(self, events: list[dict], initial_agent_ids: list[str]) -> dict[str, dict]:
+        """Build per-agent lineage metadata from canonical run events only."""
+        lineage_by_agent = {
+            agent_id: self._default_lineage(generation=0, born_tick=0, parent_ids=[], is_born_agent=False)
+            for agent_id in initial_agent_ids
+        }
+
+        for ev in events:
+            if ev.get("event_type") != "agent_birth":
+                continue
+
+            payload = ev.get("payload", {})
+            agent_id = payload.get("child_name") or ev.get("agent_id")
+            if not agent_id:
+                continue
+
+            parent_ids = payload.get("parent_ids")
+            if not isinstance(parent_ids, list):
+                parent_ids = []
+
+            generation = payload.get("generation")
+            if not isinstance(generation, int):
+                generation = None
+
+            born_tick = payload.get("born_tick")
+            if not isinstance(born_tick, int):
+                born_tick = None
+
+            lineage_by_agent[agent_id] = self._default_lineage(
+                generation=generation,
+                born_tick=born_tick,
+                parent_ids=[str(parent_id) for parent_id in parent_ids if parent_id],
+                is_born_agent=True,
+            )
+
+        return lineage_by_agent
 
     # --- Run digest assembly ---
 
@@ -154,13 +245,20 @@ class DigestBuilder:
         for agent_id in agent_ids:
             ad = agent_digests.get(agent_id, {})
             phases = ad.get("phases", [])
+            lineage = ad.get("lineage", self._default_lineage())
             mode_counts: dict[str, int] = {}
             for p in phases:
-                mode_counts[p.get("mode", "?")] = mode_counts.get(p.get("mode", "?"), 0) + (p.get("tick_end", 0) - p.get("tick_start", 0) + 1)
+                mode = p.get("mode", "?")
+                mode_counts[mode] = mode_counts.get(mode, 0) + (
+                    p.get("tick_end", 0) - p.get("tick_start", 0) + 1
+                )
             dominant = max(mode_counts, key=lambda m: mode_counts[m]) if mode_counts else "unknown"
             agent_summaries.append({
                 "agent_id": agent_id,
                 "status": "alive" if agent_id in survivors else "dead",
+                "generation": lineage.get("generation"),
+                "born_tick": lineage.get("born_tick"),
+                "parent_ids": lineage.get("parent_ids", []),
                 "phase_count": len(phases),
                 "dominant_mode": dominant,
                 "innovation_count": len(ad.get("innovations", [])),
@@ -201,7 +299,14 @@ class DigestBuilder:
 
     # --- Per-agent digest assembly ---
 
-    def _build_agent_digest(self, agent_id: str, events: list[dict], segmentation, anomalies: list) -> dict:
+    def _build_agent_digest(
+        self,
+        agent_id: str,
+        events: list[dict],
+        segmentation,
+        anomalies: list,
+        lineage: dict,
+    ) -> dict:
         from simulation.digest.behavior_segmenter import AgentSegmentation
 
         # Final state from last agent_state event
@@ -295,6 +400,7 @@ class DigestBuilder:
             "agent_id": agent_id,
             "run_id": self._run_dir.name,
             "status": status,
+            "lineage": dict(lineage),
             "final_state": final_state,
             "state_extrema": state_extrema,
             "action_mix": action_mix,

@@ -245,6 +245,16 @@ class EventEmitter:
             "total_ticks": total_ticks,
         })
 
+    def emit_agent_birth(self, tick: int, agent) -> None:
+        """Emit when a child agent is created during a reproduction event."""
+        self._emit("agent_birth", tick, {
+            "child_name": agent.name,
+            "generation": agent.generation,
+            "born_tick": agent.born_tick,
+            "parent_ids": list(agent.parent_ids),
+            "pos": [agent.x, agent.y],
+        }, agent_id=agent.name)
+
     def emit_agent_perception(
         self, tick: int, agent_name: str, *, pos: dict, hunger: float, energy: float,
         life: float, resources_nearby: list

@@ -326,6 +326,7 @@ class SimulationEngine:
                     pos=child_spawn["pos"],
                     tick=tick,
                 )
+                self.event_emitter.emit_agent_birth(tick, child)
                 self.agents.append(child)
                 alive_agents.append(child)
                 if self.wandb_logger:

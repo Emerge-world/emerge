@@ -60,6 +60,128 @@ def _minimal_events() -> list[dict]:
     return events
 
 
+def _events_with_born_agent() -> list[dict]:
+    """Run starts with Ada only; Kira is born later and emits her own events."""
+    return [
+        {
+            "run_id": "test-run",
+            "tick": 0,
+            "event_type": "run_start",
+            "agent_id": None,
+            "payload": {
+                "config": {"agent_names": ["Ada"]},
+                "model_id": "test",
+                "world_seed": 42,
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 1,
+            "event_type": "agent_decision",
+            "agent_id": "Ada",
+            "payload": {
+                "parsed_action": {"action": "rest", "reason": "recover"},
+                "parse_ok": True,
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 1,
+            "event_type": "agent_state",
+            "agent_id": "Ada",
+            "payload": {
+                "life": 100,
+                "hunger": 20,
+                "energy": 85,
+                "alive": True,
+                "pos": {"x": 0, "y": 0},
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 5,
+            "event_type": "agent_birth",
+            "agent_id": "Kira",
+            "payload": {
+                "child_name": "Kira",
+                "generation": 1,
+                "born_tick": 5,
+                "parent_ids": ["Ada", "Bruno"],
+                "pos": [1, 0],
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 5,
+            "event_type": "agent_state",
+            "agent_id": "Kira",
+            "payload": {
+                "life": 50,
+                "hunger": 40,
+                "energy": 40,
+                "alive": True,
+                "pos": {"x": 1, "y": 0},
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 6,
+            "event_type": "agent_decision",
+            "agent_id": "Kira",
+            "payload": {
+                "parsed_action": {"action": "move", "direction": "east", "reason": "exploring"},
+                "parse_ok": True,
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 6,
+            "event_type": "agent_perception",
+            "agent_id": "Kira",
+            "payload": {
+                "pos": {"x": 1, "y": 0},
+                "hunger": 40,
+                "energy": 40,
+                "resources_nearby": [],
+                "night_penalty_active": False,
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 6,
+            "event_type": "oracle_resolution",
+            "agent_id": "Kira",
+            "payload": {
+                "success": True,
+                "action": "move",
+                "cache_hit": True,
+                "is_innovation_action": False,
+                "effects": {},
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 6,
+            "event_type": "agent_state",
+            "agent_id": "Kira",
+            "payload": {
+                "life": 50,
+                "hunger": 41,
+                "energy": 38,
+                "alive": True,
+                "pos": {"x": 2, "y": 0},
+            },
+        },
+        {
+            "run_id": "test-run",
+            "tick": 6,
+            "event_type": "run_end",
+            "agent_id": None,
+            "payload": {"total_ticks": 6, "survivors": ["Ada", "Kira"]},
+        },
+    ]
+
+
 class TestDigestBuilderOutput:
     def test_creates_run_digest_json(self, tmp_path):
         _write_events(tmp_path, _minimal_events())
@@ -131,6 +253,30 @@ class TestDigestBuilderOutput:
         tmp_path.mkdir(exist_ok=True)
         DigestBuilder(tmp_path).build()  # no exception
         assert not (tmp_path / "llm_digest").exists()
+
+    def test_includes_born_agents_with_lineage_metadata(self, tmp_path):
+        _write_events(tmp_path, _events_with_born_agent())
+
+        DigestBuilder(tmp_path).build()
+
+        run_data = json.loads((tmp_path / "llm_digest" / "run_digest.json").read_text())
+        agent_ids = [agent["agent_id"] for agent in run_data["agents"]]
+        assert "Kira" in agent_ids
+
+        kira_summary = next(agent for agent in run_data["agents"] if agent["agent_id"] == "Kira")
+        assert kira_summary["generation"] == 1
+        assert kira_summary["born_tick"] == 5
+        assert kira_summary["parent_ids"] == ["Ada", "Bruno"]
+
+        kira_path = tmp_path / "llm_digest" / "agents" / "Kira.json"
+        assert kira_path.exists()
+        kira_agent = json.loads(kira_path.read_text())
+        assert kira_agent["lineage"] == {
+            "generation": 1,
+            "born_tick": 5,
+            "parent_ids": ["Ada", "Bruno"],
+            "is_born_agent": True,
+        }
 
 
 class TestDigestBuilderCLI:

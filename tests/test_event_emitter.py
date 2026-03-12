@@ -278,6 +278,33 @@ class TestRunEnd:
 
 
 # ------------------------------------------------------------------ #
+# agent_birth
+# ------------------------------------------------------------------ #
+
+class TestAgentBirth:
+    def test_emits_birth_payload(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        child = _mock_agent(name="Kira", x=4, y=5)
+        child.generation = 1
+        child.born_tick = 12
+        child.parent_ids = ["Ada", "Bruno"]
+
+        em.emit_agent_birth(12, child)
+        em.close()
+
+        ev = _read_events(tmp_path)[0]
+        assert ev["event_type"] == "agent_birth"
+        assert ev["agent_id"] == "Kira"
+        assert ev["payload"] == {
+            "child_name": "Kira",
+            "generation": 1,
+            "born_tick": 12,
+            "parent_ids": ["Ada", "Bruno"],
+            "pos": [4, 5],
+        }
+
+
+# ------------------------------------------------------------------ #
 # Integration / ordering
 # ------------------------------------------------------------------ #
 

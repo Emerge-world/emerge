@@ -53,6 +53,10 @@ class DigestRenderer:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
+    @staticmethod
+    def _display(value, fallback: str = "unknown") -> str:
+        return fallback if value is None or value == "" else str(value)
+
     # --- Markdown templates ---
 
     def _render_run_md(self, d: dict) -> str:
@@ -65,8 +69,10 @@ class DigestRenderer:
         deaths = ", ".join(outcomes.get("deaths", [])) or "none"
 
         agent_rows = "\n".join(
-            f"| {a['agent_id']} | {a['status']} | {a['dominant_mode']} | "
-            f"{a['phase_count']} | {a['innovation_count']} | {a['anomaly_count']} |"
+            f"| {a['agent_id']} | {a['status']} | "
+            f"{self._display(a.get('generation'))} | {self._display(a.get('born_tick'))} | "
+            f"{a['dominant_mode']} | {a['phase_count']} | "
+            f"{a['innovation_count']} | {a['anomaly_count']} |"
             for a in agents
         )
 
@@ -109,14 +115,15 @@ Generated: {d.get('generated_at', '')}
 
 ## Agents
 
-| Agent | Status | Dominant Mode | Phases | Innovations | Anomalies |
-|-------|--------|---------------|--------|-------------|-----------|
+| Agent | Status | Generation | Born Tick | Dominant Mode | Phases | Innovations | Anomalies |
+|-------|--------|------------|-----------|---------------|--------|-------------|-----------|
 {agent_rows}
 {anomaly_section}
 """
 
     def _render_agent_md(self, d: dict) -> str:
         agent_id = d.get("agent_id", "unknown")
+        lineage = d.get("lineage", {})
         final = d.get("final_state", {})
         extrema = d.get("state_extrema", {})
         action_mix = d.get("action_mix", {})
@@ -182,11 +189,26 @@ Generated: {d.get('generated_at', '')}
 
         min_life = extrema.get("min_life", {})
         max_hunger = extrema.get("max_hunger", {})
+        generation = lineage.get("generation")
+        born_tick = lineage.get("born_tick")
+        parent_ids = lineage.get("parent_ids", [])
+        if generation == 0 and not parent_ids:
+            parents_str = "Original settler"
+        elif parent_ids:
+            parents_str = ", ".join(str(parent_id) for parent_id in parent_ids)
+        else:
+            parents_str = "unknown"
 
         return f"""# Agent Digest: {agent_id}
 
 **Run:** {d.get('run_id', 'unknown')}
 **Status:** {d.get('status', 'unknown')}
+
+## Lineage
+
+- Generation: {self._display(generation)}
+- Born tick: {self._display(born_tick)}
+- Parents: {parents_str}
 
 ## Final State
 

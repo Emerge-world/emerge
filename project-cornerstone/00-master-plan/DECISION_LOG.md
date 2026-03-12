@@ -337,3 +337,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Add a suite/cohort/policy decision layer above the canonical run artifacts. Keep per-run metrics as the source of truth, produce machine-readable gating and prioritization artifacts first, and add human-readable plugins later as renderers of the same artifacts.
 - **Rejected alternatives**: Replacing `metrics_builder` with a separate analytics stack, treating W&B as the authoritative decision layer, or leading with an LLM recommender before deterministic policies exist.
 - **Consequences**: Experiment configs evolve from flat runs toward cohort suites. Test coverage must include policy evaluation and golden decision regressions. Experiment artifacts become a first-class DevOps surface alongside run artifacts.
+
+### DEC-035: Born-agent digest lineage comes from canonical run events
+- **Date**: 2026-03-12
+- **Context**: `llm_digest` originally discovered agents from the initial `run_start` roster only, so children born later were omitted from run and per-agent digests. The digest also needed lineage metadata for born agents without depending on mutable files outside the run directory.
+- **Decision**: Add a canonical `agent_birth` event to `events.jsonl` and make `DigestBuilder` derive born-agent inclusion and lineage metadata from the run event stream itself. Initial settlers retain `generation=0`, `born_tick=0`, `parent_ids=[]`. Born agents carry `generation`, `born_tick`, and `parent_ids` from `agent_birth`. Older runs without `agent_birth` still include later-discovered agents, but their lineage falls back to unknown values rather than reading `data/lineage_<seed>.json`.
+- **Rejected alternatives**: Repeating lineage fields on every `agent_state` event (wasteful event bloat); reading lineage persistence files outside `run_dir` (breaks digest self-containment and reproducibility expectations).
+- **Consequences**: `llm_digest` remains deterministic and portable with the run directory alone. Canonical event coverage now includes births, enabling post-run tools to reason about generations without reaching into external state.

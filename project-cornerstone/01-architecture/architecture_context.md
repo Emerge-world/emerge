@@ -35,6 +35,7 @@ Memory   Precedents Resources
 
 ### Event Layer (`simulation/event_emitter.py`)
 - Always-on canonical telemetry per run.
+- Includes lifecycle events needed for post-run reconstruction, including agent births.
 - Stores prompt and raw LLM blobs deduplicated by hash.
 
 ## Invariants

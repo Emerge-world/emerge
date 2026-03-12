@@ -16,6 +16,7 @@ def _minimal_run_digest() -> dict:
                      "total_innovations_attempted": 0, "total_anomalies": 0,
                      "anomaly_counts_by_type": {}},
         "agents": [{"agent_id": "Ada", "status": "alive", "phase_count": 2,
+                    "generation": 0, "born_tick": 0, "parent_ids": [],
                     "dominant_mode": "exploration", "innovation_count": 0,
                     "anomaly_count": 0, "digest_path": "agents/Ada.json"}],
         "anomalies": [],
@@ -29,6 +30,7 @@ def _minimal_agent_digest() -> dict:
         "agent_id": "Ada",
         "run_id": "test-run",
         "status": "alive",
+        "lineage": {"generation": 0, "born_tick": 0, "parent_ids": [], "is_born_agent": False},
         "final_state": {"life": 100, "hunger": 20, "energy": 80, "pos": {"x": 0, "y": 0}},
         "state_extrema": {"min_life": {"value": 90, "tick": 5}, "max_hunger": {"value": 40, "tick": 3}},
         "action_mix": {"move": 0.8, "eat": 0.2},
@@ -77,6 +79,7 @@ class TestDigestRenderer:
                         agent_digests={"Ada": _minimal_agent_digest()},
                         evidence_index={}, manifest={})
         md = (tmp_path / "llm_digest" / "agents" / "Ada.md").read_text()
+        assert "## Lineage" in md
         assert "## Phases" in md
         assert "## Innovations" in md
         assert "## Critical Events" in md
@@ -121,3 +124,65 @@ class TestDigestRenderer:
         md = (tmp_path / "llm_digest" / "agents" / "Ada.md").read_text()
         assert "(3, 7)" in md
         assert "None" not in md
+
+    def test_renders_lineage_metadata_in_markdown(self, tmp_path):
+        renderer = DigestRenderer(tmp_path)
+        run_digest = _minimal_run_digest()
+        run_digest["agents"] = [{
+            "agent_id": "Kira",
+            "status": "alive",
+            "generation": 1,
+            "born_tick": 5,
+            "parent_ids": ["Ada", "Bruno"],
+            "phase_count": 1,
+            "dominant_mode": "exploration",
+            "innovation_count": 0,
+            "anomaly_count": 0,
+            "digest_path": "agents/Kira.json",
+        }]
+        agent_digest = _minimal_agent_digest()
+        agent_digest["agent_id"] = "Kira"
+        agent_digest["lineage"] = {
+            "generation": 1,
+            "born_tick": 5,
+            "parent_ids": ["Ada", "Bruno"],
+            "is_born_agent": True,
+        }
+        renderer.render(
+            run_digest,
+            agent_digests={"Kira": agent_digest},
+            evidence_index={},
+            manifest={},
+        )
+        run_md = (tmp_path / "llm_digest" / "run_digest.md").read_text()
+        agent_md = (tmp_path / "llm_digest" / "agents" / "Kira.md").read_text()
+        assert "| Agent | Status | Generation | Born Tick |" in run_md
+        assert "## Lineage" in agent_md
+        assert "Generation" in agent_md
+        assert "Born tick" in agent_md
+        assert "Parents" in agent_md
+
+    def test_uses_unknown_for_missing_lineage_values(self, tmp_path):
+        renderer = DigestRenderer(tmp_path)
+        run_digest = _minimal_run_digest()
+        run_digest["agents"][0]["generation"] = None
+        run_digest["agents"][0]["born_tick"] = None
+        agent_digest = _minimal_agent_digest()
+        agent_digest["lineage"] = {
+            "generation": None,
+            "born_tick": None,
+            "parent_ids": [],
+            "is_born_agent": False,
+        }
+        renderer.render(
+            run_digest,
+            agent_digests={"Ada": agent_digest},
+            evidence_index={},
+            manifest={},
+        )
+        run_md = (tmp_path / "llm_digest" / "run_digest.md").read_text()
+        agent_md = (tmp_path / "llm_digest" / "agents" / "Ada.md").read_text()
+        assert "unknown" in run_md
+        assert "unknown" in agent_md
+        assert "None" not in run_md
+        assert "None" not in agent_md
