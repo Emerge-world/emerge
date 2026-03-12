@@ -244,3 +244,14 @@ class TestBackwardCompat:
         entries = mem.all_entries()
         entries.append("should not appear")
         assert len(mem.episodic) == 1
+
+
+class TestTaskMemory:
+    def test_task_memory_cap(self):
+        mem = Memory()
+
+        for i in range(20):
+            mem.add_task_entry(tick=i, kind="plan_result", summary=f"entry {i}")
+
+        assert len(mem.task) == 12
+        assert mem.task[0].summary == "entry 8"

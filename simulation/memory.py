@@ -9,6 +9,7 @@ into reusable lessons that persist in semantic memory.
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
 from simulation.config import (
@@ -18,9 +19,19 @@ from simulation.config import (
     MEMORY_EPISODIC_IN_PROMPT,
     MEMORY_SEMANTIC_IN_PROMPT,
     INHERIT_SEMANTIC_MAX,
+    TASK_MEMORY_MAX,
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TaskMemoryEntry:
+    tick: int
+    kind: str
+    summary: str
+    goal: str = ""
+    outcome: str = ""
 
 
 class Memory:
@@ -29,6 +40,7 @@ class Memory:
     def __init__(self):
         self.episodic: list[str] = []
         self.semantic: list[str] = []
+        self.task: list[TaskMemoryEntry] = []
         self._last_compression_tick: int = 0
 
     def add_episode(self, entry: str):
@@ -42,6 +54,27 @@ class Memory:
         self.semantic.append(entry)
         if len(self.semantic) > MEMORY_SEMANTIC_MAX:
             self.semantic = self.semantic[-MEMORY_SEMANTIC_MAX:]
+
+    def add_task_entry(
+        self,
+        tick: int,
+        kind: str,
+        summary: str,
+        goal: str = "",
+        outcome: str = "",
+    ) -> None:
+        """Add a bounded planning/task-memory entry."""
+        self.task.append(
+            TaskMemoryEntry(
+                tick=tick,
+                kind=kind,
+                summary=summary,
+                goal=goal,
+                outcome=outcome,
+            )
+        )
+        if len(self.task) > TASK_MEMORY_MAX:
+            self.task = self.task[-TASK_MEMORY_MAX:]
 
     def should_compress(self, tick: int) -> bool:
         """Check if compression is due (every N ticks, and has episodes)."""
