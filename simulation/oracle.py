@@ -299,7 +299,12 @@ class Oracle:
                     "effects": {},
                 }
             removed = agent.inventory.remove(item, 1)
-            assert removed, f"inventory.remove failed for {item} despite has() returning True"
+            if not removed:
+                return {
+                    "success": False,
+                    "message": f"{agent.name} could not consume {item} (inventory inconsistency).",
+                    "effects": {},
+                }
             agent.modify_hunger(-effect["hunger_reduction"])
             if effect.get("life_change"):
                 agent.modify_life(effect["life_change"])
