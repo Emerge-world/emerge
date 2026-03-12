@@ -592,7 +592,14 @@ class Oracle:
         if not agent.inventory.has(item, quantity):
             return {"success": False, "message": f"You don't have {quantity}x {item}.", "effects": {}}
         if not self.world.place_resource(agent.x, agent.y, item, quantity):
-            return {"success": False, "message": f"Cannot drop {item} on this tile.", "effects": {}}
+            return {
+                "success": False,
+                "message": (
+                    f"{agent.name} cannot drop {item} here because the tile already holds "
+                    "another resource."
+                ),
+                "effects": {},
+            }
 
         agent.inventory.remove(item, quantity)
         msg = f"{agent.name} dropped {quantity}x {item} at ({agent.x},{agent.y})."
