@@ -104,6 +104,22 @@ class World:
         """Return resource information at (x, y), if any."""
         return self.resources.get((x, y))
 
+    def place_resource(self, x: int, y: int, item: str, amount: int = 1) -> bool:
+        """Place a resource stack on a tile if the tile is empty or same-typed."""
+        if amount <= 0:
+            return False
+
+        existing = self.resources.get((x, y))
+        if existing is None:
+            self.resources[(x, y)] = {"type": item, "quantity": amount}
+            return True
+
+        if existing["type"] != item:
+            return False
+
+        existing["quantity"] += amount
+        return True
+
     def consume_resource(self, x: int, y: int, amount: int = 1) -> int:
         """Consume a resource at a tile. Returns the amount actually consumed.
         Water resources (rivers) are inexhaustible and are never decremented.
