@@ -6,7 +6,7 @@ These are used with vllm's guided_json constrained decoding.
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PhysicalReflectionResponse(BaseModel):
@@ -61,6 +61,27 @@ class AgentDecisionResponse(BaseModel):
     item: Optional[str] = None            # give_item
     quantity: Optional[int] = None        # give_item
     skill: Optional[str] = None           # teach
+
+
+class PlanSubgoalResponse(BaseModel):
+    description: str
+    kind: str
+    target: Optional[str] = None
+    preconditions: list[str] = Field(default_factory=list)
+    completion_signal: str
+    failure_signal: str
+    priority: int = 1
+
+
+class AgentPlanResponse(BaseModel):
+    goal: str
+    goal_type: str
+    subgoals: list[PlanSubgoalResponse] = Field(default_factory=list)
+    horizon: str
+    success_signals: list[str] = Field(default_factory=list)
+    abort_conditions: list[str] = Field(default_factory=list)
+    confidence: float
+    rationale_summary: str
 
 
 class FruitEffectResponse(BaseModel):
