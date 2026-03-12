@@ -378,9 +378,10 @@ class Oracle:
             resource_hint = ", ".join(sorted(nearby_other))
             msg = f"{agent.name} tried to eat but nothing nearby is edible (nearby: {resource_hint})."
             self._log(tick, msg)
+            inv_items = ", ".join(agent.inventory.items.keys()) if not agent.inventory.is_empty() else ""
+            inv_hint = f" I have {inv_items} in inventory — use eat with item field to eat from it." if inv_items else ""
             agent.add_memory(
-                f"Nearby resources ({resource_hint}) are not edible. "
-                f"I might need to innovate a new action to use them."
+                f"Nearby resources ({resource_hint}) are not edible.{inv_hint}"
             )
         else:
             msg = f"{agent.name} tried to eat but there's no food nearby."
