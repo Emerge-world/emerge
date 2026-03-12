@@ -298,7 +298,8 @@ class Oracle:
                     "message": f"{agent.name} cannot eat {item}: {effect['reason']}.",
                     "effects": {},
                 }
-            agent.inventory.remove(item, 1)
+            removed = agent.inventory.remove(item, 1)
+            assert removed, f"inventory.remove failed for {item} despite has() returning True"
             agent.modify_hunger(-effect["hunger_reduction"])
             if effect.get("life_change"):
                 agent.modify_life(effect["life_change"])
