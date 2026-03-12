@@ -36,6 +36,8 @@ def test_build_run_command_includes_scarcity_and_benchmark_flags():
     assert "--scenario-id" in cmd
     assert "--initial-resource-scale" in cmd
     assert "--run-id" in cmd
+    assert "--tick-delay" in cmd
+    assert cmd[cmd.index("--tick-delay") + 1] == "0"
     assert "--no-llm" in cmd
 
 
@@ -64,8 +66,8 @@ scenarios:
 
     calls = []
 
-    def fake_run(cmd, cwd=None):
-        calls.append((cmd, cwd))
+    def fake_run(cmd, cwd=None, env=None):
+        calls.append((cmd, cwd, env))
         return SimpleNamespace(returncode=0)
 
     reported = {}
@@ -85,6 +87,7 @@ scenarios:
     assert manifest["candidate_label"] == "candidate"
     assert manifest["runs"][0]["status"] == "completed"
     assert len(calls) == 1
+    assert calls[0][2]["UV_CACHE_DIR"].endswith(".uv-cache")
     assert reported["benchmark_dir"] == str(benchmark_dir)
 
 
@@ -111,7 +114,7 @@ scenarios:
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(rb.subprocess, "run", lambda cmd, cwd=None: SimpleNamespace(returncode=2))
+    monkeypatch.setattr(rb.subprocess, "run", lambda cmd, cwd=None, env=None: SimpleNamespace(returncode=2))
     monkeypatch.setattr(rb, "build_benchmark_report", lambda benchmark_dir: {"overall_verdict": "flat"})
     monkeypatch.chdir(tmp_path)
 
@@ -120,3 +123,42 @@ scenarios:
     manifest = json.loads((benchmark_dir / "manifest.json").read_text())
     assert manifest["runs"][0]["status"] == "failed"
     assert manifest["runs"][0]["exit_code"] == 2
+
+
+def test_run_benchmark_can_force_no_llm(tmp_path, monkeypatch):
+    rb = _load()
+    suite_path = tmp_path / "scarcity_v1.yaml"
+    suite_path.write_text(
+        """
+benchmark_version: scarcity_v1
+defaults:
+  agents: 3
+  ticks: 40
+  width: 15
+  height: 15
+  no_llm: false
+  seeds: [11]
+scenarios:
+  - id: mild
+    scarcity:
+      initial_resource_scale: 0.6
+      regen_chance_scale: 0.8
+      regen_amount_scale: 0.8
+""",
+        encoding="utf-8",
+    )
+
+    commands = []
+
+    def fake_run(cmd, cwd=None, env=None):
+        commands.append((cmd, env))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(rb.subprocess, "run", fake_run)
+    monkeypatch.setattr(rb, "build_benchmark_report", lambda benchmark_dir: {"overall_verdict": "flat"})
+    monkeypatch.chdir(tmp_path)
+
+    rb.run_benchmark(suite_path, candidate_label="candidate", no_llm_override=True)
+
+    assert "--no-llm" in commands[0][0]
+    assert commands[0][1]["UV_CACHE_DIR"].endswith(".uv-cache")

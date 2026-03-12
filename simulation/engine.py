@@ -53,6 +53,7 @@ class SimulationEngine:
         run_id: Optional[str] = None,
         scarcity_config: Optional[ScarcityConfig] = None,
         benchmark_metadata: Optional[BenchmarkMetadata] = None,
+        tick_delay_seconds: float = TICK_DELAY_SECONDS,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -60,6 +61,7 @@ class SimulationEngine:
         self._world_seed = world_seed
         self.scarcity_config = scarcity_config or ScarcityConfig()
         self.benchmark_metadata = benchmark_metadata
+        self.tick_delay_seconds = tick_delay_seconds
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
 
@@ -167,8 +169,8 @@ class SimulationEngine:
 
                 self._run_tick(tick, alive_agents)
 
-                if TICK_DELAY_SECONDS > 0:
-                    time.sleep(TICK_DELAY_SECONDS)
+                if self.tick_delay_seconds > 0:
+                    time.sleep(self.tick_delay_seconds)
         finally:
             self.oracle.save_precedents(
                 self._precedents_path, self.current_tick, self._world_seed

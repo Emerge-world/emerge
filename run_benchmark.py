@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -48,6 +49,8 @@ def build_run_command(
         str(width),
         "--height",
         str(height),
+        "--tick-delay",
+        "0",
         "--benchmark-id",
         benchmark_id,
         "--benchmark-version",
@@ -81,6 +84,7 @@ def run_benchmark(
     baseline_label: str | None = None,
     max_runs: int | None = None,
     dry_run: bool = False,
+    no_llm_override: bool | None = None,
 ) -> Path:
     """Execute a benchmark suite sequentially and build reports."""
 
@@ -108,6 +112,10 @@ def run_benchmark(
     _write_manifest(benchmark_dir, manifest)
 
     repo_root = Path(__file__).resolve().parent
+    uv_cache_dir = repo_root / ".uv-cache"
+    uv_cache_dir.mkdir(exist_ok=True)
+    child_env = os.environ.copy()
+    child_env["UV_CACHE_DIR"] = str(uv_cache_dir.resolve())
     run_count = 0
     for scenario in suite.scenarios:
         for seed in suite.defaults.seeds:
@@ -124,7 +132,7 @@ def run_benchmark(
                 ticks=suite.defaults.ticks,
                 width=suite.defaults.width,
                 height=suite.defaults.height,
-                no_llm=suite.defaults.no_llm,
+                no_llm=suite.defaults.no_llm if no_llm_override is None else no_llm_override,
                 scarcity=scenario.scarcity,
                 model=suite.defaults.model,
             )
@@ -145,7 +153,7 @@ def run_benchmark(
             if dry_run:
                 entry["status"] = "dry-run"
             else:
-                result = subprocess.run(cmd, cwd=repo_root)
+                result = subprocess.run(cmd, cwd=repo_root, env=child_env)
                 entry["exit_code"] = result.returncode
                 entry["status"] = "completed" if result.returncode == 0 else "failed"
                 scarcity_metrics_path = repo_root / "data" / "runs" / run_id / "metrics" / "scarcity.json"
@@ -203,6 +211,7 @@ def main() -> None:
     parser.add_argument("--benchmark-id", default=None, help="Override the generated benchmark batch id")
     parser.add_argument("--max-runs", type=int, default=None, help="Limit scenario/seed runs for smoke testing")
     parser.add_argument("--dry-run", action="store_true", help="Write the manifest without executing runs")
+    parser.add_argument("--no-llm", action="store_true", help="Force benchmark runs to use fallback mode")
     args = parser.parse_args()
 
     benchmark_dir = run_benchmark(
@@ -213,6 +222,7 @@ def main() -> None:
         benchmark_id=args.benchmark_id,
         max_runs=args.max_runs,
         dry_run=args.dry_run,
+        no_llm_override=True if args.no_llm else None,
     )
     print(f"Benchmark artifacts written to {benchmark_dir}")
 

@@ -38,6 +38,8 @@ def main():
     parser.add_argument("--seed", type=int, default=None, help="Seed for the world (reproducibility)")
     parser.add_argument("--no-llm", action="store_true", help="Run without LLM (rule-based fallback mode)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
+    parser.add_argument("--tick-delay", type=float, default=sim_config.TICK_DELAY_SECONDS,
+                        help=f"Delay between ticks in seconds (default: {sim_config.TICK_DELAY_SECONDS})")
     parser.add_argument("--save-log", action="store_true", help="Save log on completion")
     parser.add_argument("--save-state", action="store_true", help="Save world state on completion")
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
@@ -159,6 +161,7 @@ def main():
         run_id=args.run_id,
         scarcity_config=scarcity_config,
         benchmark_metadata=benchmark_metadata,
+        tick_delay_seconds=args.tick_delay,
     )
 
     try:
