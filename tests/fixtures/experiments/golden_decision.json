@@ -1,0 +1,8 @@
+{
+  "suite_name": "gate_inventory",
+  "decision": "promote",
+  "reason": "candidate improved without violating gates",
+  "rules_fired": [
+    "value_gain"
+  ]
+}

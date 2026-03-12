@@ -1,0 +1,26 @@
+name: gate_inventory
+purpose: Baseline vs candidate gate
+mode: both
+seed_set: [11, 12]
+baseline:
+  name: baseline
+  config:
+    agents: 1
+    ticks: 5
+    no_llm: true
+    wandb: false
+candidates:
+  - name: candidate
+    config:
+      agents: 1
+      ticks: 5
+      no_llm: true
+      wandb: false
+metrics:
+  primary: [survival_rate]
+  secondary: [oracle_success_rate]
+policy:
+  max_invalid_run_rate: 0.25
+  min_effect_size: 0.02
+budget:
+  max_runs: 4

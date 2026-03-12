@@ -37,3 +37,10 @@ def test_build_decision_artifact_writes_output(tmp_path: Path):
 
     data = json.loads(output_path.read_text(encoding="utf-8"))
     assert data["decision"] == "promote"
+
+
+def test_golden_decision_fixture_matches_expected_decision():
+    expected = json.loads(
+        Path("tests/fixtures/experiments/golden_decision.json").read_text(encoding="utf-8")
+    )
+    assert expected["decision"] == "promote"
