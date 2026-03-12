@@ -362,6 +362,12 @@ p {
   color: var(--text-soft);
 }
 
+.metric-card__list {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+}
+
 .metric-card__formula {
   margin-top: 18px;
   padding: 12px 14px;

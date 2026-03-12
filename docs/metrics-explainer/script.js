@@ -66,30 +66,66 @@ const ebsDefinitions = {
     label: "Novelty",
     description:
       "Measures whether approved innovations are varied and structurally different.",
+    formula:
+      "Novelty = 100 * (0.40 * approval_rate + 0.30 * category_diversity + 0.30 * structural_originality)",
+    notes: [
+      "approval_rate = approved innovations / innovation attempts",
+      "category_diversity = distinct categories / 4",
+      "structural_originality = approved innovations not classified as base_extension / approved innovations",
+    ],
     color: "var(--novelty)",
   },
   utility: {
     label: "Utility",
     description:
       "Measures whether approved innovations appear to create useful state changes.",
+    formula:
+      "Utility = 100 * (0.50 * direct_state_improvement + 0.30 * future_option_value + 0.20 * execution_success_rate)",
+    notes: [
+      "direct_state_improvement = used approved innovations with positive welfare delta / used approved innovations",
+      "welfare = life + energy - hunger",
+      "The welfare change is measured over a 5-tick window before and after first use.",
+      "future_option_value = approved innovations that produce non-stat items / approved innovations",
+      "execution_success_rate = successful custom actions / total custom_action_executed events",
+    ],
     color: "var(--utility)",
   },
   realization: {
     label: "Realization",
     description:
       "Measures whether approved innovations are actually used and succeed.",
+    formula:
+      "Realization = 100 * (0.60 * use_rate + 0.40 * execution_success_rate)",
+    notes: [
+      "use_rate = used approved innovations / approved innovations",
+      "execution_success_rate = successful custom actions / total custom_action_executed events",
+    ],
     color: "var(--realization)",
   },
   stability: {
     label: "Stability",
     description:
       "Measures how coherent behavior remains across invalid actions and contradictions.",
+    formula:
+      "Stability = clamp(100 - 40 * false_knowledge_rate - 30 * invalid_action_rate, 0, 100)",
+    notes: [
+      "false_knowledge_rate = contradictory learnings / total learnings",
+      "invalid_action_rate = parse fails / total agent_decision events",
+      "contradiction_rate is reported separately, but equals false_knowledge_rate in v1",
+    ],
     color: "var(--stability)",
   },
   autonomy: {
     label: "Autonomy",
     description:
       "Measures proactive and environment-contingent behavior in the current implementation.",
+    formula:
+      "Autonomy = 100 * (0.40 * proactive_resource_acquisition + 0.30 * environment_contingent_innovation)",
+    notes: [
+      "proactive_resource_acquisition = non-hungry moves toward seen resources / total moves",
+      "environment_contingent_innovation = innovation attempts with hunger > 60 / total innovation attempts",
+      "self_generated_subgoals is reported as 0.0 and is not included in the current autonomy formula",
+    ],
     color: "var(--autonomy)",
   },
 };
@@ -400,6 +436,12 @@ function renderEbsPanels() {
             <p class="ebs-panel__label">${escapeHtml(definition.label)}</p>
             <h3>${escapeHtml(definition.label)}</h3>
             <p class="ebs-panel__detail">${escapeHtml(definition.description)}</p>
+            <p class="metric-card__formula">${escapeHtml(definition.formula)}</p>
+            <ul class="ebs-panel__list">
+              ${definition.notes
+                .map((note) => `<li>${escapeHtml(note)}</li>`)
+                .join("")}
+            </ul>
             <div class="ebs-panel__bar">
               <div class="ebs-panel__fill" style="width: 100%; background: ${definition.color};"></div>
             </div>

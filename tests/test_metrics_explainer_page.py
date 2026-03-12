@@ -115,12 +115,38 @@ class TestExplainerContent:
         assert "0.15 * Stability" in html
         assert "0.15 * Autonomy" in html
 
+    def test_detailed_ebs_component_formulas_present(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        assert (
+            "Novelty = 100 * (0.40 * approval_rate + 0.30 * category_diversity + 0.30 * structural_originality)"
+            in html
+        )
+        assert (
+            "Utility = 100 * (0.50 * direct_state_improvement + 0.30 * future_option_value + 0.20 * execution_success_rate)"
+            in html
+        )
+        assert "Realization = 100 * (0.60 * use_rate + 0.40 * execution_success_rate)" in html
+        assert "Stability = clamp(100 - 40 * false_knowledge_rate - 30 * invalid_action_rate, 0, 100)" in html
+        assert (
+            "Autonomy = 100 * (0.40 * proactive_resource_acquisition + 0.30 * environment_contingent_innovation)"
+            in html
+        )
+
+    def test_ebs_subscore_explanations_present(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        assert "category_diversity = distinct categories / 4" in html
+        assert "welfare = life + energy - hunger" in html
+        assert "5-tick window before and after first use" in html
+        assert "invalid_action_rate = parse fails / total agent_decision events" in html
+        assert "environment_contingent_innovation = innovation attempts with hunger > 60 / total innovation attempts" in html
+
     def test_limits_copy_present(self):
         html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
         assert "self_generated_subgoals" in html
         assert "0.0" in html
         assert "Weights & Biases" in html
         assert "optional observer" in html
+        assert "not included in the current autonomy formula" in html
 
 
 class TestLoaderHooks:

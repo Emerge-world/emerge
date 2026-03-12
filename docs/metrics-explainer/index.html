@@ -169,6 +169,59 @@
 + 0.20 * Realization
 + 0.15 * Stability
 + 0.15 * Autonomy</pre>
+        <div class="metric-grid">
+          <article class="metric-card">
+            <p class="metric-card__label">Novelty calculation</p>
+            <h3>Novelty</h3>
+            <p class="metric-card__formula">Novelty = 100 * (0.40 * approval_rate + 0.30 * category_diversity + 0.30 * structural_originality)</p>
+            <ul class="metric-card__list">
+              <li>approval_rate = approved innovations / innovation attempts</li>
+              <li>category_diversity = distinct categories / 4</li>
+              <li>structural_originality = approved innovations not classified as base_extension / approved innovations</li>
+            </ul>
+          </article>
+          <article class="metric-card">
+            <p class="metric-card__label">Utility calculation</p>
+            <h3>Utility</h3>
+            <p class="metric-card__formula">Utility = 100 * (0.50 * direct_state_improvement + 0.30 * future_option_value + 0.20 * execution_success_rate)</p>
+            <ul class="metric-card__list">
+              <li>direct_state_improvement = used approved innovations with positive welfare delta / used approved innovations</li>
+              <li>welfare = life + energy - hunger</li>
+              <li>The welfare change is measured over a 5-tick window before and after first use.</li>
+              <li>future_option_value = approved innovations that produce non-stat items / approved innovations</li>
+              <li>execution_success_rate = successful custom actions / total custom_action_executed events</li>
+            </ul>
+          </article>
+          <article class="metric-card">
+            <p class="metric-card__label">Realization calculation</p>
+            <h3>Realization</h3>
+            <p class="metric-card__formula">Realization = 100 * (0.60 * use_rate + 0.40 * execution_success_rate)</p>
+            <ul class="metric-card__list">
+              <li>use_rate = used approved innovations / approved innovations</li>
+              <li>execution_success_rate = successful custom actions / total custom_action_executed events</li>
+            </ul>
+          </article>
+          <article class="metric-card">
+            <p class="metric-card__label">Stability calculation</p>
+            <h3>Stability</h3>
+            <p class="metric-card__formula">Stability = clamp(100 - 40 * false_knowledge_rate - 30 * invalid_action_rate, 0, 100)</p>
+            <ul class="metric-card__list">
+              <li>false_knowledge_rate = contradictory learnings / total learnings</li>
+              <li>invalid_action_rate = parse fails / total agent_decision events</li>
+              <li>contradiction_rate is reported separately, but equals false_knowledge_rate in v1</li>
+            </ul>
+          </article>
+          <article class="metric-card">
+            <p class="metric-card__label">Autonomy calculation</p>
+            <h3>Autonomy</h3>
+            <p class="metric-card__formula">Autonomy = 100 * (0.40 * proactive_resource_acquisition + 0.30 * environment_contingent_innovation)</p>
+            <ul class="metric-card__list">
+              <li>proactive_resource_acquisition = non-hungry moves toward seen resources / total moves</li>
+              <li>environment_contingent_innovation = innovation attempts with hunger > 60 / total innovation attempts</li>
+              <li>self_generated_subgoals is reported as 0.0 and is not included in the current autonomy formula</li>
+            </ul>
+          </article>
+        </div>
         <div id="ebs-panels" class="ebs-grid"></div>
       </section>
       <section id="limits" class="content-panel content-panel--split">
@@ -183,7 +236,7 @@
           <p>
             Some sub-signals are intentionally partial. For example,
             <code>self_generated_subgoals</code> is currently fixed at
-            <code>0.0</code>.
+            <code>0.0</code> and is not included in the current autonomy formula.
           </p>
           <p>
             Weights & Biases remains an optional observer rather than the
