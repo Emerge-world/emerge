@@ -11,6 +11,9 @@ Agents -> Oracle -> World
    |        |        |
    v        v        v
 Memory   Precedents Resources
+  |
+  v
+PlanningState + Retrieval
    \        |        /
     \---- EventEmitter ----> data/runs/<run_id>/events.jsonl
                           \-> blobs/prompts + llm_raw
@@ -24,7 +27,8 @@ Memory   Precedents Resources
 - Persists precedents/lineage/world state on shutdown paths.
 
 ### Agent (`simulation/agent.py`)
-- Maintains stats, memory, personality, inventory, relationships.
+- Maintains stats, dual memory, task memory, personality, inventory, relationships, and optional planning state.
+- Can run an explicit planner/executor loop behind `ENABLE_EXPLICIT_PLANNING`.
 - Decides action via structured LLM response or deterministic fallback.
 - Starts with `INITIAL_ACTIONS`; `reproduce` unlocks by age.
 
@@ -36,6 +40,17 @@ Memory   Precedents Resources
 ### Event Layer (`simulation/event_emitter.py`)
 - Always-on canonical telemetry per run.
 - Stores prompt and raw LLM blobs deduplicated by hash.
+- Emits planning lifecycle events (`plan_created`, `plan_updated`, `plan_abandoned`, `subgoal_completed`, `subgoal_failed`) in addition to decision and oracle events.
+
+## Planning Loop
+
+When explicit planning is enabled, agent cognition follows:
+
+1. Observe current world and social state.
+2. Retrieve relevant memory using deterministic scoring.
+3. Replan if no usable plan exists, the current plan is stale, or a blocker appears.
+4. Execute the next action against the active subgoal.
+5. Emit planning traces into the canonical event stream.
 
 ## Invariants
 
@@ -48,6 +63,9 @@ Memory   Precedents Resources
 ## Notable Supporting Modules
 
 - `simulation/day_cycle.py`: day/sunset/night logic.
+- `simulation/planning_state.py`: durable planner state and subgoal models.
+- `simulation/retrieval.py`: deterministic memory relevance scoring.
+- `simulation/planner.py`: structured planner call and plan parsing.
 - `simulation/metrics_builder.py`: derives summary + timeseries from event streams.
 - `simulation/wandb_logger.py`: optional observer metrics to W&B.
 - `run_batch.py`: YAML-configured subprocess sweep runner.

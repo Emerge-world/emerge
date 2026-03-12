@@ -10,8 +10,9 @@ This file proposes next steps that are consistent with the current implementatio
 
 ## 2) Agents, Cognition, and Behavior
 
-- Upgrade memory retrieval from recency-based slices to relevance scoring.
-- Add explicit goal stacks (short-term needs vs long-term plans).
+- Tune deterministic retrieval beyond the first keyword-and-state scoring pass.
+- Improve plan progress reflection and blocker inference so subgoal completion is less manual.
+- Add richer goal hierarchies that blend survival, social, and lineage motives.
 - Expand personality expression into action priors (risk-taking, prosociality, exploration bias).
 
 ## 3) Oracle & Determinism
