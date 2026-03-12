@@ -616,7 +616,13 @@ class Oracle:
         """Agent gives an item from their inventory to an adjacent agent."""
         target_name = action.get("target", "")
         item = action.get("item", "")
-        quantity = int(action.get("quantity", 1))
+        try:
+            quantity = int(action.get("quantity", 1))
+        except (ValueError, TypeError):
+            quantity = 1
+
+        if quantity <= 0:
+            return {"success": False, "message": "Quantity must be at least 1.", "effects": {}}
 
         target = next(
             (a for a in self.current_tick_agents if a.name == target_name and a.alive),
