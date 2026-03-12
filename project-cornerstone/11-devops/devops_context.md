@@ -173,3 +173,5 @@ data/logs/
 - Never break `uv run main.py --no-llm` — it's the fastest smoke test.
 - LLM logs (prompts + responses) are gold for debugging. Save them with `--save-log`.
 - All commands use `uv run` — never call `python` directly.
+- Experiment automation should treat `data/runs/<run_id>/metrics/` as canonical input and write separate decision artifacts rather than mutating run artifacts in place.
+- Cohort suites and prioritization outputs should be machine-readable first so later dashboards and report plugins can render the same evidence trail.

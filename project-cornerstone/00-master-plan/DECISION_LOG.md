@@ -330,3 +330,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Keep the explainer under `docs/metrics-explainer/`, but design it as a client-side page with two layers: editorial explanations plus optional loading of `summary.json`, `timeseries.jsonl`, and `ebs.json` from real runs. The page ships with bundled sample fixtures and can later open specific artifact paths through user input or query parameters.
 - **Rejected alternatives**: Integrating the explainer into `UI/` (mixes documentation with operations), remaining static-only with no artifact loading path (less useful, no bridge to real runs), building a separate analytics app (too heavy for the explainer's scope).
 - **Consequences**: The explainer remains publishable and shareable while gaining a direct path to real repository artifacts. It must handle missing files gracefully, keep W&B framed as an optional observer rather than a source of truth, and avoid depending on WebSockets or server-specific routes.
+
+### DEC-034: Automation-first experiment decision toolkit
+- **Date**: 2026-03-12
+- **Context**: The repository can already execute batches, persist canonical run artifacts, and compute per-run metrics, but it still cannot decide whether a candidate change is better than baseline or which experiment should run next.
+- **Decision**: Add a suite/cohort/policy decision layer above the canonical run artifacts. Keep per-run metrics as the source of truth, produce machine-readable gating and prioritization artifacts first, and add human-readable plugins later as renderers of the same artifacts.
+- **Rejected alternatives**: Replacing `metrics_builder` with a separate analytics stack, treating W&B as the authoritative decision layer, or leading with an LLM recommender before deterministic policies exist.
+- **Consequences**: Experiment configs evolve from flat runs toward cohort suites. Test coverage must include policy evaluation and golden decision regressions. Experiment artifacts become a first-class DevOps surface alongside run artifacts.

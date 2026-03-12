@@ -24,3 +24,5 @@ See `tests/` for concrete files (e.g., `test_reproduction.py`, `test_event_emitt
 - Deterministic replay test: rebuild state from events and compare final snapshot.
 - Contract tests for websocket payload schemas (`init`, `tick`, `control`).
 - Golden-run regression fixtures for selected seeds and configs.
+- Golden-decision regression fixtures for experiment gating and prioritization artifacts.
+- Unit coverage for cohort aggregation, baseline-vs-candidate comparison, and policy evaluation on synthetic run metrics.
