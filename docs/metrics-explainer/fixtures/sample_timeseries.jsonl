@@ -1,0 +1,5 @@
+{"tick": 1, "sim_time": {"day": 1, "hour": 6}, "alive": 3, "mean_life": 96.0, "mean_hunger": 8.33, "mean_energy": 88.67, "deaths": 0, "actions": 3, "oracle_success_rate": 0.6667, "innovations_attempted": 0, "innovations_approved": 0}
+{"tick": 2, "sim_time": {"day": 1, "hour": 7}, "alive": 3, "mean_life": 95.33, "mean_hunger": 11.67, "mean_energy": 84.33, "deaths": 0, "actions": 3, "oracle_success_rate": 1.0, "innovations_attempted": 1, "innovations_approved": 1}
+{"tick": 3, "sim_time": {"day": 1, "hour": 8}, "alive": 3, "mean_life": 94.67, "mean_hunger": 15.0, "mean_energy": 79.67, "deaths": 0, "actions": 3, "oracle_success_rate": 0.6667, "innovations_attempted": 0, "innovations_approved": 0}
+{"tick": 4, "sim_time": {"day": 1, "hour": 9}, "alive": 2, "mean_life": 91.5, "mean_hunger": 19.5, "mean_energy": 75.0, "deaths": 1, "actions": 3, "oracle_success_rate": 0.3333, "innovations_attempted": 1, "innovations_approved": 0}
+{"tick": 5, "sim_time": {"day": 1, "hour": 10}, "alive": 2, "mean_life": 92.0, "mean_hunger": 17.0, "mean_energy": 73.5, "deaths": 0, "actions": 2, "oracle_success_rate": 1.0, "innovations_attempted": 1, "innovations_approved": 1}

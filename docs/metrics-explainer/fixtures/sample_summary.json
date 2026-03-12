@@ -1,0 +1,33 @@
+{
+  "run_id": "sample-run",
+  "total_ticks": 12,
+  "agents": {
+    "initial_count": 3,
+    "final_survivors": [
+      "Ada",
+      "Bruno"
+    ],
+    "deaths": 1,
+    "survival_rate": 0.6667
+  },
+  "actions": {
+    "total": 36,
+    "by_type": {
+      "move": 12,
+      "eat": 8,
+      "rest": 7,
+      "innovate": 3,
+      "forage": 6
+    },
+    "oracle_success_rate": 0.7778,
+    "parse_fail_rate": 0.0556
+  },
+  "innovations": {
+    "attempts": 3,
+    "approved": 2,
+    "rejected": 1,
+    "used": 1,
+    "approval_rate": 0.6667,
+    "realization_rate": 0.5
+  }
+}

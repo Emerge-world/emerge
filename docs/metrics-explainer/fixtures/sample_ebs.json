@@ -1,0 +1,71 @@
+{
+  "run_id": "sample-run",
+  "ebs": 47.83,
+  "components": {
+    "novelty": {
+      "score": 63.33,
+      "weight": 0.3,
+      "sub_scores": {
+        "approval_rate": 0.6667,
+        "category_diversity": 0.5,
+        "structural_originality": 1.0
+      }
+    },
+    "utility": {
+      "score": 43.33,
+      "weight": 0.2,
+      "sub_scores": {
+        "direct_state_improvement": 0.5,
+        "future_option_value": 0.5,
+        "execution_success_rate": 0.5
+      }
+    },
+    "realization": {
+      "score": 50.0,
+      "weight": 0.2,
+      "sub_scores": {
+        "use_rate": 0.5,
+        "success_rate": 0.5
+      }
+    },
+    "stability": {
+      "score": 86.67,
+      "weight": 0.15,
+      "sub_scores": {
+        "invalid_action_rate": 0.0556,
+        "false_knowledge_rate": 0.0,
+        "contradiction_rate": 0.0
+      }
+    },
+    "autonomy": {
+      "score": 10.0,
+      "weight": 0.15,
+      "sub_scores": {
+        "proactive_resource_acquisition": 0.1,
+        "environment_contingent_innovation": 0.2,
+        "self_generated_subgoals": 0.0
+      }
+    }
+  },
+  "innovations": [
+    {
+      "name": "forage",
+      "category": "SURVIVAL",
+      "structural_novelty": "inventory_enabler",
+      "dependency_depth": 1,
+      "used": true,
+      "state_delta": {
+        "welfare": 4.25,
+        "positive": true
+      }
+    },
+    {
+      "name": "signal_water",
+      "category": "EXPLORATION",
+      "structural_novelty": "coordination_action",
+      "dependency_depth": 0,
+      "used": false,
+      "state_delta": null
+    }
+  ]
+}
