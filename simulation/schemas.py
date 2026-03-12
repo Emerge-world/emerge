@@ -58,7 +58,7 @@ class AgentDecisionResponse(BaseModel):
     target: Optional[str] = None          # communicate / give_item / teach / reproduce
     message: Optional[str] = None         # communicate
     intent: Optional[str] = None          # communicate
-    item: Optional[str] = None            # give_item
+    item: Optional[str] = None            # give_item / eat (inventory)
     quantity: Optional[int] = None        # give_item
     skill: Optional[str] = None           # teach
 
