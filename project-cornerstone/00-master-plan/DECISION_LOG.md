@@ -344,3 +344,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Add a canonical `agent_birth` event to `events.jsonl` and make `DigestBuilder` derive born-agent inclusion and lineage metadata from the run event stream itself. Initial settlers retain `generation=0`, `born_tick=0`, `parent_ids=[]`. Born agents carry `generation`, `born_tick`, and `parent_ids` from `agent_birth`. Older runs without `agent_birth` still include later-discovered agents, but their lineage falls back to unknown values rather than reading `data/lineage_<seed>.json`.
 - **Rejected alternatives**: Repeating lineage fields on every `agent_state` event (wasteful event bloat); reading lineage persistence files outside `run_dir` (breaks digest self-containment and reproducibility expectations).
 - **Consequences**: `llm_digest` remains deterministic and portable with the run directory alone. Canonical event coverage now includes births, enabling post-run tools to reason about generations without reaching into external state.
+
+### DEC-036: `drop_item` is a built-in current-tile inventory placement action
+- **Date**: 2026-03-12
+- **Context**: Agents could pick up items into inventory and transfer them to other agents, but they could not intentionally place carried items back into the world without another agent being involved.
+- **Decision**: Add `drop_item` as a built-in action resolved by the Oracle on the agent's current tile only. Dropped items are placed on the current tile only. The world remains one resource stack per tile. `drop_item` succeeds on empty or same-type stacks and fails on conflicting resource types.
+- **Rejected alternatives**: Expanding the world to support multiple resource stacks per tile; overloading `give_item` with a synthetic ground target; allowing arbitrary drop targeting beyond the current tile.
+- **Consequences**: Prompt/action taxonomy now includes `drop_item`. Oracle uses `World.place_resource()` to keep placement deterministic without redesigning `world.resources`. Existing metrics continue to count the action through generic `agent_decision` aggregation.
