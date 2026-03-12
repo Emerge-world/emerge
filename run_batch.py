@@ -19,7 +19,7 @@ except ImportError:
     print("ERROR: PyYAML not found. Run: uv add pyyaml", file=sys.stderr)
     sys.exit(1)
 
-VALID_KEYS = {"name", "seed", "agents", "ticks", "model", "no_llm", "wandb", "runs"}
+VALID_KEYS = {"name", "seed", "agents", "ticks", "model", "no_llm", "wandb", "runs", "width", "height"}
 
 
 def validate_experiments(experiments: list[dict]) -> None:
@@ -64,6 +64,10 @@ def build_command(exp: dict) -> list[str]:
         cmd += ["--seed", str(exp["seed"])]
     if "model" in exp:
         cmd += ["--model", exp["model"]]
+    if "width" in exp:
+        cmd += ["--width", str(exp["width"])]
+    if "height" in exp:
+        cmd += ["--height", str(exp["height"])]
     if exp.get("no_llm", False):
         cmd.append("--no-llm")
 
