@@ -177,3 +177,15 @@ class TestPresentationHooks:
         assert "function renderTimeseriesCharts" in script
         assert "function renderEbsPanels" in script
         assert "function renderMetricViewToggle" in script
+
+
+class TestDocumentationConsistency:
+    def test_cornerstone_mentions_docs_explainer(self):
+        decision_log = Path(
+            "project-cornerstone/00-master-plan/DECISION_LOG.md"
+        ).read_text(encoding="utf-8")
+        visualization = Path(
+            "project-cornerstone/09-visualization/visualization_context.md"
+        ).read_text(encoding="utf-8")
+        assert "interactive metrics explainer" in decision_log.lower()
+        assert "docs/metrics-explainer/" in visualization
