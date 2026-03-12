@@ -149,3 +149,31 @@ class TestLoaderHooks:
             "artifact-field-details",
         ):
             assert f'id="{element_id}"' in html
+
+
+class TestPresentationHooks:
+    def test_index_contains_interactive_view_toggles(self):
+        html = (DOCS_DIR / "index.html").read_text(encoding="utf-8")
+        assert 'data-view="meaning"' in html
+        assert 'data-view="run"' in html
+        assert "Show data source" in html
+
+    def test_styles_define_visual_tokens(self):
+        css = (DOCS_DIR / "styles.css").read_text(encoding="utf-8")
+        for token in (
+            "--page-bg",
+            "--panel-bg",
+            "--novelty",
+            "--utility",
+            "--realization",
+            "--stability",
+            "--autonomy",
+        ):
+            assert token in css
+
+    def test_script_contains_renderers(self):
+        script = (DOCS_DIR / "script.js").read_text(encoding="utf-8")
+        assert "function renderSummaryCards" in script
+        assert "function renderTimeseriesCharts" in script
+        assert "function renderEbsPanels" in script
+        assert "function renderMetricViewToggle" in script

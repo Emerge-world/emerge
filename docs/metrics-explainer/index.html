@@ -8,140 +8,189 @@
   </head>
   <body>
     <main class="page-shell">
-      <section id="hero">
-        <p class="eyebrow">Interactive Documentation</p>
-        <h1>How Emerge Measures Population Behavior</h1>
-        <p>
-          This page explains how the simulation turns raw run artifacts into
-          population metrics, time-based trends, and the EBS score. It is meant
-          to read like documentation, but it can also point at real metrics
-          files from a run.
-        </p>
-        <form id="artifact-source-form">
-          <label>
-            <input type="radio" name="artifact-mode" value="sample" checked />
-            Sample artifacts
-          </label>
-          <label>
-            <input type="radio" name="artifact-mode" value="path" />
-            Run path
-          </label>
-          <input
-            id="artifact-path"
-            name="artifact-path"
-            type="text"
-            placeholder="../data/runs/<run_id>/metrics"
-          />
-          <button type="submit">Load artifacts</button>
-        </form>
-        <p id="artifact-status" aria-live="polite"></p>
-        <p class="trust-note">
-          Weights & Biases is an optional observer for live telemetry, not the
-          canonical source of truth for run scoring.
-        </p>
-      </section>
-      <section id="flow">
-        <h2>From Events To Metrics</h2>
-        <p>
-          Every run writes an event stream to <code>data/runs/&lt;run_id&gt;/events.jsonl</code>.
-          The builders then read that artifact after the run completes and
-          derive summary metrics, per-tick metrics, and EBS component scores.
-        </p>
-        <pre>events.jsonl -&gt; summary.json + timeseries.jsonl -&gt; ebs.json</pre>
-      </section>
-      <section id="population-metrics">
-        <h2>Population Metrics</h2>
-        <div id="summary-cards"></div>
-        <article>
-          <h3>Survival</h3>
-          <p>
-            These metrics answer how many agents started, how many survived, and
-            how much loss the population absorbed.
+      <section id="hero" class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Interactive Documentation</p>
+          <h1>How Emerge Measures Population Behavior</h1>
+          <p class="hero-intro">
+            This page explains how the simulation turns raw run artifacts into
+            population metrics, time-based trends, and the EBS score. It reads
+            like documentation, but it can also point at real metrics files
+            from a run.
           </p>
+          <div class="hero-controls">
+            <div
+              id="metric-view-toggle"
+              class="view-toggle"
+              role="group"
+              aria-label="Explainer view"
+            >
+              <button
+                type="button"
+                class="view-toggle__button is-active"
+                data-view="meaning"
+                aria-pressed="true"
+              >
+                What this metric means
+              </button>
+              <button
+                type="button"
+                class="view-toggle__button"
+                data-view="run"
+                aria-pressed="false"
+              >
+                How this run scored
+              </button>
+            </div>
+            <button
+              id="artifact-source-toggle"
+              class="source-toggle"
+              type="button"
+              aria-expanded="false"
+            >
+              Show data source
+            </button>
+          </div>
+          <p class="trust-note">
+            Weights & Biases is an optional observer for live telemetry, not
+            the canonical source of truth for run scoring.
+          </p>
+        </div>
+        <aside class="source-panel">
+          <h2>Artifact Source</h2>
+          <p>
+            Start with bundled sample artifacts, or point the page at a real
+            metrics directory from <code>data/runs/&lt;run_id&gt;/metrics</code>.
+          </p>
+          <form id="artifact-source-form" class="artifact-form">
+            <label class="artifact-mode">
+              <input type="radio" name="artifact-mode" value="sample" checked />
+              <span>Sample artifacts</span>
+            </label>
+            <label class="artifact-mode">
+              <input type="radio" name="artifact-mode" value="path" />
+              <span>Run path</span>
+            </label>
+            <input
+              id="artifact-path"
+              name="artifact-path"
+              type="text"
+              placeholder="../data/runs/<run_id>/metrics"
+            />
+            <button class="artifact-submit" type="submit">Load artifacts</button>
+          </form>
+          <p id="artifact-status" class="artifact-status" aria-live="polite"></p>
+        </aside>
+      </section>
+      <section id="flow" class="content-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Data Flow</p>
+            <h2>From Events To Metrics</h2>
+          </div>
+          <p class="section-intro">
+            Every run writes an event stream to
+            <code>data/runs/&lt;run_id&gt;/events.jsonl</code>. The builders then read
+            those persisted artifacts after the run completes and derive summary
+            metrics, per-tick metrics, and EBS component scores.
+          </p>
+        </div>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <span class="flow-step__index">01</span>
+            <strong>events.jsonl</strong>
+            <p>Canonical record of decisions, outcomes, and agent state.</p>
+          </div>
+          <div class="flow-step">
+            <span class="flow-step__index">02</span>
+            <strong>summary.json</strong>
+            <p>Whole-run counts and rates for survival, actions, and innovation.</p>
+          </div>
+          <div class="flow-step">
+            <span class="flow-step__index">03</span>
+            <strong>timeseries.jsonl</strong>
+            <p>Tick-by-tick trends for the population over time.</p>
+          </div>
+          <div class="flow-step">
+            <span class="flow-step__index">04</span>
+            <strong>ebs.json</strong>
+            <p>Weighted interpretation layer built on top of those artifacts.</p>
+          </div>
+        </div>
+      </section>
+      <section id="population-metrics" class="content-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Run Summary</p>
+            <h2>Population Metrics</h2>
+          </div>
+          <p class="section-intro">
+            These metrics answer what happened across the whole population by
+            the end of the run: who survived, how cleanly actions resolved, and
+            whether innovation attempts became usable behavior.
+          </p>
+        </div>
+        <div id="summary-cards" class="metric-grid"></div>
+        <div class="formula-cluster">
           <p>Survival rate = final survivors / initial population</p>
-        </article>
-        <article>
-          <h3>Action Quality</h3>
-          <p>
-            These metrics ask how often actions were resolved cleanly by the
-            Oracle and how often parsing failed before the world could react.
-          </p>
           <p>Oracle success rate = successful oracle resolutions / total oracle resolutions</p>
-        </article>
-        <article>
-          <h3>Innovation</h3>
-          <p>
-            These metrics show whether agents tried to invent new actions, how
-            often those attempts were approved, and whether approved actions were
-            later used.
-          </p>
           <p>Innovation approval rate = approved innovations / innovation attempts</p>
           <p>Innovation realization rate = approved innovations later used / approved innovations</p>
-        </article>
+        </div>
       </section>
-      <section id="time-based-metrics">
-        <h2>Whole Run Vs Per-Tick Reading</h2>
-        <div id="timeseries-panel"></div>
-        <p>
-          Whole-run metrics tell you how a run ended. Per-tick metrics tell you
-          how the population changed over time.
-        </p>
-        <p>
-          The time series focuses on alive count, mean hunger, mean energy, mean
-          life, actions, deaths, and innovation activity for each tick.
-        </p>
+      <section id="time-based-metrics" class="content-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Tick Metrics</p>
+            <h2>Whole Run Vs Per-Tick Reading</h2>
+          </div>
+          <p class="section-intro">
+            Whole-run metrics tell you how a run ended. Per-tick metrics tell
+            you how the population changed over time, including alive count,
+            mean hunger, mean energy, actions, deaths, and innovation activity.
+          </p>
+        </div>
+        <div id="timeseries-panel" class="chart-grid"></div>
       </section>
-      <section id="ebs-score">
-        <h2>EBS Breakdown</h2>
-        <div id="ebs-panels"></div>
-        <p>
-          EBS is a weighted interpretation layer built on top of the recorded
-          artifacts, not a magic intelligence score.
-        </p>
-        <pre>EBS =
+      <section id="ebs-score" class="content-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Interpretation Layer</p>
+            <h2>EBS Breakdown</h2>
+          </div>
+          <p class="section-intro">
+            EBS is a weighted interpretation layer built on top of the recorded
+            artifacts, not a magic intelligence score.
+          </p>
+        </div>
+        <pre class="formula-block">EBS =
 0.30 * Novelty
 + 0.20 * Utility
 + 0.20 * Realization
 + 0.15 * Stability
 + 0.15 * Autonomy</pre>
-        <article>
-          <h3>Novelty</h3>
-          <p>Measures whether approved innovations are varied and structurally different.</p>
-        </article>
-        <article>
-          <h3>Utility</h3>
-          <p>Measures whether approved innovations appear to create useful state changes.</p>
-        </article>
-        <article>
-          <h3>Realization</h3>
-          <p>Measures whether approved innovations are actually used and succeed.</p>
-        </article>
-        <article>
-          <h3>Stability</h3>
-          <p>Measures how coherent behavior remains across invalid actions and contradictions.</p>
-        </article>
-        <article>
-          <h3>Autonomy</h3>
-          <p>Measures proactive and environment-contingent behavior in the current implementation.</p>
-        </article>
+        <div id="ebs-panels" class="ebs-grid"></div>
       </section>
-      <section id="limits">
-        <h2>Limits And Interpretation</h2>
-        <div id="artifact-field-details"></div>
-        <p>
-          Direct counts are more concrete than heuristic scores. EBS is a
-          structured interpretation layer based on implemented signals, not an
-          absolute truth.
-        </p>
-        <p>
-          Some sub-signals are intentionally partial. For example,
-          <code>self_generated_subgoals</code> is currently fixed at
-          <code>0.0</code>.
-        </p>
-        <p>
-          Weights & Biases remains an optional observer rather than the official
-          record for metrics or scoring.
-        </p>
+      <section id="limits" class="content-panel content-panel--split">
+        <div>
+          <p class="section-kicker">Trust Notes</p>
+          <h2>Limits And Interpretation</h2>
+          <p>
+            Direct counts are more concrete than heuristic scores. EBS is a
+            structured interpretation layer based on implemented signals, not an
+            absolute truth.
+          </p>
+          <p>
+            Some sub-signals are intentionally partial. For example,
+            <code>self_generated_subgoals</code> is currently fixed at
+            <code>0.0</code>.
+          </p>
+          <p>
+            Weights & Biases remains an optional observer rather than the
+            official record for metrics or scoring.
+          </p>
+        </div>
+        <div id="artifact-field-details" class="source-details is-hidden"></div>
       </section>
     </main>
     <script src="script.js" defer></script>
