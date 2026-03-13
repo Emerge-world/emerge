@@ -14,7 +14,7 @@ from simulation.event_emitter import EventEmitter
 # Helpers
 # ------------------------------------------------------------------ #
 
-def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
+def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42, max_ticks=72):
     monkeypatch.chdir(tmp_path)
     day_cycle = DayCycle(start_hour=6)
     em = EventEmitter(
@@ -22,7 +22,7 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
         seed=seed,
         world_width=15,
         world_height=15,
-        max_ticks=72,
+        max_ticks=max_ticks,
         agent_count=3,
         agent_names=["Ada", "Bruno", "Clara"],
         agent_model_id="test-agent-model",
@@ -81,6 +81,12 @@ class TestMeta:
         assert meta["precedents_file"] == "data/precedents_42.json"
         assert "created_at" in meta
 
+    def test_meta_json_uses_null_for_infinite_ticks(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch, max_ticks=None)
+        em.close()
+        meta = json.loads((tmp_path / "data" / "runs" / "test-run-1234" / "meta.json").read_text())
+        assert meta["max_ticks"] is None
+
     def test_events_jsonl_created(self, tmp_path, monkeypatch):
         em = _make_emitter(tmp_path, monkeypatch)
         em.close()
@@ -136,6 +142,13 @@ class TestRunStart:
         assert p["config"]["agent_count"] == 2
         assert p["model_id"] == "my-model"
         assert p["world_seed"] == 7
+
+    def test_run_start_payload_uses_null_for_infinite_ticks(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch, max_ticks=None)
+        em.emit_run_start(["Ada"], "m", None, 10, 10, None)
+        em.close()
+        payload = _read_events(tmp_path)[0]["payload"]
+        assert payload["config"]["max_ticks"] is None
 
 
 # ------------------------------------------------------------------ #

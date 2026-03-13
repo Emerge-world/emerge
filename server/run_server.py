@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ticks",
         type=parse_tick_limit_arg,
-        default=None,
+        default=sim_config.MAX_TICKS,
         help="Max simulation ticks (positive integer or 'infinite'; default: infinite)",
     )
     parser.add_argument("--seed", type=int, default=None, help="World seed")
