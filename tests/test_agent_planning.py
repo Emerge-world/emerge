@@ -1,8 +1,10 @@
 from unittest.mock import MagicMock
 
 from simulation.agent import Agent
+from simulation.oracle import Oracle
 from simulation.planning_state import PlanningState, PlanningSubgoal
 from simulation.schemas import AgentDecisionResponse, AgentPlanResponse, PlanSubgoalResponse
+from simulation.world import World
 
 
 def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
@@ -54,3 +56,21 @@ def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
 
     assert "_planning_trace" in action
     assert action["_planning_trace"]["plan_created"]["goal"] == "stabilize food"
+
+
+def test_decide_action_omits_none_fields_before_oracle_eat_resolution():
+    llm = MagicMock()
+    llm.last_call = {}
+    llm.generate_structured.return_value = AgentDecisionResponse(action="eat", reason="hungry")
+
+    world = World(width=5, height=5, seed=42)
+    agent = Agent(name="Ada", x=2, y=2, llm=llm)
+    for pos in [(2, 2), (3, 2), (1, 2), (2, 3), (2, 1)]:
+        world.resources.pop(pos, None)
+    oracle = Oracle(world=world, llm=None)
+
+    action = agent.decide_action([{"x": 2, "y": 2, "tile": "land", "distance": 0}], tick=1)
+
+    assert "item" not in action
+    result = oracle.resolve_action(agent, action, tick=1)
+    assert result["success"] is False

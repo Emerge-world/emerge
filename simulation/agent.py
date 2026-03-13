@@ -418,7 +418,9 @@ class Agent:
         llm_trace = dict(self.llm.last_call) if self.llm.last_call else {}
 
         if typed is not None:
-            result = typed.model_dump()
+            # Drop optional fields that the LLM did not set so downstream
+            # action resolvers only see real parameters, not explicit None values.
+            result = typed.model_dump(exclude_none=True)
             logger.debug(f"[{self.name}] LLM decided: {result}")
             result["_llm_trace"] = llm_trace
             result["_planning_trace"] = planning_trace
