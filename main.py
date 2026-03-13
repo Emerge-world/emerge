@@ -18,6 +18,7 @@ from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
 from pathlib import Path
 from simulation.wandb_logger import WandbLogger
 from simulation import config as sim_config
+from simulation.tick_limits import parse_tick_limit_arg
 
 
 def setup_logging(verbose: bool = False):
@@ -30,10 +31,15 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Autonomous agent life simulation (LLM)")
     parser.add_argument("--agents", type=int, default=3, help="Number of agents (max 5)")
-    parser.add_argument("--ticks", type=int, default=100, help="Maximum number of ticks")
+    parser.add_argument(
+        "--ticks",
+        type=parse_tick_limit_arg,
+        default=None,
+        help="Maximum number of ticks (positive integer or 'infinite'; default: infinite)",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Seed for the world (reproducibility)")
     parser.add_argument("--no-llm", action="store_true", help="Run without LLM (rule-based fallback mode)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
@@ -55,7 +61,11 @@ def main():
                         help=f"vllm model to use (default: {sim_config.VLLM_MODEL})")
     parser.add_argument("--no-digest", action="store_true",
                         help="Skip LLM digest generation after run")
+    return parser
 
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
     setup_logging(args.verbose)
 

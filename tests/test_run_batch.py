@@ -38,6 +38,18 @@ def test_validate_accepts_valid_experiment():
     rb.validate_experiments([{"name": "test", "agents": 3, "ticks": 50, "seed": 1}])
 
 
+def test_validate_accepts_infinite_ticks_literal():
+    rb = _load()
+    rb.validate_experiments([{"name": "test", "ticks": "infinite"}])
+
+
+@pytest.mark.parametrize("ticks", [0, -2, "forever"])
+def test_validate_rejects_invalid_ticks_values(ticks):
+    rb = _load()
+    with pytest.raises(SystemExit):
+        rb.validate_experiments([{"name": "test", "ticks": ticks}])
+
+
 # ---------------------------------------------------------------------------
 # Expansion
 # ---------------------------------------------------------------------------
@@ -116,3 +128,16 @@ def test_build_command_no_llm_false_omitted():
     exp = {"name": "x", "no_llm": False}
     cmd = rb.build_command(exp)
     assert "--no-llm" not in cmd
+
+
+def test_build_command_preserves_explicit_infinite_ticks():
+    rb = _load()
+    cmd = rb.build_command({"name": "foo", "ticks": "infinite"})
+    assert "--ticks" in cmd
+    assert "infinite" in cmd
+
+
+def test_build_command_omits_ticks_when_not_configured():
+    rb = _load()
+    cmd = rb.build_command({"name": "foo"})
+    assert "--ticks" not in cmd

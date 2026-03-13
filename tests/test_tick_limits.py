@@ -3,6 +3,9 @@ from itertools import islice
 
 import pytest
 
+import main
+import server.run_server as run_server
+
 from simulation.tick_limits import (
     format_tick_limit,
     iter_tick_numbers,
@@ -45,3 +48,28 @@ def test_iter_tick_numbers_is_unbounded_for_none():
 
 def test_iter_tick_numbers_is_bounded_for_positive_integer():
     assert list(iter_tick_numbers(3)) == [1, 2, 3]
+
+
+def test_main_parser_defaults_ticks_to_infinite():
+    args = main.build_parser().parse_args([])
+    assert args.ticks is None
+
+
+def test_main_parser_accepts_infinite_literal():
+    args = main.build_parser().parse_args(["--ticks", "infinite"])
+    assert args.ticks is None
+
+
+def test_main_parser_rejects_zero_ticks():
+    with pytest.raises(SystemExit):
+        main.build_parser().parse_args(["--ticks", "0"])
+
+
+def test_server_parser_defaults_ticks_to_infinite():
+    args = run_server.build_parser().parse_args([])
+    assert args.ticks is None
+
+
+def test_server_parser_accepts_integer_ticks():
+    args = run_server.build_parser().parse_args(["--ticks", "12"])
+    assert args.ticks == 12

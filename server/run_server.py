@@ -35,6 +35,7 @@ import uvicorn
 import server.server as _server
 from simulation.engine import SimulationEngine
 from simulation import config as sim_config
+from simulation.tick_limits import format_tick_limit, parse_tick_limit_arg
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,10 +43,15 @@ logging.basicConfig(
 )
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Emerge simulation web server")
     parser.add_argument("--agents", type=int, default=3, help="Number of agents")
-    parser.add_argument("--ticks", type=int, default=500, help="Max simulation ticks")
+    parser.add_argument(
+        "--ticks",
+        type=parse_tick_limit_arg,
+        default=None,
+        help="Max simulation ticks (positive integer or 'infinite'; default: infinite)",
+    )
     parser.add_argument("--seed", type=int, default=None, help="World seed")
     parser.add_argument("--no-llm", action="store_true", help="Disable LLM, use fallback")
     parser.add_argument("--port", type=int, default=8001, help="HTTP port")
@@ -55,6 +61,11 @@ def main():
         default=None,
         help="Seconds between ticks (overrides config)",
     )
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
 
     # Override tick delay if requested
@@ -63,7 +74,7 @@ def main():
 
     print(f"\nEmerge web server")
     print(f"  Agents:    {args.agents}")
-    print(f"  Max ticks: {args.ticks}")
+    print(f"  Max ticks: {format_tick_limit(args.ticks)}")
     print(f"  Seed:      {args.seed}")
     print(f"  LLM:       {'disabled' if args.no_llm else 'enabled'}")
     print(f"  Port:      {args.port}")
