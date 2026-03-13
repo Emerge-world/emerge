@@ -209,7 +209,7 @@ Monthly workflow:
 |---------------------------------|-----------------------------------------------------|
 | Stats out of range              | Clamp in ALL modify_*() methods                     |
 | Agent on invalid tile           | Validate position after each move                   |
-| Infinite tick loop              | MAX_TICKS hard limit                                |
+| Infinite tick loop              | Explicit `infinite` support; runs still stop on extinction or user interruption |
 | Negative resources              | Clamp in consume_resource()                         |
 | World with no walkable tiles    | find_spawn_point() with exhaustive fallback         |
 | Cascade death                   | OK — it's emergent. Just monitor                    |
