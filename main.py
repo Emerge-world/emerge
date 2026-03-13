@@ -3,8 +3,9 @@
 Main entry point for the agent-based life simulation.
 
 Usage:
-    python main.py                          # Run with default values
+    python main.py                          # Run with infinite ticks by default
     python main.py --agents 5 --ticks 50    # 5 agents, 50 ticks
+    python main.py --ticks infinite         # Explicit infinite run
     python main.py --no-llm                 # Mode without LLM (rule-based fallback)
     python main.py --seed 42                # Reproducible world
 """

@@ -6,10 +6,11 @@ Usage:
 
 Options:
     --agents N       Number of agents (default: 3)
-    --ticks N        Max ticks to run (default: 500)
+    --ticks N|infinite
+                     Max ticks to run (default: infinite)
     --seed N         World seed for reproducibility
     --no-llm         Run without LLM (fast smoke-test mode)
-    --port N         HTTP port (default: 8000)
+    --port N         HTTP port (default: 8001)
     --tick-delay F   Seconds between ticks (default: from config)
 """
 
