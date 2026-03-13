@@ -7,6 +7,7 @@ import json
 import logging
 import threading
 import uuid
+from dataclasses import asdict
 from typing import Optional, Callable
 
 from simulation.config import (
@@ -128,6 +129,13 @@ class SimulationEngine:
 
         logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
+    @staticmethod
+    def _agent_profile(agent) -> dict:
+        return {
+            "name": agent.name,
+            "personality": asdict(agent.personality),
+        }
+
     def run(self):
         """Run the complete simulation."""
         self._print_header()
@@ -139,6 +147,7 @@ class SimulationEngine:
             width=self.world.width,
             height=self.world.height,
             max_ticks=self.max_ticks,
+            agent_profiles=[self._agent_profile(a) for a in self.agents],
         )
 
         try:
@@ -640,6 +649,7 @@ class SimulationEngine:
             width=self.world.width,
             height=self.world.height,
             max_ticks=self.max_ticks,
+            agent_profiles=[self._agent_profile(a) for a in self.agents],
         )
 
         try:

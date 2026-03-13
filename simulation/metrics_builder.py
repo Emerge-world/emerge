@@ -7,6 +7,7 @@ Usage (standalone):
 """
 
 import json
+import statistics
 from pathlib import Path
 
 
@@ -33,6 +34,22 @@ class MetricsBuilder:
             for row in timeseries:
                 fh.write(json.dumps(row) + "\n")
 
+    @staticmethod
+    def _empty_personality_survival(sample_size: int = 0) -> dict:
+        return {
+            "method": "pearson_correlation",
+            "lifespan_unit": "ticks_alive_since_entry",
+            "sample_size": sample_size,
+            "trait_correlations": {
+                "courage": None,
+                "curiosity": None,
+                "patience": None,
+                "sociability": None,
+            },
+            "best_trait": None,
+            "best_correlation": None,
+        }
+
     def _compute(self) -> tuple[dict, list[dict]]:
         """Single-pass computation over events.jsonl."""
         # --- Accumulators ---
@@ -53,6 +70,9 @@ class MetricsBuilder:
         innovation_rejected = 0
         innovation_names_approved: set[str] = set()
         innovation_names_used: set[str] = set()
+        agent_traits: dict[str, dict[str, float]] = {}
+        agent_entry_tick: dict[str, int] = {}
+        agent_terminal_tick: dict[str, int] = {}
 
         # Per-tick buckets (keyed by tick int)
         tick_buckets: dict[int, dict] = {}
@@ -93,6 +113,12 @@ class MetricsBuilder:
                     run_id = ev.get("run_id")
                     cfg = ev.get("payload", {}).get("config", {})
                     initial_agents = set(cfg.get("agent_names", []))
+                    for profile in cfg.get("agent_profiles", []):
+                        name = profile.get("name")
+                        personality = profile.get("personality")
+                        if name and isinstance(personality, dict):
+                            agent_traits[name] = personality
+                            agent_entry_tick[name] = 1
 
                 elif et == "run_end":
                     p = ev.get("payload", {})
@@ -126,7 +152,17 @@ class MetricsBuilder:
                         if was_alive and not is_alive:
                             b["deaths"] += 1
                             deaths += 1
+                            agent_terminal_tick.setdefault(agent_id, tick)
                         prev_alive[agent_id] = is_alive
+
+                elif et == "agent_birth":
+                    p = ev.get("payload", {})
+                    agent_name = p.get("child_name") or ev.get("agent_id")
+                    personality = p.get("personality")
+                    born_tick = p.get("born_tick", tick)
+                    if agent_name and isinstance(personality, dict):
+                        agent_traits[agent_name] = personality
+                        agent_entry_tick[agent_name] = born_tick
 
                 elif et == "innovation_attempt":
                     innovation_attempts += 1
@@ -177,6 +213,42 @@ class MetricsBuilder:
 
         # --- Build summary ---
         innovations_used = len(innovation_names_used & innovation_names_approved)
+        personality_rows: list[tuple[dict[str, float], int]] = []
+        for agent_name, traits in agent_traits.items():
+            entry_tick = agent_entry_tick.get(agent_name)
+            if entry_tick is None:
+                continue
+            terminal_tick = agent_terminal_tick.get(agent_name, total_ticks)
+            lifespan_ticks = terminal_tick - entry_tick + 1
+            if lifespan_ticks <= 0:
+                continue
+            personality_rows.append((traits, lifespan_ticks))
+
+        personality_survival = self._empty_personality_survival(sample_size=len(personality_rows))
+        if len(personality_rows) >= 2:
+            lifespans = [lifespan for _, lifespan in personality_rows]
+            for trait in personality_survival["trait_correlations"]:
+                values = [traits.get(trait) for traits, _ in personality_rows]
+                if any(value is None for value in values):
+                    continue
+                if len(set(values)) < 2 or len(set(lifespans)) < 2:
+                    continue
+                try:
+                    coefficient = round(statistics.correlation(values, lifespans), 4)
+                except statistics.StatisticsError:
+                    coefficient = None
+                personality_survival["trait_correlations"][trait] = coefficient
+
+            valid_correlations = {
+                trait: value
+                for trait, value in personality_survival["trait_correlations"].items()
+                if value is not None
+            }
+            if valid_correlations:
+                best_trait = max(valid_correlations, key=valid_correlations.get)
+                personality_survival["best_trait"] = best_trait
+                personality_survival["best_correlation"] = valid_correlations[best_trait]
+
         summary = {
             "run_id": run_id,
             "total_ticks": total_ticks,
@@ -200,6 +272,7 @@ class MetricsBuilder:
                 "approval_rate": round(innovation_approved / innovation_attempts, 4) if innovation_attempts else 0.0,
                 "realization_rate": round(innovations_used / innovation_approved, 4) if innovation_approved else 0.0,
             },
+            "personality_survival": personality_survival,
         }
         return summary, timeseries
 
