@@ -37,6 +37,7 @@ class LLMClient:
         response_model: Type[T],
         system_prompt: str = "",
         temperature: float = LLM_TEMPERATURE,
+        max_tokens: int = LLM_MAX_TOKENS,
     ) -> T | None:
         """Calls vllm with structured_outputs constraint. Returns typed model or None on error."""
         messages = []
@@ -56,7 +57,7 @@ class LLMClient:
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=LLM_MAX_TOKENS,
+                max_tokens=max_tokens,
                 response_format={
                     "type": "json_schema",
                     "json_schema": {

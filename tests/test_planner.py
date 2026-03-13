@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from simulation import prompt_loader
+from simulation.config import PLANNER_RESPONSE_MAX_TOKENS
 from simulation.planner import Planner
 from simulation.planning_state import PlanningState
 
@@ -53,6 +54,7 @@ def test_planner_returns_planning_state():
 
     assert isinstance(state, PlanningState)
     assert state.goal == "stabilize food"
+    assert llm.generate_structured.call_args[1]["max_tokens"] == PLANNER_RESPONSE_MAX_TOKENS
 
 
 def test_planner_returns_none_on_invalid_llm():

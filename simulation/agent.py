@@ -19,7 +19,7 @@ from simulation.config import (
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
     AGENT_NAME_POOL,
-    ENABLE_EXPLICIT_PLANNING, PLAN_REFRESH_INTERVAL,
+    ENABLE_EXPLICIT_PLANNING, PLAN_REFRESH_INTERVAL, DECISION_RESPONSE_MAX_TOKENS,
     PLANNER_CONTEXT_MAX, EXECUTOR_CONTEXT_MAX,
 )
 from simulation.llm_client import LLMClient
@@ -417,7 +417,12 @@ class Agent:
                                                   all_agents=all_agents)
 
         from simulation.schemas import AgentDecisionResponse
-        typed = self.llm.generate_structured(user_prompt, AgentDecisionResponse, system_prompt=system_prompt)
+        typed = self.llm.generate_structured(
+            user_prompt,
+            AgentDecisionResponse,
+            system_prompt=system_prompt,
+            max_tokens=DECISION_RESPONSE_MAX_TOKENS,
+        )
 
         logger.debug(f"[{self.name}] LLM raw response: {typed}")
 

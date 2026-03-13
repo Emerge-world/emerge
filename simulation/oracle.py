@@ -19,7 +19,8 @@ from simulation.config import (
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_ADJACENCY_MAX, REPRODUCE_COOLDOWN,
     REPRODUCE_LIFE_COST, REPRODUCE_HUNGER_COST, REPRODUCE_ENERGY_COST,
-    BONDING_TRUST_THRESHOLD,
+    BONDING_TRUST_THRESHOLD, ORACLE_RESPONSE_MAX_TOKENS,
+    ORACLE_EFFECT_RESPONSE_MAX_TOKENS,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -188,7 +189,13 @@ class Oracle:
         if self.llm:
             from simulation.schemas import PhysicalReflectionResponse
             system = prompt_loader.load("oracle/physical_system")
-            typed = self.llm.generate_structured(prompt, PhysicalReflectionResponse, system_prompt=system, temperature=0.2)
+            typed = self.llm.generate_structured(
+                prompt,
+                PhysicalReflectionResponse,
+                system_prompt=system,
+                temperature=0.2,
+                max_tokens=ORACLE_RESPONSE_MAX_TOKENS,
+            )
             if self.llm.last_call:
                 lc = self.llm.last_call
                 if self.sim_logger:
@@ -996,7 +1003,13 @@ Otherwise omit both fields."""
         from simulation.schemas import InnovationValidationResponse
         system = prompt_loader.load("oracle/innovation_system")
 
-        typed = self.llm.generate_structured(prompt, InnovationValidationResponse, system_prompt=system, temperature=0.3)
+        typed = self.llm.generate_structured(
+            prompt,
+            InnovationValidationResponse,
+            system_prompt=system,
+            temperature=0.3,
+            max_tokens=ORACLE_RESPONSE_MAX_TOKENS,
+        )
 
         if self.llm.last_call:
             lc = self.llm.last_call
@@ -1051,7 +1064,13 @@ Respond with JSON:
         from simulation.schemas import CustomActionOutcomeResponse
         system = prompt_loader.load("oracle/custom_action_system")
 
-        typed = self.llm.generate_structured(prompt, CustomActionOutcomeResponse, system_prompt=system, temperature=0.3)
+        typed = self.llm.generate_structured(
+            prompt,
+            CustomActionOutcomeResponse,
+            system_prompt=system,
+            temperature=0.3,
+            max_tokens=ORACLE_RESPONSE_MAX_TOKENS,
+        )
 
         if self.llm.last_call:
             lc = self.llm.last_call
@@ -1084,7 +1103,12 @@ Respond with JSON:
         if self.llm:
             from simulation.schemas import FruitEffectResponse
             prompt = prompt_loader.load("oracle/fruit_effect")
-            typed = self.llm.generate_structured(prompt, FruitEffectResponse, temperature=0.2)
+            typed = self.llm.generate_structured(
+                prompt,
+                FruitEffectResponse,
+                temperature=0.2,
+                max_tokens=ORACLE_EFFECT_RESPONSE_MAX_TOKENS,
+            )
             if self.llm.last_call:
                 lc = self.llm.last_call
                 if self.sim_logger:
@@ -1151,7 +1175,13 @@ Respond with JSON:
                 f"Respond with JSON: {{\"possible\": true/false, \"hunger_reduction\": 10, "
                 f"\"life_change\": 0, \"reason\": \"brief explanation\"}}"
             )
-            typed = self.llm.generate_structured(prompt, ItemEatEffectResponse, system_prompt=system, temperature=0.2)
+            typed = self.llm.generate_structured(
+                prompt,
+                ItemEatEffectResponse,
+                system_prompt=system,
+                temperature=0.2,
+                max_tokens=ORACLE_EFFECT_RESPONSE_MAX_TOKENS,
+            )
             if self.llm.last_call:
                 lc = self.llm.last_call
                 if self.sim_logger:

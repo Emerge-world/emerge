@@ -22,6 +22,7 @@ from simulation.config import (
     INNOVATION_EFFECT_BOUNDS,
     ENERGY_COST_INNOVATE,
     BASE_ACTIONS,
+    ORACLE_RESPONSE_MAX_TOKENS,
 )
 
 
@@ -110,6 +111,21 @@ class TestInnovationNoLLM:
         result = oracle.resolve_action(agent, {"action": "gather_wood"}, tick=2)
         assert result["success"] is True
         assert result["effects"].get("energy") == -5  # generic fallback cost
+
+    def test_innovation_validation_uses_oracle_token_budget(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        llm = _mock_llm({"approved": True, "reason": "ok", "category": "SURVIVAL"})
+        oracle = _make_oracle(world, llm=llm)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+
+        assert result["success"] is True
+        assert llm.generate_structured.call_args[1]["max_tokens"] == ORACLE_RESPONSE_MAX_TOKENS
 
 
 # ---------------------------------------------------------------------------

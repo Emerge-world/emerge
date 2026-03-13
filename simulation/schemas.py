@@ -4,14 +4,22 @@ These are used with vllm's guided_json constrained decoding.
 """
 
 from enum import Enum
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
 
 
+IdentifierText = Annotated[str, Field(max_length=64)]
+DirectionText = Annotated[str, Field(max_length=16)]
+ReasonText = Annotated[str, Field(max_length=160)]
+MediumText = Annotated[str, Field(max_length=240)]
+LongText = Annotated[str, Field(max_length=280)]
+SignalText = Annotated[str, Field(max_length=120)]
+
+
 class PhysicalReflectionResponse(BaseModel):
     possible: bool
-    reason: str
+    reason: ReasonText
     life_damage: int = 0
 
 
@@ -24,7 +32,7 @@ class InnovationCategory(str, Enum):
 
 class InnovationValidationResponse(BaseModel):
     approved: bool
-    reason: str
+    reason: ReasonText
     category: InnovationCategory
     aggressive: bool = False
     trust_impact: float = 0.0
@@ -38,7 +46,7 @@ class EffectsModel(BaseModel):
 
 class CustomActionOutcomeResponse(BaseModel):
     success: bool
-    message: str
+    message: MediumText
     effects: EffectsModel
 
 
@@ -46,42 +54,42 @@ class ItemEatEffectResponse(BaseModel):
     possible: bool
     hunger_reduction: int
     life_change: int
-    reason: str
+    reason: ReasonText
 
 
 class AgentDecisionResponse(BaseModel):
-    action: str
-    reason: str
-    direction: Optional[str] = None       # move
-    new_action_name: Optional[str] = None  # innovate
-    description: Optional[str] = None     # innovate
-    target: Optional[str] = None          # communicate / give_item / teach / reproduce
-    message: Optional[str] = None         # communicate
-    intent: Optional[str] = None          # communicate
-    item: Optional[str] = None            # give_item
+    action: IdentifierText
+    reason: ReasonText
+    direction: Optional[DirectionText] = None       # move
+    new_action_name: Optional[IdentifierText] = None  # innovate
+    description: Optional[LongText] = None     # innovate
+    target: Optional[IdentifierText] = None          # communicate / give_item / teach / reproduce
+    message: Optional[LongText] = None         # communicate
+    intent: Optional[IdentifierText] = None          # communicate
+    item: Optional[IdentifierText] = None            # give_item
     quantity: Optional[int] = None        # give_item
-    skill: Optional[str] = None           # teach
+    skill: Optional[IdentifierText] = None           # teach
 
 
 class PlanSubgoalResponse(BaseModel):
-    description: str
-    kind: str
-    target: Optional[str] = None
-    preconditions: list[str] = Field(default_factory=list)
-    completion_signal: str
-    failure_signal: str
+    description: MediumText
+    kind: IdentifierText
+    target: Optional[IdentifierText] = None
+    preconditions: list[SignalText] = Field(default_factory=list)
+    completion_signal: SignalText
+    failure_signal: SignalText
     priority: int = 1
 
 
 class AgentPlanResponse(BaseModel):
-    goal: str
-    goal_type: str
+    goal: ReasonText
+    goal_type: IdentifierText
     subgoals: list[PlanSubgoalResponse] = Field(default_factory=list)
-    horizon: str
-    success_signals: list[str] = Field(default_factory=list)
-    abort_conditions: list[str] = Field(default_factory=list)
+    horizon: IdentifierText
+    success_signals: list[SignalText] = Field(default_factory=list)
+    abort_conditions: list[SignalText] = Field(default_factory=list)
     confidence: float
-    rationale_summary: str
+    rationale_summary: MediumText
 
 
 class FruitEffectResponse(BaseModel):
@@ -89,4 +97,4 @@ class FruitEffectResponse(BaseModel):
 
 
 class MemoryCompressionResponse(BaseModel):
-    learnings: list[str]
+    learnings: list[MediumText]

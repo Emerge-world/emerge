@@ -1,4 +1,5 @@
 from simulation import prompt_loader
+from simulation.config import PLANNER_RESPONSE_MAX_TOKENS
 from simulation.planning_state import PlanningState, PlanningSubgoal
 from simulation.schemas import AgentPlanResponse
 
@@ -33,6 +34,7 @@ class Planner:
             AgentPlanResponse,
             system_prompt=system_prompt,
             temperature=0.3,
+            max_tokens=PLANNER_RESPONSE_MAX_TOKENS,
         )
         if typed is None:
             self.last_call = {}

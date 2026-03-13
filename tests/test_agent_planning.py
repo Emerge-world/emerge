@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from simulation.agent import Agent
+from simulation.config import DECISION_RESPONSE_MAX_TOKENS
 from simulation.oracle import Oracle
 from simulation.planning_state import PlanningState, PlanningSubgoal
 from simulation.schemas import AgentDecisionResponse, AgentPlanResponse, PlanSubgoalResponse
@@ -88,7 +89,7 @@ def test_successful_replan_includes_planner_llm_trace(monkeypatch):
         reason="following plan",
     )
 
-    def fake_generate_structured(prompt, schema, system_prompt="", temperature=None):
+    def fake_generate_structured(prompt, schema, system_prompt="", temperature=None, max_tokens=None):
         if schema is AgentPlanResponse:
             llm.last_call = {
                 "system_prompt": system_prompt,
@@ -130,5 +131,6 @@ def test_decide_action_omits_none_fields_before_oracle_eat_resolution():
     action = agent.decide_action([{"x": 2, "y": 2, "tile": "land", "distance": 0}], tick=1)
 
     assert "item" not in action
+    assert llm.generate_structured.call_args[1]["max_tokens"] == DECISION_RESPONSE_MAX_TOKENS
     result = oracle.resolve_action(agent, action, tick=1)
     assert result["success"] is False
