@@ -403,6 +403,13 @@ class Agent:
                     "subgoal_count": len(new_plan.subgoals),
                     "confidence": round(new_plan.confidence, 2),
                 }
+                planner_llm = (
+                    dict(self.planner.last_call)
+                    if self.planner and self.planner.last_call
+                    else {}
+                )
+                if planner_llm:
+                    planning_trace["planner_llm"] = planner_llm
 
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description,

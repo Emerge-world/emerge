@@ -58,6 +58,64 @@ def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
     assert action["_planning_trace"]["plan_created"]["goal"] == "stabilize food"
 
 
+def test_successful_replan_includes_planner_llm_trace(monkeypatch):
+    llm = MagicMock()
+    llm.last_call = {}
+
+    plan_response = AgentPlanResponse(
+        goal="stabilize food",
+        goal_type="survival",
+        subgoals=[
+            PlanSubgoalResponse(
+                description="move toward fruit",
+                kind="move",
+                target="fruit",
+                preconditions=["fruit visible"],
+                completion_signal="adjacent to fruit",
+                failure_signal="fruit disappears",
+                priority=1,
+            )
+        ],
+        horizon="short",
+        success_signals=["eat fruit"],
+        abort_conditions=["energy <= 10"],
+        confidence=0.8,
+        rationale_summary="fruit visible",
+    )
+    decision_response = AgentDecisionResponse(
+        action="move",
+        direction="east",
+        reason="following plan",
+    )
+
+    def fake_generate_structured(prompt, schema, system_prompt="", temperature=None):
+        if schema is AgentPlanResponse:
+            llm.last_call = {
+                "system_prompt": system_prompt,
+                "user_prompt": prompt,
+                "raw_response": '{"goal":"stabilize food"}',
+            }
+            return plan_response
+        llm.last_call = {
+            "system_prompt": system_prompt,
+            "user_prompt": prompt,
+            "raw_response": '{"action":"move","direction":"east","reason":"following plan"}',
+        }
+        return decision_response
+
+    llm.generate_structured.side_effect = fake_generate_structured
+    agent = Agent(name="Ada", x=5, y=5, llm=llm)
+    monkeypatch.setattr("simulation.agent.ENABLE_EXPLICIT_PLANNING", True)
+
+    action = agent.decide_action([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=2)
+
+    planner_trace = action["_planning_trace"]["planner_llm"]
+    assert planner_trace["system_prompt"]
+    assert "Build or refresh your plan" in planner_trace["user_prompt"]
+    assert planner_trace["raw_response"] == '{"goal":"stabilize food"}'
+    assert planner_trace["parsed_plan"]["goal"] == "stabilize food"
+
+
 def test_decide_action_omits_none_fields_before_oracle_eat_resolution():
     llm = MagicMock()
     llm.last_call = {}

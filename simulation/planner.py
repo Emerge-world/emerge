@@ -6,6 +6,7 @@ from simulation.schemas import AgentPlanResponse
 class Planner:
     def __init__(self, llm):
         self.llm = llm
+        self.last_call: dict = {}
 
     def plan(
         self,
@@ -16,6 +17,7 @@ class Planner:
         current_plan: PlanningState | None = None,
     ) -> PlanningState | None:
         if not self.llm:
+            self.last_call = {}
             return None
 
         system_prompt = prompt_loader.render("agent/planner_system", agent_name=agent_name)
@@ -33,7 +35,16 @@ class Planner:
             temperature=0.3,
         )
         if typed is None:
+            self.last_call = {}
             return None
+
+        llm_trace = dict(self.llm.last_call) if self.llm.last_call else {}
+        self.last_call = {
+            "system_prompt": llm_trace.get("system_prompt", system_prompt),
+            "user_prompt": llm_trace.get("user_prompt", user_prompt),
+            "raw_response": llm_trace.get("raw_response", ""),
+            "parsed_plan": typed.model_dump(),
+        }
 
         return PlanningState(
             goal=typed.goal,
