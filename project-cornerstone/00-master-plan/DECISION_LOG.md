@@ -344,3 +344,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Add a canonical `agent_birth` event to `events.jsonl` and make `DigestBuilder` derive born-agent inclusion and lineage metadata from the run event stream itself. Initial settlers retain `generation=0`, `born_tick=0`, `parent_ids=[]`. Born agents carry `generation`, `born_tick`, and `parent_ids` from `agent_birth`. Older runs without `agent_birth` still include later-discovered agents, but their lineage falls back to unknown values rather than reading `data/lineage_<seed>.json`.
 - **Rejected alternatives**: Repeating lineage fields on every `agent_state` event (wasteful event bloat); reading lineage persistence files outside `run_dir` (breaks digest self-containment and reproducibility expectations).
 - **Consequences**: `llm_digest` remains deterministic and portable with the run directory alone. Canonical event coverage now includes births, enabling post-run tools to reason about generations without reaching into external state.
+
+### DEC-036: Personality-survival analytics stay event-sourced
+- **Date**: 2026-03-13
+- **Context**: Personality traits influence behavior, but run artifacts did not preserve trait snapshots, so there was no deterministic way to analyze which traits align with longer survival across both initial and born agents.
+- **Decision**: Persist personality snapshots once per agent in canonical run events (`run_start` for initial agents, `agent_birth` for born agents) and compute per-run Pearson correlations in `metrics/summary.json`.
+- **Rejected alternatives**: Reading mutable external files such as lineage state, storing per-tick personality snapshots, or introducing a separate analytics builder for this narrow metric.
+- **Consequences**: Run artifacts remain self-contained for this metric, born agents are included, and older runs degrade cleanly to null coefficients when personality snapshots are unavailable.
