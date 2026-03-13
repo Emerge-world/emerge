@@ -35,7 +35,7 @@ Memory   Precedents Resources
 
 ### Event Layer (`simulation/event_emitter.py`)
 - Always-on canonical telemetry per run.
-- Includes lifecycle events needed for post-run reconstruction, including agent births.
+- Includes lifecycle events needed for post-run reconstruction, including agent births and personality snapshots for initial and born agents.
 - Stores prompt and raw LLM blobs deduplicated by hash.
 
 ## Invariants
@@ -49,7 +49,7 @@ Memory   Precedents Resources
 ## Notable Supporting Modules
 
 - `simulation/day_cycle.py`: day/sunset/night logic.
-- `simulation/metrics_builder.py`: derives summary + timeseries from event streams.
+- `simulation/metrics_builder.py`: derives summary + timeseries from event streams, including personality-to-survival correlation metrics.
 - `simulation/wandb_logger.py`: optional observer metrics to W&B.
 - `run_batch.py`: YAML-configured subprocess sweep runner.
 - `server/event_bus.py`: async fan-out from simulation thread to WebSocket clients.

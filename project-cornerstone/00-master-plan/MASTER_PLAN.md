@@ -55,7 +55,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 
 ## Priority Next Arc (recommended)
 
-1. **Metrics maturity:** standard KPI schema (survival, innovation utility, cooperation, lineage fitness)
+1. **Metrics maturity:** standard KPI schema (survival, innovation utility, cooperation, lineage fitness, personality-to-survival correlation)
 2. **Replayability:** event-sourced replay in UI from persisted runs
 3. **Culture experiments:** emergent vocabulary/coordination protocols and measurement
 4. **World pressure:** weather and scarcity cycles to test adaptation robustness
