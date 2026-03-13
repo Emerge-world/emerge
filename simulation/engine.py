@@ -256,6 +256,7 @@ class SimulationEngine:
             # 3. Log the decision (extract and remove the trace before passing to oracle)
             llm_trace = action.pop("_llm_trace", None)
             planning_trace = action.pop("_planning_trace", None) or {}
+            planner_llm = planning_trace.pop("planner_llm", None)
             action_source = "llm" if (llm_trace and llm_trace.get("raw_response")) else "fallback"
             self.event_emitter.emit_agent_decision(
                 tick, agent.name, action, parse_ok=(action_source == "llm"),
@@ -278,6 +279,15 @@ class SimulationEngine:
                     tick,
                     agent.name,
                     planning_trace["subgoal_failed"],
+                )
+            if planner_llm:
+                self.sim_logger.log_agent_plan(
+                    tick,
+                    agent,
+                    system_prompt=planner_llm.get("system_prompt", ""),
+                    user_prompt=planner_llm.get("user_prompt", ""),
+                    raw_response=planner_llm.get("raw_response", ""),
+                    parsed_plan=planner_llm.get("parsed_plan", {}),
                 )
             if action_source == "llm":
                 self.sim_logger.log_agent_decision(

@@ -9,6 +9,7 @@ Creates a folder per run with human-readable markdown files:
     oracle.md          — all oracle LLM calls
 """
 
+import json
 import os
 from datetime import datetime
 
@@ -115,6 +116,24 @@ class SimLogger:
             f"**Reason:** {reason}\n\n"
         )
         self._append(f"tick_{tick:04d}.md", block)
+        self._append(self._agent_file(agent.name), f"## Tick {tick:04d}\n\n{block}")
+
+    def log_agent_plan(
+        self,
+        tick: int,
+        agent,
+        system_prompt: str,
+        user_prompt: str,
+        raw_response: str,
+        parsed_plan: dict,
+    ):
+        """Log planner LLM details to the per-agent file only."""
+        block = self._format_planner_block(
+            system_prompt,
+            user_prompt,
+            raw_response,
+            parsed_plan,
+        )
         self._append(self._agent_file(agent.name), f"## Tick {tick:04d}\n\n{block}")
 
     def log_oracle_resolution(
@@ -261,4 +280,18 @@ class SimLogger:
             f"```\n{user_prompt}\n```\n\n</details>\n\n"
             f"<details>\n<summary>Raw LLM response</summary>\n\n"
             f"```\n{raw_response}\n```\n\n</details>\n\n"
+        )
+
+    @staticmethod
+    def _format_planner_block(system_prompt, user_prompt, raw_response, parsed_plan) -> str:
+        parsed_json = json.dumps(parsed_plan, indent=2, sort_keys=True)
+        return (
+            "### Planner\n\n"
+            "<details>\n<summary>System prompt</summary>\n\n"
+            f"```\n{system_prompt}\n```\n\n</details>\n\n"
+            "<details>\n<summary>Planner prompt</summary>\n\n"
+            f"```\n{user_prompt}\n```\n\n</details>\n\n"
+            "<details>\n<summary>Raw LLM response</summary>\n\n"
+            f"```\n{raw_response}\n```\n\n</details>\n\n"
+            f"### Parsed plan\n\n```json\n{parsed_json}\n```\n\n"
         )
