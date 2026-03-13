@@ -39,3 +39,17 @@ class TestEnginePersonalityEventWiring:
             "patience",
             "sociability",
         }
+
+
+class TestEnginePersonalityMetricArtifacts:
+    def test_run_builds_personality_survival_summary(self, tmp_path, monkeypatch):
+        engine = _make_engine(tmp_path, monkeypatch, agents=2, ticks=2)
+        engine.run()
+
+        summary = json.loads(
+            (engine.event_emitter.run_dir / "metrics" / "summary.json").read_text(encoding="utf-8")
+        )
+
+        assert "personality_survival" in summary
+        assert summary["personality_survival"]["method"] == "pearson_correlation"
+        assert summary["personality_survival"]["sample_size"] == 2
