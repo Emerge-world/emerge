@@ -1,7 +1,23 @@
 from unittest.mock import MagicMock
 
+from simulation import prompt_loader
 from simulation.planner import Planner
 from simulation.planning_state import PlanningState
+
+
+def test_planner_prompt_includes_reflection_questions():
+    prompt = prompt_loader.render(
+        "agent/planner",
+        tick=5,
+        observation_text="fruit east",
+        planner_context="- fruit helps",
+        current_plan="stabilize food",
+    )
+
+    assert "What is my long-term goal?" in prompt
+    assert "Am I getting closer to that goal?" in prompt
+    assert "Could I do this more efficiently?" in prompt
+    assert "Do I need to change my goal?" in prompt
 
 
 def test_planner_returns_planning_state():
