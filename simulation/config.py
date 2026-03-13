@@ -103,7 +103,7 @@ LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS  = 768
 
 # --- Simulation ---
-MAX_TICKS = 72   # maximum ticks per run (3 full in-world days)
+MAX_TICKS = None   # None = infinite/unbounded runs by default
 TICK_DELAY_SECONDS = 0.5  # pause between ticks for console readability
 
 # --- Logging ---

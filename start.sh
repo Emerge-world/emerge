@@ -6,7 +6,7 @@
 #
 # All options are forwarded to the Python server:
 #   --agents N       Number of agents (default: 3)
-#   --ticks N        Max ticks (default: 500)
+#   --ticks N|infinite  Max ticks (default: infinite)
 #   --seed N         World seed
 #   --no-llm         Disable LLM, use rule-based fallback
 #   --port N         Server port (default: 8001)

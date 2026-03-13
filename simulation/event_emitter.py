@@ -37,7 +37,7 @@ class EventEmitter:
         seed: Optional[int],
         world_width: int,
         world_height: int,
-        max_ticks: int,
+        max_ticks: int | None,
         agent_count: int,
         agent_names: list[str],
         agent_model_id: str,
@@ -153,7 +153,7 @@ class EventEmitter:
         world_seed: Optional[int],
         width: int,
         height: int,
-        max_ticks: int,
+        max_ticks: int | None,
         agent_profiles: Optional[list[dict]] = None,
     ):
         """Emit run_start as the first event (tick=0, sim_time=None)."""

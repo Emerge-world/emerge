@@ -28,6 +28,7 @@ from simulation.lineage import LineageTracker
 from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
 from simulation.ebs_builder import EBSBuilder
+from simulation.tick_limits import format_tick_limit, iter_tick_numbers
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class SimulationEngine:
         num_agents: int = 3,
         world_seed: Optional[int] = None,
         use_llm: bool = True,
-        max_ticks: int = MAX_TICKS,
+        max_ticks: int | None = MAX_TICKS,
         start_hour: int = WORLD_START_HOUR,
         world_width: int = WORLD_WIDTH,
         world_height: int = WORLD_HEIGHT,
@@ -151,8 +152,7 @@ class SimulationEngine:
         )
 
         try:
-            for tick in range(1, self.max_ticks + 1):
-                self.current_tick = tick
+            for tick in iter_tick_numbers(self.max_ticks):
                 alive_agents = [a for a in self.agents if a.alive]
 
                 if not alive_agents:
@@ -160,6 +160,7 @@ class SimulationEngine:
                     print("\n☠️  ALL AGENTS HAVE DIED. End of simulation.")
                     break
 
+                self.current_tick = tick
                 self._run_tick(tick, alive_agents)
 
                 if TICK_DELAY_SECONDS > 0:
@@ -486,7 +487,7 @@ class SimulationEngine:
     def _log_overview_start(self):
         """Write initial overview to sim logger."""
         config_summary = {
-            "max_ticks": self.max_ticks,
+            "max_ticks": format_tick_limit(self.max_ticks),
             "num_agents": len(self.agents),
             "use_llm": self.use_llm,
             "llm_model": self.llm.model if self.llm else "none",
@@ -510,7 +511,7 @@ class SimulationEngine:
         print(f"  Available fruit: {fruit_qty} in {fruit_locs} trees")
         print(f"  Agents: {len(self.agents)}")
         print(f"  LLM: {'✅ ' + self.llm.model if self.llm else '❌ Fallback mode (no LLM)'}")
-        print(f"  Max ticks: {self.max_ticks}")
+        print(f"  Max ticks: {format_tick_limit(self.max_ticks)}")
 
         print("\n  Initial agents:")
         for agent in self.agents:
@@ -653,19 +654,19 @@ class SimulationEngine:
         )
 
         try:
-            for tick in range(1, self.max_ticks + 1):
+            for tick in iter_tick_numbers(self.max_ticks):
                 # Honour pause requests
                 if pause_flag is not None:
                     while pause_flag.is_set():
                         time.sleep(0.05)
 
-                self.current_tick = tick
                 alive_agents = [a for a in self.agents if a.alive]
 
                 if not alive_agents:
                     logger.info("All agents have died — simulation complete")
                     break
 
+                self.current_tick = tick
                 self._tick_events = []
                 self._run_tick(tick, alive_agents)
 
