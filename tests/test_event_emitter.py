@@ -8,6 +8,7 @@ import pytest
 from simulation.config import BASE_ACTIONS
 from simulation.day_cycle import DayCycle
 from simulation.event_emitter import EventEmitter
+from simulation.personality import Personality
 
 
 # ------------------------------------------------------------------ #
@@ -33,7 +34,17 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42):
     return em
 
 
-def _mock_agent(name="Ada", life=100.0, hunger=5.0, energy=90.0, x=3, y=4, alive=True, inventory=None):
+def _mock_agent(
+    name="Ada",
+    life=100.0,
+    hunger=5.0,
+    energy=90.0,
+    x=3,
+    y=4,
+    alive=True,
+    inventory=None,
+    personality=None,
+):
     agent = MagicMock()
     agent.name = name
     agent.life = life
@@ -43,6 +54,12 @@ def _mock_agent(name="Ada", life=100.0, hunger=5.0, energy=90.0, x=3, y=4, alive
     agent.y = y
     agent.alive = alive
     agent.inventory.items = inventory or {}
+    agent.personality = personality or Personality(
+        courage=0.8,
+        curiosity=0.3,
+        patience=0.6,
+        sociability=0.1,
+    )
     return agent
 
 
@@ -136,6 +153,45 @@ class TestRunStart:
         assert p["config"]["agent_count"] == 2
         assert p["model_id"] == "my-model"
         assert p["world_seed"] == 7
+
+
+class TestRunStartPersonality:
+    def test_payload_includes_agent_profiles(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_run_start(
+            ["Ada", "Bruno"],
+            "my-model",
+            7,
+            20,
+            20,
+            100,
+            agent_profiles=[
+                {
+                    "name": "Ada",
+                    "personality": {
+                        "courage": 0.8,
+                        "curiosity": 0.2,
+                        "patience": 0.6,
+                        "sociability": 0.4,
+                    },
+                },
+                {
+                    "name": "Bruno",
+                    "personality": {
+                        "courage": 0.3,
+                        "curiosity": 0.9,
+                        "patience": 0.5,
+                        "sociability": 0.1,
+                    },
+                },
+            ],
+        )
+        em.close()
+
+        profiles = _read_events(tmp_path)[0]["payload"]["config"]["agent_profiles"]
+        assert [p["name"] for p in profiles] == ["Ada", "Bruno"]
+        assert profiles[0]["personality"]["courage"] == 0.8
+        assert profiles[1]["personality"]["sociability"] == 0.1
 
 
 # ------------------------------------------------------------------ #
@@ -301,6 +357,42 @@ class TestAgentBirth:
             "born_tick": 12,
             "parent_ids": ["Ada", "Bruno"],
             "pos": [4, 5],
+            "personality": {
+                "courage": 0.8,
+                "curiosity": 0.3,
+                "patience": 0.6,
+                "sociability": 0.1,
+            },
+        }
+
+
+class TestAgentBirthPersonality:
+    def test_birth_payload_includes_personality(self, tmp_path, monkeypatch):
+        em = _make_emitter(tmp_path, monkeypatch)
+        child = _mock_agent(
+            name="Kira",
+            x=4,
+            y=5,
+            personality=Personality(
+                courage=0.56,
+                curiosity=0.41,
+                patience=0.73,
+                sociability=0.28,
+            ),
+        )
+        child.generation = 1
+        child.born_tick = 12
+        child.parent_ids = ["Ada", "Bruno"]
+
+        em.emit_agent_birth(12, child)
+        em.close()
+
+        payload = _read_events(tmp_path)[0]["payload"]
+        assert payload["personality"] == {
+            "courage": 0.56,
+            "curiosity": 0.41,
+            "patience": 0.73,
+            "sociability": 0.28,
         }
 
 
