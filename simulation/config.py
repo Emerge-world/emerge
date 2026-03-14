@@ -200,6 +200,9 @@ BASE_ACTIONS = INITIAL_ACTIONS + list(AGE_UNLOCKED_ACTIONS)
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry
 
+# --- EBS ---
+EBS_LONGEVITY_REFERENCE_AGENT_TICKS = 1500  # λ: ~3 agents × 500 ticks baseline
+
 # --- Resource regeneration ---
 RESOURCE_REGEN_CHANCE = 0.3          # probability per depleted tree at each dawn
 RESOURCE_REGEN_AMOUNT_MIN = 1        # minimum fruit spawned on regeneration
