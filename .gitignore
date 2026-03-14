@@ -50,3 +50,10 @@ wandb/
 
 # Peon Ping files
 *.wav
+
+# Latex auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
