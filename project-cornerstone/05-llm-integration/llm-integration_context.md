@@ -5,6 +5,8 @@
 - Main client: `simulation/llm_client.py`
 - Config defaults target OpenAI-compatible vLLM endpoint (`VLLM_BASE_URL` + `VLLM_MODEL`).
 - Structured responses are used for agent decisions and oracle validations.
+- Structured schemas cap free-text fields so decision/planner calls stay compact and are less likely to emit truncated JSON.
+- Callers can override `max_tokens`, and high-frequency decision/planner/oracle calls use smaller per-call budgets than the global default.
 - Fallback behavior is present when parsing/LLM calls fail.
 
 ## Prompt system

@@ -59,6 +59,12 @@ def _read_tick(logger: SimLogger, tick: int) -> str:
         return f.read()
 
 
+def _read_agent(logger: SimLogger, agent_name: str = "Ada") -> str:
+    path = os.path.join(logger.run_dir, "agents", f"{agent_name}.md")
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def _mock_agent(inv_items: dict | None = None) -> MagicMock:
     """Create a minimal agent mock for SimLogger tests."""
     agent = MagicMock()
@@ -221,6 +227,26 @@ class TestResolveCustomActionCraftingEvent:
 # ---------------------------------------------------------------------------
 # SimLogger: log_oracle_resolution inventory diff
 # ---------------------------------------------------------------------------
+
+class TestSimLoggerPlannerBlock:
+    def test_planner_block_written_to_agent_file(self, logger):
+        agent = _mock_agent()
+        logger.log_agent_plan(
+            tick=1,
+            agent=agent,
+            system_prompt="planner system",
+            user_prompt="planner prompt",
+            raw_response='{"goal":"stabilize food"}',
+            parsed_plan={"goal": "stabilize food", "subgoals": []},
+        )
+
+        content = _read_agent(logger, "Ada")
+        assert "Planner" in content
+        assert "planner system" in content
+        assert "planner prompt" in content
+        assert '{"goal":"stabilize food"}' in content
+        assert "stabilize food" in content
+
 
 class TestSimLoggerInventoryDiff:
     def _write_resolution(self, logger: SimLogger, agent, inventory_before: dict | None,

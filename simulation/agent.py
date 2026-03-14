@@ -19,11 +19,16 @@ from simulation.config import (
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
     AGENT_NAME_POOL,
+    ENABLE_EXPLICIT_PLANNING, PLAN_REFRESH_INTERVAL, DECISION_RESPONSE_MAX_TOKENS,
+    PLANNER_CONTEXT_MAX, EXECUTOR_CONTEXT_MAX,
 )
 from simulation.llm_client import LLMClient
 from simulation.memory import Memory
 from simulation.inventory import Inventory
 from simulation.personality import Personality
+from simulation.planner import Planner
+from simulation.planning_state import PlanningState, PlanningSubgoal
+from simulation.retrieval import RetrievalContext, rank_memory_entries
 from simulation import prompt_loader
 from simulation.message import IncomingMessage
 from simulation.relationship import Relationship
@@ -94,6 +99,9 @@ class Agent:
 
         # LLM
         self.llm = llm
+        self.planner = Planner(llm) if llm else None
+        self.planning_state = PlanningState.empty()
+        self.last_execution_result: dict = {}
 
         logger.info(f"Agent '{self.name}' created at ({self.x}, {self.y})")
 
@@ -263,6 +271,87 @@ class Agent:
 
         return "\n".join(parts)
 
+    def current_subgoal(self) -> PlanningSubgoal | None:
+        if not self.planning_state.subgoals:
+            return None
+        if self.planning_state.active_subgoal_index >= len(self.planning_state.subgoals):
+            return None
+        return self.planning_state.subgoals[self.planning_state.active_subgoal_index]
+
+    def current_subgoal_text(self) -> str:
+        subgoal = self.current_subgoal()
+        if not subgoal:
+            return "None."
+        if subgoal.target:
+            return f"{subgoal.description} (target: {subgoal.target})"
+        return subgoal.description
+
+    def _visible_resource_names(self, nearby_tiles: list[dict]) -> set[str]:
+        return {
+            tile["resource"]["type"]
+            for tile in nearby_tiles
+            if tile.get("resource") and isinstance(tile["resource"], dict)
+        }
+
+    def _build_retrieval_context(self, nearby_tiles: list[dict]) -> RetrievalContext:
+        return RetrievalContext(
+            hunger=self.hunger,
+            energy=self.energy,
+            life=self.life,
+            visible_resources=self._visible_resource_names(nearby_tiles),
+            inventory_items=set(self.inventory.items.keys()),
+            current_goal=self.planning_state.goal,
+            current_subgoal=self.current_subgoal_text(),
+            blockers=tuple(self.planning_state.blockers),
+        )
+
+    def _rank_relevant_memory(self, nearby_tiles: list[dict], limit: int) -> list[str]:
+        context = self._build_retrieval_context(nearby_tiles)
+        return rank_memory_entries(
+            semantic=self.memory_system.semantic,
+            episodic=self.memory_system.episodic,
+            task=[entry.summary for entry in self.memory_system.task],
+            context=context,
+            limit=limit,
+        )
+
+    def _build_executor_memory_text(self, nearby_tiles: list[dict]) -> str:
+        ranked = self._rank_relevant_memory(nearby_tiles, EXECUTOR_CONTEXT_MAX)
+        if not ranked:
+            return self.get_recent_memory()
+        lines = "\n".join(f"- [RELEVANT] {entry}" for entry in ranked)
+        return f"RELEVANT MEMORY:\n{lines}"
+
+    def _build_observation_text(
+        self,
+        nearby_tiles: list[dict],
+        time_description: str,
+        nearby_agents: list | None = None,
+    ) -> str:
+        resources = sorted(self._visible_resource_names(nearby_tiles))
+        nearby_names = [other.name for other, _ in (nearby_agents or [])]
+        parts = [
+            f"Stats: life={self.life}, hunger={self.hunger}, energy={self.energy}",
+            f"Visible resources: {', '.join(resources) if resources else 'none'}",
+            f"Inventory: {self.inventory.to_prompt() or 'empty'}",
+            f"Nearby agents: {', '.join(nearby_names) if nearby_names else 'none'}",
+        ]
+        if time_description:
+            parts.insert(0, time_description.strip())
+        return "\n".join(parts)
+
+    def _plan_status_text(self) -> str:
+        if not self.planning_state.goal:
+            return "No active plan."
+        return (
+            f"status={self.planning_state.status}, "
+            f"confidence={self.planning_state.confidence:.2f}, "
+            f"horizon={self.planning_state.horizon}"
+        )
+
+    def _should_replan(self, tick: int) -> bool:
+        return self.planning_state.needs_replan(tick, PLAN_REFRESH_INTERVAL)
+
     # --- Decision making with LLM ---
 
     def decide_action(self, nearby_tiles: list[dict], tick: int,
@@ -282,13 +371,59 @@ class Agent:
             # Fallback without LLM: simple random action
             return self._fallback_decision(nearby_tiles)
 
+        planning_trace: dict = {}
+        if ENABLE_EXPLICIT_PLANNING and self.planner and self._should_replan(tick):
+            new_plan = self.planner.plan(
+                agent_name=self.name,
+                tick=tick,
+                observation_text=self._build_observation_text(
+                    nearby_tiles,
+                    time_description,
+                    nearby_agents=nearby_agents or [],
+                ),
+                planner_context=self._rank_relevant_memory(nearby_tiles, PLANNER_CONTEXT_MAX),
+                current_plan=self.planning_state if self.planning_state.goal else None,
+            )
+            if new_plan is not None:
+                had_usable_plan = (
+                    self.planning_state.goal
+                    and self.planning_state.status not in {"empty", "stale", "abandoned", "completed"}
+                )
+                event_name = "plan_updated" if had_usable_plan else "plan_created"
+                self.planning_state = new_plan
+                self.memory_system.add_task_entry(
+                    tick=tick,
+                    kind=event_name,
+                    summary=new_plan.rationale_summary or new_plan.goal,
+                    goal=new_plan.goal,
+                    outcome=new_plan.status,
+                )
+                planning_trace[event_name] = {
+                    "goal": new_plan.goal,
+                    "goal_type": new_plan.goal_type,
+                    "subgoal_count": len(new_plan.subgoals),
+                    "confidence": round(new_plan.confidence, 2),
+                }
+                planner_llm = (
+                    dict(self.planner.last_call)
+                    if self.planner and self.planner.last_call
+                    else {}
+                )
+                if planner_llm:
+                    planning_trace["planner_llm"] = planner_llm
+
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_decision_prompt(nearby_tiles, tick, time_description,
                                                   nearby_agents=nearby_agents or [],
                                                   all_agents=all_agents)
 
         from simulation.schemas import AgentDecisionResponse
-        typed = self.llm.generate_structured(user_prompt, AgentDecisionResponse, system_prompt=system_prompt)
+        typed = self.llm.generate_structured(
+            user_prompt,
+            AgentDecisionResponse,
+            system_prompt=system_prompt,
+            max_tokens=DECISION_RESPONSE_MAX_TOKENS,
+        )
 
         logger.debug(f"[{self.name}] LLM raw response: {typed}")
 
@@ -296,14 +431,18 @@ class Agent:
         llm_trace = dict(self.llm.last_call) if self.llm.last_call else {}
 
         if typed is not None:
-            result = typed.model_dump()
+            # Drop optional fields that the LLM did not set so downstream
+            # action resolvers only see real parameters, not explicit None values.
+            result = typed.model_dump(exclude_none=True)
             logger.debug(f"[{self.name}] LLM decided: {result}")
             result["_llm_trace"] = llm_trace
+            result["_planning_trace"] = planning_trace
             return result
         else:
             logger.warning(f"[{self.name}] LLM did not return a valid action, using fallback")
             fallback = self._fallback_decision(nearby_tiles)
             fallback["_llm_trace"] = llm_trace
+            fallback["_planning_trace"] = planning_trace
             return fallback
 
     def _build_ascii_grid(self, nearby_tiles: list[dict]) -> str:
@@ -375,7 +514,7 @@ class Agent:
         )
         current_tile_info = f"[Tile: {_current_tile}]"
         resource_hints = self._build_resource_hints(nearby_tiles)
-        memory_text = self.get_recent_memory()
+        memory_text = self._build_executor_memory_text(nearby_tiles)
 
         if self.energy <= 0:
             status_effects = prompt_loader.load("agent/energy_critical")
@@ -389,6 +528,9 @@ class Agent:
         incoming_messages_text = self.get_messages_prompt()
         relationships_text = self.get_relationships_prompt(current_tick=tick)
         family_info = self.get_family_prompt(current_tick=tick, all_agents=all_agents)
+        current_goal = self.planning_state.goal or "None."
+        active_subgoal = self.current_subgoal_text()
+        plan_status = self._plan_status_text()
         reproduction_hint = ""
         if "reproduce" in self.actions:
             reproduction_hint = (
@@ -419,6 +561,9 @@ class Agent:
             incoming_messages=incoming_messages_text,
             relationships=relationships_text,
             family_info=family_info,
+            current_goal=current_goal,
+            active_subgoal=active_subgoal,
+            plan_status=plan_status,
             reproduction_hint=reproduction_hint,
         )
 

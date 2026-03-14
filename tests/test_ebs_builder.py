@@ -440,12 +440,44 @@ class TestAutonomyComponent:
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
         assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 0.0
 
-    def test_self_generated_subgoals_always_zero(self, tmp_path):
+    def test_self_generated_subgoals_still_zero_without_planning_events(self, tmp_path):
         events = [_run_start(), _run_end()]
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
         assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] == 0.0
+
+    def test_self_generated_subgoals_uses_planning_events(self, tmp_path):
+        events = [
+            _run_start(),
+            _agent_decision(1, action="move", direction="east"),
+            {
+                "run_id": "test",
+                "tick": 1,
+                "event_type": "plan_created",
+                "agent_id": "Ada",
+                "payload": {"goal": "stabilize food", "subgoal_count": 2},
+            },
+            {
+                "run_id": "test",
+                "tick": 2,
+                "event_type": "subgoal_completed",
+                "agent_id": "Ada",
+                "payload": {"description": "move toward fruit"},
+            },
+            {
+                "run_id": "test",
+                "tick": 3,
+                "event_type": "subgoal_completed",
+                "agent_id": "Ada",
+                "payload": {"description": "eat fruit"},
+            },
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] > 0.0
 
 
 # ------------------------------------------------------------------ #

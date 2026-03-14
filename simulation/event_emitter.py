@@ -283,6 +283,26 @@ class EventEmitter:
             "learnings": learnings,
         }, agent_id=agent_name)
 
+    def emit_plan_created(self, tick: int, agent_name: str, plan: dict):
+        """Emit when an agent creates a fresh plan."""
+        self._emit("plan_created", tick, plan, agent_id=agent_name)
+
+    def emit_plan_updated(self, tick: int, agent_name: str, plan: dict):
+        """Emit when an agent refreshes an existing plan."""
+        self._emit("plan_updated", tick, plan, agent_id=agent_name)
+
+    def emit_plan_abandoned(self, tick: int, agent_name: str, payload: dict):
+        """Emit when an agent abandons a plan."""
+        self._emit("plan_abandoned", tick, payload, agent_id=agent_name)
+
+    def emit_subgoal_completed(self, tick: int, agent_name: str, payload: dict):
+        """Emit when an agent marks a subgoal completed."""
+        self._emit("subgoal_completed", tick, payload, agent_id=agent_name)
+
+    def emit_subgoal_failed(self, tick: int, agent_name: str, payload: dict):
+        """Emit when an agent marks a subgoal failed."""
+        self._emit("subgoal_failed", tick, payload, agent_id=agent_name)
+
     def emit_innovation_attempt(self, tick: int, agent_name: str, action: dict):
         """Emit before oracle validates an innovate action."""
         self._emit("innovation_attempt", tick, {

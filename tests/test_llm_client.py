@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from simulation.llm_client import LLMClient
-from simulation.schemas import AgentDecisionResponse, PhysicalReflectionResponse
+from simulation.schemas import AgentDecisionResponse, AgentPlanResponse, PhysicalReflectionResponse
 
 
 class TestGenerateStructured:
@@ -85,3 +85,38 @@ class TestGenerateStructured:
         messages = client._client.chat.completions.create.call_args[1]["messages"]
         assert messages[0] == {"role": "system", "content": "be helpful"}
         assert messages[1] == {"role": "user", "content": "user msg"}
+
+    def test_explicit_max_tokens_overrides_default(self):
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"}'
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+
+        client.generate_structured("prompt", AgentDecisionResponse, max_tokens=256)
+
+        call_kwargs = client._client.chat.completions.create.call_args[1]
+        assert call_kwargs["max_tokens"] == 256
+
+    def test_decision_schema_caps_reason_length(self):
+        schema = AgentDecisionResponse.model_json_schema()
+
+        assert schema["properties"]["reason"]["maxLength"] == 160
+
+    def test_plan_schema_caps_goal_and_rationale_length(self):
+        schema = AgentPlanResponse.model_json_schema()
+
+        assert schema["properties"]["goal"]["maxLength"] == 160
+        assert schema["properties"]["rationale_summary"]["maxLength"] == 240
+
+    def test_returns_none_when_response_truncated(self):
+        """When vllm returns finish_reason='length', the output was truncated."""
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"'
+        mock_response.choices[0].finish_reason = "length"
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+        assert result is None
+        assert client.last_call["raw_response"] == '{"action": "rest", "reason": "ok"'

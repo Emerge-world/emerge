@@ -265,11 +265,40 @@ class SimulationEngine:
 
             # 3. Log the decision (extract and remove the trace before passing to oracle)
             llm_trace = action.pop("_llm_trace", None)
+            planning_trace = action.pop("_planning_trace", None) or {}
+            planner_llm = planning_trace.pop("planner_llm", None)
             action_source = "llm" if (llm_trace and llm_trace.get("raw_response")) else "fallback"
             self.event_emitter.emit_agent_decision(
                 tick, agent.name, action, parse_ok=(action_source == "llm"),
                 llm_trace=llm_trace,
             )
+            if "plan_created" in planning_trace:
+                self.event_emitter.emit_plan_created(tick, agent.name, planning_trace["plan_created"])
+            if "plan_updated" in planning_trace:
+                self.event_emitter.emit_plan_updated(tick, agent.name, planning_trace["plan_updated"])
+            if "plan_abandoned" in planning_trace:
+                self.event_emitter.emit_plan_abandoned(tick, agent.name, planning_trace["plan_abandoned"])
+            if "subgoal_completed" in planning_trace:
+                self.event_emitter.emit_subgoal_completed(
+                    tick,
+                    agent.name,
+                    planning_trace["subgoal_completed"],
+                )
+            if "subgoal_failed" in planning_trace:
+                self.event_emitter.emit_subgoal_failed(
+                    tick,
+                    agent.name,
+                    planning_trace["subgoal_failed"],
+                )
+            if planner_llm:
+                self.sim_logger.log_agent_plan(
+                    tick,
+                    agent,
+                    system_prompt=planner_llm.get("system_prompt", ""),
+                    user_prompt=planner_llm.get("user_prompt", ""),
+                    raw_response=planner_llm.get("raw_response", ""),
+                    parsed_plan=planner_llm.get("parsed_plan", {}),
+                )
             if action_source == "llm":
                 self.sim_logger.log_agent_decision(
                     tick, agent,

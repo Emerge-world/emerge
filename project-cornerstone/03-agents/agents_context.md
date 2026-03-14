@@ -1,37 +1,42 @@
 # 03 — Agent System
 
-## Implemented in Phase 1
+## Current Cognition Stack
 
-The following prompt improvements are already live:
+The following agent cognition features are live:
 
 - **Compact 7×7 ASCII grid**: Nearby tiles are rendered as a compact ASCII grid (`@`=agent, `F`=fruit, `t`=tree, `W`=water, `.`=land, `#`=obstacle) instead of a JSON list.
 - **Directional resource hints**: The decision prompt includes natural-language hints like `"fruit 2 tiles NORTH"` so the agent can act without parsing the full grid.
 - **Few-shot examples**: `prompts/agent/system.txt` contains 2–3 worked examples of good decisions baked into the system prompt.
 - **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
-- **Dual memory system**: Episodic (short-term, max 20) + semantic (long-term, max 30) memory. The decision prompt includes 10 semantic + 10 episodic entries via `memory.to_prompt()`. See DEC-009, implemented in `simulation/memory.py`.
-
-Phase 1 is complete. Personality system is scheduled for **Phase 3** (see DEC-014).
+- **Dual memory system**: Episodic (short-term, max 20) + semantic (long-term, max 30) memory. See DEC-009, implemented in `simulation/memory.py`.
+- **Task memory**: bounded planning/task ledger used to retain recent plan outcomes and blockers.
+- **Deterministic retrieval**: planner and executor select relevant memory via keyword-and-state scoring rather than pure recency slices.
+- **Explicit planner/executor loop**: when `ENABLE_EXPLICIT_PLANNING` is enabled, agents can create structured plans, execute subgoals, and emit planning events.
+- **Personality system**: personality traits are implemented and injected into the system prompt via `simulation/personality.py`.
 
 ---
 
-## Current State (Phase 0)
+## Current State
 
 Each agent has:
 - **Stats**: life (0-100), hunger (0-100, more = worse), energy (0-100)
   - **Passive healing**: agents regenerate +1 life/tick when hunger < 50 AND energy > 30 (DEC-011)
-- **Posición**: (x, y) in the grid
-- **Memoria**: `Memory` class with episodic (max 20, raw events) + semantic (max 30, compressed knowledge)
-- **Acciones iniciales**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach"]`
+- **Position**: `(x, y)` in the grid
+- **Memory**: `Memory` class with episodic, semantic, and task memory stores
+- **Planning state**: `PlanningState` with goal, subgoals, status, confidence, and blocker tracking
+- **Initial actions**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach"]`
   - `reproduce` is built-in but NOT available at birth; it unlocks once `current_tick - born_tick >= 100`
-- **LLM**: Ollama 
+- **LLM**: vLLM/OpenAI-compatible structured outputs via `simulation/llm_client.py`
+- **Planner**: optional `Planner` wrapper reusing the same LLM client with structured planner output
+- **Personality**: courage, curiosity, patience, sociability
 
 ### Known Issues
 
-1. **No personality**: All agents are identical except for their position and memory.
-2. **Token budget**: With dual memory + compact grid, prompts are ~500-750 tokens per call vs <300 target. Compression helps but token budget enforcement is not yet implemented.
-3. **Too simple fallback**: The mode without LLM always oscillates between two tiles.
+1. **Explicit planning is feature-flagged off by default**: `ENABLE_EXPLICIT_PLANNING = False` keeps the old reactive loop as the baseline until more tuning lands.
+2. **Token budget remains tight**: planner and executor prompts add new context, so prompt-size discipline still matters.
+3. **Fallback remains simple**: the no-LLM mode still follows hand-written heuristics rather than durable plans.
 
-## Phase 1 — Intelligence
+## Memory And Planning
 
 ### Dual memory system *(implemented — see DEC-009)*
 
@@ -79,6 +84,48 @@ class Memory:
         return f"KNOWLEDGE:\n{sem}\n\nRECENT EVENTS:\n{epi}"
 ```
 
+### Task memory + deterministic retrieval *(implemented)*
+
+The `Memory` class now also keeps a bounded task-memory ledger:
+
+```python
+@dataclass
+class TaskMemoryEntry:
+    tick: int
+    kind: str
+    summary: str
+    goal: str = ""
+    outcome: str = ""
+```
+
+- **Purpose**: retain recent plan results, blockers, and short summaries that help future replanning.
+- **Bounded size**: capped by `TASK_MEMORY_MAX`.
+- **Retrieval**: `simulation/retrieval.py` ranks semantic, episodic, and task-memory entries against the current state.
+- **Contexts**:
+  - planner context uses `PLANNER_CONTEXT_MAX`
+  - executor context uses `EXECUTOR_CONTEXT_MAX`
+
+### Explicit planner/executor loop *(implemented behind flag)*
+
+Code lives in `simulation/planning_state.py`, `simulation/planner.py`, and `simulation/agent.py`.
+
+```python
+self.planning_state = PlanningState.empty()
+self.planner = Planner(llm) if llm else None
+```
+
+- **Planner cadence**: runs only when `ENABLE_EXPLICIT_PLANNING` is true and the current plan needs refresh.
+- **Replanning triggers**:
+  - no usable plan
+  - stale/blocked/completed/abandoned plan
+  - periodic refresh via `PLAN_REFRESH_INTERVAL`
+- **Executor prompt additions**:
+  - `CURRENT GOAL`
+  - `ACTIVE SUBGOAL`
+  - `PLAN STATUS`
+- **Planner output**: structured goal, goal type, subgoals, success signals, abort conditions, confidence, and rationale summary.
+- **Observability**: agent decisions can carry a hidden `_planning_trace` consumed by `simulation/engine.py`.
+
 ### Inventory *(implemented — see DEC-017)*
 
 ```python
@@ -105,9 +152,9 @@ self.born_tick: int = 0       # Tick at which agent was born/spawned
 ```
 All default to inert values. Included in `get_status()`. Populated by Phase 4 reproduction logic.
 
-### Personality system *(Phase 3 — deferred, see DEC-014)*
+### Personality system *(implemented in Phase 3)*
 
-Each agent will be born with traits that influence their decisions. All four traits are implemented together in Phase 3 alongside social mechanics, where they can meaningfully affect agent behavior:
+Each agent is born with traits that influence its decisions:
 
 ```python
 PERSONALITY_TRAITS = {
@@ -121,7 +168,7 @@ PERSONALITY_TRAITS = {
 #  You tend to explore new areas rather than stay in safe zones."
 ```
 
-### Prompt improvements *(implemented — see "Implemented in Phase 1" above)*
+### Prompt improvements *(implemented — see "Current Cognition Stack" above)*
 
 The following improvements have been applied. Details for reference:
 
@@ -154,7 +201,9 @@ The following improvements have been applied. Details for reference:
 ## Considerations for Claude Code
 
 - When refactoring memory, maintain backward compatibility with the current string list.
-- Agent tests must verify: stats never out of bounds, dead agents never act, memory cap works.
+- Agent tests must verify: stats never out of bounds, dead agents never act, memory/task-memory caps work.
+- Planning changes must preserve fallback behavior when planner calls fail or structured output is invalid.
+- Planning events should remain small and deterministic; they feed `events.jsonl` and `EBSBuilder`.
 - Prompts ALWAYS in English (Qwen 2.5-3B performs much better).
 - If the LLM returns invalid JSON, the fallback MUST work. Never crash due to a bad response.
 - Each prompt change → evaluate with 10 runs of 30 ticks and measure % of coherent decisions.

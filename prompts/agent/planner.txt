@@ -1,0 +1,18 @@
+TICK $tick - Build or refresh your plan.
+
+CURRENT OBSERVATION:
+$observation_text
+
+CURRENT PLAN:
+$current_plan
+
+RELEVANT MEMORY:
+$planner_context
+
+PLANNING QUESTIONS:
+- What is my long-term goal?
+- Am I getting closer to that goal?
+- Could I do this more efficiently?
+- Do I need to change my goal?
+
+Consider these questions silently, then return a compact structured plan.

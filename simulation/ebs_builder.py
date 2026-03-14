@@ -144,6 +144,9 @@ class EBSBuilder:
         learnings_log: list[dict] = []  # {tick, agent_id, learnings}
         resource_confirmed: set[str] = set()  # resource names confirmed consumed/picked up
         action_succeeded: set[str] = set()  # action names confirmed successful by oracle
+        plans_created = 0
+        subgoals_completed = 0
+        subgoals_failed = 0
         parse_fails = 0
         action_total = 0
         innovation_attempts = 0
@@ -260,6 +263,15 @@ class EBSBuilder:
                         "tick": tick, "agent_id": agent_id,
                         "learnings": p.get("learnings", []),
                     })
+
+                elif et == "plan_created":
+                    plans_created += 1
+
+                elif et == "subgoal_completed":
+                    subgoals_completed += 1
+
+                elif et == "subgoal_failed":
+                    subgoals_failed += 1
 
                 elif et == "run_end":
                     total_ticks_from_run_end = p.get("total_ticks")
@@ -383,7 +395,13 @@ class EBSBuilder:
         # Autonomy
         proactive_rate = proactive_moves / total_moves if total_moves else 0.0
         env_contingent_rate = contingent_attempts / n_attempts if n_attempts else 0.0
-        autonomy_score = 100 * (0.40 * proactive_rate + 0.30 * env_contingent_rate)
+        planning_signal = subgoals_completed + subgoals_failed
+        self_generated_subgoals = min(1.0, planning_signal / action_total) if action_total else 0.0
+        autonomy_score = 100 * (
+            0.40 * proactive_rate
+            + 0.30 * env_contingent_rate
+            + 0.30 * self_generated_subgoals
+        )
 
         # Longevity
         total_ticks = total_ticks_from_run_end if total_ticks_from_run_end is not None else max_tick_seen
@@ -466,7 +484,7 @@ class EBSBuilder:
                     "sub_scores": {
                         "proactive_resource_acquisition": round(proactive_rate, 4),
                         "environment_contingent_innovation": round(env_contingent_rate, 4),
-                        "self_generated_subgoals": 0.0,
+                        "self_generated_subgoals": round(self_generated_subgoals, 4),
                     },
                 },
                 "longevity": {
@@ -477,6 +495,11 @@ class EBSBuilder:
                         "absolute_longevity": round(absolute_longevity, 4),
                     },
                 },
+            },
+            "planning": {
+                "plans_created": plans_created,
+                "subgoals_completed": subgoals_completed,
+                "subgoals_failed": subgoals_failed,
             },
             "innovations": innovations_list,
         }
