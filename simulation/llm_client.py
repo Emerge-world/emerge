@@ -69,8 +69,14 @@ class LLMClient:
                     "chat_template_kwargs": {"enable_thinking": False},
                 },
             )
-            raw = response.choices[0].message.content or ""
+            choice = response.choices[0]
+            raw = choice.message.content or ""
             self.last_call["raw_response"] = raw
+            if choice.finish_reason == "length":
+                logger.warning(
+                    f"LLM response truncated (max_tokens={max_tokens}) for {response_model.__name__}"
+                )
+                return None
             logger.debug(f"LLM response: {raw[:200]}...")
             # Strip control characters that vllm occasionally injects into string values
             sanitized = "".join(ch for ch in raw if ch >= " " or ch in "\n\r\t")

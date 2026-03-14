@@ -108,3 +108,15 @@ class TestGenerateStructured:
 
         assert schema["properties"]["goal"]["maxLength"] == 160
         assert schema["properties"]["rationale_summary"]["maxLength"] == 240
+
+    def test_returns_none_when_response_truncated(self):
+        """When vllm returns finish_reason='length', the output was truncated."""
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"action": "rest", "reason": "ok"'
+        mock_response.choices[0].finish_reason = "length"
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+        assert result is None
+        assert client.last_call["raw_response"] == '{"action": "rest", "reason": "ok"'
