@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -36,7 +37,7 @@ class EventEmitter:
         seed: Optional[int],
         world_width: int,
         world_height: int,
-        max_ticks: int,
+        max_ticks: int | None,
         agent_count: int,
         agent_names: list[str],
         agent_model_id: str,
@@ -152,17 +153,21 @@ class EventEmitter:
         world_seed: Optional[int],
         width: int,
         height: int,
-        max_ticks: int,
+        max_ticks: int | None,
+        agent_profiles: Optional[list[dict]] = None,
     ):
         """Emit run_start as the first event (tick=0, sim_time=None)."""
+        config = {
+            "width": width,
+            "height": height,
+            "max_ticks": max_ticks,
+            "agent_count": len(agent_names),
+            "agent_names": agent_names,
+        }
+        if agent_profiles is not None:
+            config["agent_profiles"] = agent_profiles
         self._emit("run_start", 0, {
-            "config": {
-                "width": width,
-                "height": height,
-                "max_ticks": max_ticks,
-                "agent_count": len(agent_names),
-                "agent_names": agent_names,
-            },
+            "config": config,
             "model_id": model_id,
             "world_seed": world_seed,
         })
@@ -253,6 +258,7 @@ class EventEmitter:
             "born_tick": agent.born_tick,
             "parent_ids": list(agent.parent_ids),
             "pos": [agent.x, agent.y],
+            "personality": asdict(agent.personality),
         }, agent_id=agent.name)
 
     def emit_agent_perception(

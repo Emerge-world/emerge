@@ -73,19 +73,22 @@ Open [http://localhost:5173](http://localhost:5173). The UI will connect automat
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--agents N` | 3 | Number of agents |
-| `--ticks N` | 500 | Max simulation ticks |
+| `--ticks VALUE` | infinite | Max simulation ticks (`VALUE` = positive integer or `infinite`) |
 | `--seed N` | random | World generation seed |
 | `--no-llm` | — | Rule-based fallback (no Ollama needed) |
-| `--port N` | 8000 | HTTP port |
+| `--port N` | 8001 | HTTP port |
 | `--tick-delay F` | 0.5 | Seconds between ticks |
 
 ### CLI (headless)
 
 ```bash
-# Basic run (3 agents, 30 ticks)
+# Basic run (3 agents, infinite ticks until extinction or interruption)
 uv run main.py
 
-# Customize
+# Explicit infinite run
+uv run main.py --ticks infinite --agents 5 --seed 42
+
+# Finite run
 uv run main.py --agents 5 --ticks 100 --seed 42
 
 # Without LLM (rule-based fallback)

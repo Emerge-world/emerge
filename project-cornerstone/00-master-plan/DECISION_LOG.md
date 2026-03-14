@@ -351,3 +351,17 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Add `drop_item` as a built-in action resolved by the Oracle on the agent's current tile only. Dropped items are placed on the current tile only. The world remains one resource stack per tile. `drop_item` succeeds on empty or same-type stacks and fails on conflicting resource types.
 - **Rejected alternatives**: Expanding the world to support multiple resource stacks per tile; overloading `give_item` with a synthetic ground target; allowing arbitrary drop targeting beyond the current tile.
 - **Consequences**: Prompt/action taxonomy now includes `drop_item`. Oracle uses `World.place_resource()` to keep placement deterministic without redesigning `world.resources`. Existing metrics continue to count the action through generic `agent_decision` aggregation.
+
+### DEC-037: Infinite ticks as the default run mode
+- **Date**: 2026-03-13
+- **Context**: Reproduction, evolution, and long-running experiments are constrained by finite tick defaults scattered across CLI/server entrypoints and engine assumptions.
+- **Decision**: Represent `max_ticks` as `Optional[int]` across runtime boundaries. `None` means unbounded. Public interfaces accept the literal `infinite`, and omitted `ticks` now default to infinite. Machine-readable metadata stores infinite mode as JSON `null`. Runs still end automatically when all agents die.
+- **Rejected alternatives**: Huge integer sentinel (misleading and brittle), separate `run_forever` boolean (redundant state and invalid combinations).
+- **Consequences**: Long-running runs no longer require choosing an arbitrary ceiling. Consumers that display `max_ticks` must render `None`/`null` as `infinite` for humans. Engine loop logic must avoid finite-range assumptions.
+
+### DEC-038: Personality-survival analytics stay event-sourced
+- **Date**: 2026-03-13
+- **Context**: Personality traits influence behavior, but run artifacts did not preserve trait snapshots, so there was no deterministic way to analyze which traits align with longer survival across both initial and born agents.
+- **Decision**: Persist personality snapshots once per agent in canonical run events (`run_start` for initial agents, `agent_birth` for born agents) and compute per-run Pearson correlations in `metrics/summary.json`.
+- **Rejected alternatives**: Reading mutable external files such as lineage state, storing per-tick personality snapshots, or introducing a separate analytics builder for this narrow metric.
+- **Consequences**: Run artifacts remain self-contained for this metric, born agents are included, and older runs degrade cleanly to null coefficients when personality snapshots are unavailable.
