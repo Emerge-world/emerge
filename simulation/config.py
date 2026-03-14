@@ -183,7 +183,9 @@ AGENT_NAME_POOL = [
     "Pax", "Quinn", "Rosa", "Soren", "Tara",
     "Uma", "Veer", "Wren", "Xen", "Yara",
     "Zoe", "Ash", "Beau", "Cade", "Dara",
-    "Eli", "Fern",
+    "Eli", "Fern", "Gray", "Hal", "Indra", "Jules",
+    "Aritz", "Zulas", "Ruben", "Sable", "Tobin", "Ulric", "Vesper", "Wynn",
+    "Xara", "Yul", "Ziven", "Arden", "Briar", "Cypress", "Dorian", "Ember",
 ]
 
 # --- Built-in actions ---
