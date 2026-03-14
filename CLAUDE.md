@@ -71,3 +71,5 @@ uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
 6. **Prompts in English.** Qwen 3.5-35B performs significantly better in English.
 7. **One feature per PR.** Atomic changes, never massive refactors.
 8. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md and update the context of the modified pieces.
+9. **Alway develop in worktrees.** Keep `main` clean and stable. Use `git worktree` for feature branches.
+10. **Keep the metrics updated.** If you add a new feature or change an existing one, update or add relevant metrics in the code and the MASTER_PLAN.md.

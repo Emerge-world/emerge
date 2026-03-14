@@ -1,6 +1,6 @@
 # 🧬 EMERGE — Master Plan (Codebase-Aligned)
 
-_Last updated: 2026-03-11 (aligned with current repository state)_
+_Last updated: 2026-03-12 (aligned with current repository state)_
 
 ## Vision
 
@@ -31,7 +31,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 ### Phase 2 — Survival Depth ✅
 - Day/sunset/night cycle with vision and energy modifiers
 - Expanded biome tiles and resource model
-- Inventory + pickup + crafting via innovations
+- Inventory + pickup/drop_item + crafting via innovations
 - Passive healing, tile-specific risks/rest bonuses
 
 ### Phase 3 — Social ✅
@@ -55,7 +55,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 
 ## Priority Next Arc (recommended)
 
-1. **Metrics maturity:** standard KPI schema (survival, innovation utility, cooperation, lineage fitness)
+1. **Metrics maturity:** standard KPI schema (survival, innovation utility, cooperation, lineage fitness, personality-to-survival correlation)
 2. **Replayability:** event-sourced replay in UI from persisted runs
 3. **Culture experiments:** emergent vocabulary/coordination protocols and measurement
 4. **World pressure:** weather and scarcity cycles to test adaptation robustness

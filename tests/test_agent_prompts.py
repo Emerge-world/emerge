@@ -113,6 +113,14 @@ class TestPersonalityInAgent:
         prompt_high = agent._build_system_prompt()
         assert prompt_low != prompt_high
 
+    def test_system_prompt_documents_drop_item(self):
+        agent = Agent(name="Ada", x=5, y=5)
+
+        prompt = agent._build_system_prompt()
+
+        assert '{"action": "drop_item"' in prompt
+        assert '"item": "<item_name>"' in prompt
+
 
 class TestNearbyAgentsInDecisionPrompt:
     def setup_method(self):

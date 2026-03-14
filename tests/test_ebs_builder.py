@@ -109,6 +109,20 @@ def _run_end(tick: int = 10) -> dict:
     }
 
 
+def _run_start_multi(agent_names: list[str], run_id: str = "test") -> dict:
+    return {
+        "run_id": run_id, "tick": 0, "event_type": "run_start", "agent_id": None,
+        "payload": {"config": {"agent_names": agent_names}, "model_id": "test", "world_seed": 1},
+    }
+
+
+def _agent_state_dead(tick: int, agent: str) -> dict:
+    return {
+        "run_id": "test", "tick": tick, "event_type": "agent_state", "agent_id": agent,
+        "payload": {"hunger": 100, "energy": 0, "life": 0, "alive": False},
+    }
+
+
 # ------------------------------------------------------------------ #
 # Structural novelty classifier
 # ------------------------------------------------------------------ #
@@ -229,7 +243,7 @@ class TestEBSBuilderEdgeCases:
 
     def test_empty_events_file(self, tmp_path):
         """build() handles completely empty events.jsonl without crashing.
-        Stability defaults to 100 (no failures), contributing 15 pts → ebs == 15.0."""
+        Stability defaults to 100 (no failures); ebs is > 0."""
         (tmp_path / "events.jsonl").write_text("", encoding="utf-8")
         EBSBuilder(tmp_path).build()
         ebs_data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
@@ -483,7 +497,7 @@ class TestOutputSchema:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        for key in ("novelty", "utility", "realization", "stability", "autonomy"):
+        for key in ("novelty", "utility", "realization", "stability", "autonomy", "longevity"):
             assert key in data["components"]
         assert "innovations" in data
 
@@ -501,3 +515,103 @@ class TestOutputSchema:
         assert "structural_novelty" in inv
         assert "dependency_depth" in inv
         assert inv["dependency_depth"] == 1
+
+
+# ------------------------------------------------------------------ #
+# EBSBuilder — Longevity component
+# ------------------------------------------------------------------ #
+
+class TestLongevityComponent:
+    def test_all_agents_alive_full_run_population_vitality_is_one(self, tmp_path):
+        """1 agent alive all 3 ticks → population_vitality == 1.0."""
+        events = [
+            _run_start(),           # agent_names = ["Ada"]
+            _agent_state(1),        # alive=True
+            _agent_state(2),        # alive=True
+            _agent_state(3),        # alive=True
+            _run_end(tick=3),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        lon = data["components"]["longevity"]
+        assert lon["sub_scores"]["population_vitality"] == pytest.approx(1.0)
+        assert lon["score"] > 0.0
+
+    def test_agent_dies_halfway_lowers_population_vitality(self, tmp_path):
+        """2 agents alive ticks 1-5 then dead ticks 6-10 → population_vitality == 0.5."""
+        events = [_run_start_multi(["Ada", "Eve"])]
+        for t in range(1, 6):
+            events.append(_agent_state(t, "Ada"))
+            events.append(_agent_state(t, "Eve"))
+        for t in range(6, 11):
+            events.append(_agent_state_dead(t, "Ada"))
+            events.append(_agent_state_dead(t, "Eve"))
+        events.append(_run_end(tick=10))
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        # 10 alive events / (2 agents * 10 ticks) = 0.5
+        assert data["components"]["longevity"]["sub_scores"]["population_vitality"] == pytest.approx(0.5)
+
+    def test_more_agents_same_duration_higher_absolute_longevity(self, tmp_path):
+        """5 agents all alive 10 ticks scores higher absolute_longevity than 3 agents."""
+        def build_run(path: Path, agents: list[str]) -> dict:
+            events = [_run_start_multi(agents)]
+            for t in range(1, 11):
+                for a in agents:
+                    events.append(_agent_state(t, a))
+            events.append(_run_end(tick=10))
+            _write_events(path, events)
+            EBSBuilder(path).build()
+            return json.loads((path / "metrics" / "ebs.json").read_text())
+
+        data_5 = build_run(tmp_path / "five", ["A", "B", "C", "D", "E"])
+        data_3 = build_run(tmp_path / "three", ["A", "B", "C"])
+        abs_5 = data_5["components"]["longevity"]["sub_scores"]["absolute_longevity"]
+        abs_3 = data_3["components"]["longevity"]["sub_scores"]["absolute_longevity"]
+        assert abs_5 > abs_3
+
+    def test_longer_run_higher_absolute_longevity(self, tmp_path):
+        """3 agents alive 8000 ticks scores higher absolute_longevity than 500 ticks."""
+        def build_run(path: Path, ticks: int) -> dict:
+            events = [_run_start_multi(["A", "B", "C"])]
+            for t in range(1, ticks + 1):
+                for a in ["A", "B", "C"]:
+                    events.append(_agent_state(t, a))
+            events.append(_run_end(tick=ticks))
+            _write_events(path, events)
+            EBSBuilder(path).build()
+            return json.loads((path / "metrics" / "ebs.json").read_text())
+
+        data_long = build_run(tmp_path / "long", 8000)
+        data_short = build_run(tmp_path / "short", 500)
+        abs_long = data_long["components"]["longevity"]["sub_scores"]["absolute_longevity"]
+        abs_short = data_short["components"]["longevity"]["sub_scores"]["absolute_longevity"]
+        assert abs_long > abs_short
+
+    def test_no_agent_state_events_graceful_zero(self, tmp_path):
+        """No agent_state events → all longevity sub-scores default to 0.0, no crash."""
+        events = [_run_start(), _run_end(tick=10)]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        lon = data["components"]["longevity"]
+        assert lon["sub_scores"]["population_vitality"] == 0.0
+        assert lon["sub_scores"]["absolute_longevity"] == 0.0
+        assert lon["score"] == 0.0
+
+    def test_no_run_end_falls_back_to_max_tick_seen(self, tmp_path):
+        """No run_end event → uses max tick seen; computes without crashing."""
+        events = [
+            _run_start(),   # agent_names = ["Ada"]
+            _agent_state(1),
+            _agent_state(5),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        lon = data["components"]["longevity"]
+        # max_tick_seen=5, initial_agents=1, alive_ticks=2 → pop_vitality = 2/5 = 0.4
+        assert lon["sub_scores"]["population_vitality"] == pytest.approx(0.4)
+        assert 0.0 <= lon["score"] <= 100.0

@@ -155,6 +155,8 @@ class Oracle:
             return self._resolve_innovate(agent, action, tick)
         elif action_type == "pickup":
             return self._resolve_pickup(agent, tick)
+        elif action_type == "drop_item":
+            return self._resolve_drop_item(agent, action, tick)
         elif action_type == "communicate":
             return self._resolve_communicate(agent, action, tick)
         elif action_type == "give_item":
@@ -290,7 +292,7 @@ class Oracle:
 
     def _resolve_eat(self, agent: Agent, action: dict, tick: int) -> dict:
         # --- Inventory path: agent explicitly specifies item to eat ---
-        item = action.get("item", "").strip().lower()
+        item = (action.get("item") or "").strip().lower()
         if item:
             if not agent.inventory.has(item):
                 return {
@@ -305,7 +307,13 @@ class Oracle:
                     "message": f"{agent.name} cannot eat {item}: {effect['reason']}.",
                     "effects": {},
                 }
-            agent.inventory.remove(item, 1)
+            removed = agent.inventory.remove(item, 1)
+            if not removed:
+                return {
+                    "success": False,
+                    "message": f"{agent.name} could not consume {item} (inventory inconsistency).",
+                    "effects": {},
+                }
             agent.modify_hunger(-effect["hunger_reduction"])
             if effect.get("life_change"):
                 agent.modify_life(effect["life_change"])
@@ -379,9 +387,10 @@ class Oracle:
             resource_hint = ", ".join(sorted(nearby_other))
             msg = f"{agent.name} tried to eat but nothing nearby is edible (nearby: {resource_hint})."
             self._log(tick, msg)
+            inv_items = ", ".join(agent.inventory.items.keys()) if not agent.inventory.is_empty() else ""
+            inv_hint = f" I have {inv_items} in inventory — use eat with item field to eat from it." if inv_items else ""
             agent.add_memory(
-                f"Nearby resources ({resource_hint}) are not edible. "
-                f"I might need to innovate a new action to use them."
+                f"Nearby resources ({resource_hint}) are not edible.{inv_hint}"
             )
         else:
             msg = f"{agent.name} tried to eat but there's no food nearby."
@@ -576,6 +585,35 @@ class Oracle:
         )
         return {"success": True, "message": msg, "effects": {"item_added": item_type}}
 
+    def _resolve_drop_item(self, agent: Agent, action: dict, tick: int) -> dict:
+        item = (action.get("item") or "").strip().lower()
+        try:
+            quantity = int(action.get("quantity", 1))
+        except (ValueError, TypeError):
+            quantity = 1
+
+        if not item:
+            return {"success": False, "message": "Item is required.", "effects": {}}
+        if quantity <= 0:
+            return {"success": False, "message": "Quantity must be at least 1.", "effects": {}}
+        if not agent.inventory.has(item, quantity):
+            return {"success": False, "message": f"You don't have {quantity}x {item}.", "effects": {}}
+        if not self.world.place_resource(agent.x, agent.y, item, quantity):
+            return {
+                "success": False,
+                "message": (
+                    f"{agent.name} cannot drop {item} here because the tile already holds "
+                    "another resource."
+                ),
+                "effects": {},
+            }
+
+        agent.inventory.remove(item, quantity)
+        msg = f"{agent.name} dropped {quantity}x {item} at ({agent.x},{agent.y})."
+        self._log(tick, msg)
+        agent.add_memory(f"I dropped {quantity}x {item} on my current tile.")
+        return {"success": True, "message": msg, "effects": {}}
+
     def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
         """Agent sends a message to a nearby agent."""
         intent = action.get("intent", "")
@@ -616,7 +654,13 @@ class Oracle:
         """Agent gives an item from their inventory to an adjacent agent."""
         target_name = action.get("target", "")
         item = action.get("item", "")
-        quantity = int(action.get("quantity", 1))
+        try:
+            quantity = int(action.get("quantity", 1))
+        except (ValueError, TypeError):
+            quantity = 1
+
+        if quantity <= 0:
+            return {"success": False, "message": "Quantity must be at least 1.", "effects": {}}
 
         target = next(
             (a for a in self.current_tick_agents if a.name == target_name and a.alive),

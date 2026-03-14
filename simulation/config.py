@@ -58,7 +58,7 @@ WORLD_WATER_PROB = 0.15
 WORLD_TREE_PROB = 0.10  # on land tiles
 
 # --- Agents ---
-MAX_AGENTS = 10
+MAX_AGENTS = 50
 AGENT_MAX_LIFE = 100
 AGENT_MAX_HUNGER = 100
 AGENT_MAX_ENERGY = 100
@@ -74,6 +74,7 @@ ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 10
 ENERGY_COST_PICKUP = 0
+ENERGY_COST_DROP = 0
 COMMUNICATE_ENERGY_COST = 3
 COMMUNICATE_TRUST_DELTA = 0.05
 GIVE_ITEM_ENERGY_COST = 2
@@ -107,7 +108,7 @@ ORACLE_RESPONSE_MAX_TOKENS = 256
 ORACLE_EFFECT_RESPONSE_MAX_TOKENS = 128
 
 # --- Simulation ---
-MAX_TICKS = 72   # maximum ticks per run (3 full in-world days)
+MAX_TICKS = None   # None = infinite/unbounded runs by default
 TICK_DELAY_SECONDS = 0.5  # pause between ticks for console readability
 
 # --- Logging ---
@@ -193,6 +194,7 @@ INITIAL_ACTIONS = [
     "rest",
     "innovate",
     "pickup",
+    "drop_item",
     "communicate",
     "give_item",
     "teach",
@@ -208,6 +210,9 @@ BASE_ACTIONS = INITIAL_ACTIONS + list(AGE_UNLOCKED_ACTIONS)
 
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry
+
+# --- EBS ---
+EBS_LONGEVITY_REFERENCE_AGENT_TICKS = 1500  # λ: ~3 agents × 500 ticks baseline
 
 # --- Resource regeneration ---
 RESOURCE_REGEN_CHANCE = 0.3          # probability per depleted tree at each dawn

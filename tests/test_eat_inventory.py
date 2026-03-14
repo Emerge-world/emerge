@@ -11,10 +11,6 @@ Covers:
 - Regression: eat without item field still consumes world resource, not inventory
 """
 
-from unittest.mock import MagicMock
-
-import pytest
-
 from simulation.agent import Agent
 from simulation.oracle import Oracle
 from simulation.world import World

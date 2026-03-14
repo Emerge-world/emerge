@@ -35,10 +35,12 @@ PlanningState + Retrieval
 ### Oracle (`simulation/oracle.py`)
 - Sole authority applying action outcomes and world mutations.
 - Uses precedents for deterministic reuse.
-- Handles base actions, innovated actions, crafting, social actions, reproduction checks.
+- Handles base actions, `drop_item` inventory placement/transfer, innovated actions, crafting, social actions, reproduction checks.
+- Resolves `drop_item` inventory-to-world placement through world helpers so tile resource mutations stay Oracle-mediated.
 
 ### Event Layer (`simulation/event_emitter.py`)
 - Always-on canonical telemetry per run.
+- Includes lifecycle events needed for post-run reconstruction, including agent births and personality snapshots for initial and born agents.
 - Stores prompt and raw LLM blobs deduplicated by hash.
 - Emits planning lifecycle events (`plan_created`, `plan_updated`, `plan_abandoned`, `subgoal_completed`, `subgoal_failed`) in addition to decision and oracle events.
 
@@ -66,7 +68,7 @@ When explicit planning is enabled, agent cognition follows:
 - `simulation/planning_state.py`: durable planner state and subgoal models.
 - `simulation/retrieval.py`: deterministic memory relevance scoring.
 - `simulation/planner.py`: structured planner call and plan parsing.
-- `simulation/metrics_builder.py`: derives summary + timeseries from event streams.
+- `simulation/metrics_builder.py`: derives summary + timeseries from event streams, including personality-to-survival correlation metrics.
 - `simulation/wandb_logger.py`: optional observer metrics to W&B.
 - `run_batch.py`: YAML-configured subprocess sweep runner.
 - `server/event_bus.py`: async fan-out from simulation thread to WebSocket clients.

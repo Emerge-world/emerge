@@ -110,6 +110,111 @@ def _minimal_run(run_id: str = "test-run") -> list[dict]:
     ]
 
 
+def _personality_survival_run(run_id: str = "trait-run") -> list[dict]:
+    return [
+        {
+            "run_id": run_id,
+            "seed": 42,
+            "tick": 0,
+            "sim_time": None,
+            "event_type": "run_start",
+            "agent_id": None,
+            "payload": {
+                "config": {
+                    "width": 15,
+                    "height": 15,
+                    "max_ticks": 3,
+                    "agent_count": 2,
+                    "agent_names": ["Ada", "Bruno"],
+                    "agent_profiles": [
+                        {
+                            "name": "Ada",
+                            "personality": {
+                                "courage": 0.1,
+                                "curiosity": 0.9,
+                                "patience": 0.2,
+                                "sociability": 0.6,
+                            },
+                        },
+                        {
+                            "name": "Bruno",
+                            "personality": {
+                                "courage": 0.9,
+                                "curiosity": 0.1,
+                                "patience": 0.2,
+                                "sociability": 0.2,
+                            },
+                        },
+                    ],
+                },
+                "model_id": "test-model",
+                "world_seed": 42,
+            },
+        },
+        {
+            "run_id": run_id,
+            "tick": 1,
+            "sim_time": {"day": 1, "hour": 6},
+            "event_type": "agent_state",
+            "agent_id": "Ada",
+            "payload": {
+                "life": 0,
+                "hunger": 100,
+                "energy": 0,
+                "pos": [1, 1],
+                "alive": False,
+                "inventory": {},
+            },
+        },
+        {
+            "run_id": run_id,
+            "tick": 1,
+            "sim_time": {"day": 1, "hour": 6},
+            "event_type": "agent_state",
+            "agent_id": "Bruno",
+            "payload": {
+                "life": 90,
+                "hunger": 5,
+                "energy": 80,
+                "pos": [2, 2],
+                "alive": True,
+                "inventory": {},
+            },
+        },
+        {
+            "run_id": run_id,
+            "tick": 2,
+            "sim_time": {"day": 1, "hour": 7},
+            "event_type": "agent_birth",
+            "agent_id": "Kira",
+            "payload": {
+                "child_name": "Kira",
+                "generation": 1,
+                "born_tick": 2,
+                "parent_ids": ["Ada", "Bruno"],
+                "pos": [3, 3],
+                "personality": {
+                    "courage": 0.5,
+                    "curiosity": 0.5,
+                    "patience": 0.2,
+                    "sociability": 0.9,
+                },
+            },
+        },
+        {
+            "run_id": run_id,
+            "tick": 3,
+            "sim_time": {"day": 1, "hour": 8},
+            "event_type": "run_end",
+            "agent_id": None,
+            "payload": {
+                "survivors": ["Bruno", "Kira"],
+                "total_ticks": 3,
+            },
+        },
+    ]
+
+
 # ------------------------------------------------------------------ #
 # Tests: summary.json
 # ------------------------------------------------------------------ #
@@ -183,6 +288,30 @@ class TestSummaryJson:
         assert by_type["innovate"] == 1
         assert by_type["gather_wood"] == 1
 
+    def test_actions_by_type_counts_drop_item(self, tmp_path):
+        run_dir = tmp_path / "test-run"
+        events = _minimal_run()
+        events.append(
+            {
+                "run_id": "test-run",
+                "tick": 3,
+                "sim_time": {"day": 1, "hour": 8},
+                "event_type": "agent_decision",
+                "agent_id": "Ada",
+                "payload": {
+                    "parsed_action": {"action": "drop_item"},
+                    "parse_ok": True,
+                    "action_origin": "base",
+                },
+            }
+        )
+        _write_events(run_dir, events)
+
+        MetricsBuilder(run_dir).build()
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+
+        assert summary["actions"]["by_type"]["drop_item"] == 1
+
     def test_parse_fail_rate(self, tmp_path):
         run_dir = tmp_path / "test-run"
         _write_events(run_dir, _minimal_run())
@@ -233,6 +362,104 @@ class TestSummaryJson:
         run_dir.mkdir()
         MetricsBuilder(run_dir).build()  # must not raise
         assert not (run_dir / "metrics" / "summary.json").exists()
+
+
+class TestPersonalitySurvivalSummary:
+    def test_summary_adds_personality_survival_block(self, tmp_path):
+        run_dir = tmp_path / "trait-run"
+        _write_events(run_dir, _personality_survival_run())
+        MetricsBuilder(run_dir).build()
+
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        ps = summary["personality_survival"]
+
+        assert ps["method"] == "pearson_correlation"
+        assert ps["lifespan_unit"] == "ticks_alive_since_entry"
+        assert ps["sample_size"] == 3
+        assert ps["trait_correlations"]["courage"] == 1.0
+        assert ps["trait_correlations"]["curiosity"] == -1.0
+        assert ps["trait_correlations"]["patience"] is None
+        assert ps["best_trait"] == "courage"
+        assert ps["best_correlation"] == 1.0
+
+    def test_survivors_and_born_agents_use_run_end_when_no_death_tick(self, tmp_path):
+        run_dir = tmp_path / "trait-run"
+        _write_events(run_dir, _personality_survival_run())
+        MetricsBuilder(run_dir).build()
+
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        assert summary["personality_survival"]["sample_size"] == 3
+
+    def test_old_runs_without_agent_profiles_return_null_personality_summary(self, tmp_path):
+        run_dir = tmp_path / "legacy-run"
+        _write_events(run_dir, _minimal_run())
+        MetricsBuilder(run_dir).build()
+
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        ps = summary["personality_survival"]
+
+        assert ps["sample_size"] == 0
+        assert ps["trait_correlations"] == {
+            "courage": None,
+            "curiosity": None,
+            "patience": None,
+            "sociability": None,
+        }
+        assert ps["best_trait"] is None
+        assert ps["best_correlation"] is None
+
+    def test_one_usable_agent_returns_null_correlations(self, tmp_path):
+        run_dir = tmp_path / "one-agent"
+        one_agent_events = [
+            {
+                "run_id": "one-agent",
+                "seed": 42,
+                "tick": 0,
+                "sim_time": None,
+                "event_type": "run_start",
+                "agent_id": None,
+                "payload": {
+                    "config": {
+                        "width": 15,
+                        "height": 15,
+                        "max_ticks": 1,
+                        "agent_count": 1,
+                        "agent_names": ["Ada"],
+                        "agent_profiles": [
+                            {
+                                "name": "Ada",
+                                "personality": {
+                                    "courage": 0.1,
+                                    "curiosity": 0.9,
+                                    "patience": 0.2,
+                                    "sociability": 0.6,
+                                },
+                            }
+                        ],
+                    },
+                    "model_id": "test-model",
+                    "world_seed": 42,
+                },
+            },
+            {
+                "run_id": "one-agent",
+                "tick": 1,
+                "sim_time": {"day": 1, "hour": 6},
+                "event_type": "run_end",
+                "agent_id": None,
+                "payload": {
+                    "survivors": ["Ada"],
+                    "total_ticks": 1,
+                },
+            },
+        ]
+        _write_events(run_dir, one_agent_events)
+        MetricsBuilder(run_dir).build()
+
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        assert summary["personality_survival"]["sample_size"] == 1
+        assert summary["personality_survival"]["trait_correlations"]["courage"] is None
+        assert summary["personality_survival"]["best_trait"] is None
 
 
 # ------------------------------------------------------------------ #

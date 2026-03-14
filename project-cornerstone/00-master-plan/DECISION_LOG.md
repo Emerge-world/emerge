@@ -324,14 +324,56 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Rejected alternatives**: Adding the explainer as a route inside `UI/` (too coupled to the product shell); keeping it as plain markdown only (less appealing and harder to scan with formulas and diagrams).
 - **Consequences**: The explainer can stay static, docs-owned, and easy to publish. It does not depend on backend APIs, websockets, or the simulation runtime.
 
-### DEC-033: Explicit planner/executor cognition behind a feature flag
+### DEC-033: Metrics explainer supports optional real run artifacts
+- **Date**: 2026-03-12
+- **Context**: The initial standalone explainer decision established the page as a docs surface, but the product goal expanded from a static narrative into an interactive explanation page that can also inspect actual run outputs.
+- **Decision**: Keep the explainer under `docs/metrics-explainer/`, but design it as a client-side page with two layers: editorial explanations plus optional loading of `summary.json`, `timeseries.jsonl`, and `ebs.json` from real runs. The page ships with bundled sample fixtures and can later open specific artifact paths through user input or query parameters.
+- **Rejected alternatives**: Integrating the explainer into `UI/` (mixes documentation with operations), remaining static-only with no artifact loading path (less useful, no bridge to real runs), building a separate analytics app (too heavy for the explainer's scope).
+- **Consequences**: The explainer remains publishable and shareable while gaining a direct path to real repository artifacts. It must handle missing files gracefully, keep W&B framed as an optional observer rather than a source of truth, and avoid depending on WebSockets or server-specific routes.
+
+### DEC-034: Automation-first experiment decision toolkit
+- **Date**: 2026-03-12
+- **Context**: The repository can already execute batches, persist canonical run artifacts, and compute per-run metrics, but it still cannot decide whether a candidate change is better than baseline or which experiment should run next.
+- **Decision**: Add a suite/cohort/policy decision layer above the canonical run artifacts. Keep per-run metrics as the source of truth, produce machine-readable gating and prioritization artifacts first, and add human-readable plugins later as renderers of the same artifacts.
+- **Rejected alternatives**: Replacing `metrics_builder` with a separate analytics stack, treating W&B as the authoritative decision layer, or leading with an LLM recommender before deterministic policies exist.
+- **Consequences**: Experiment configs evolve from flat runs toward cohort suites. Test coverage must include policy evaluation and golden decision regressions. Experiment artifacts become a first-class DevOps surface alongside run artifacts.
+
+### DEC-035: Born-agent digest lineage comes from canonical run events
+- **Date**: 2026-03-12
+- **Context**: `llm_digest` originally discovered agents from the initial `run_start` roster only, so children born later were omitted from run and per-agent digests. The digest also needed lineage metadata for born agents without depending on mutable files outside the run directory.
+- **Decision**: Add a canonical `agent_birth` event to `events.jsonl` and make `DigestBuilder` derive born-agent inclusion and lineage metadata from the run event stream itself. Initial settlers retain `generation=0`, `born_tick=0`, `parent_ids=[]`. Born agents carry `generation`, `born_tick`, and `parent_ids` from `agent_birth`. Older runs without `agent_birth` still include later-discovered agents, but their lineage falls back to unknown values rather than reading `data/lineage_<seed>.json`.
+- **Rejected alternatives**: Repeating lineage fields on every `agent_state` event (wasteful event bloat); reading lineage persistence files outside `run_dir` (breaks digest self-containment and reproducibility expectations).
+- **Consequences**: `llm_digest` remains deterministic and portable with the run directory alone. Canonical event coverage now includes births, enabling post-run tools to reason about generations without reaching into external state.
+
+### DEC-036: `drop_item` is a built-in current-tile inventory placement action
+- **Date**: 2026-03-12
+- **Context**: Agents could pick up items into inventory and transfer them to other agents, but they could not intentionally place carried items back into the world without another agent being involved.
+- **Decision**: Add `drop_item` as a built-in action resolved by the Oracle on the agent's current tile only. Dropped items are placed on the current tile only. The world remains one resource stack per tile. `drop_item` succeeds on empty or same-type stacks and fails on conflicting resource types.
+- **Rejected alternatives**: Expanding the world to support multiple resource stacks per tile; overloading `give_item` with a synthetic ground target; allowing arbitrary drop targeting beyond the current tile.
+- **Consequences**: Prompt/action taxonomy now includes `drop_item`. Oracle uses `World.place_resource()` to keep placement deterministic without redesigning `world.resources`. Existing metrics continue to count the action through generic `agent_decision` aggregation.
+
+### DEC-037: Infinite ticks as the default run mode
+- **Date**: 2026-03-13
+- **Context**: Reproduction, evolution, and long-running experiments are constrained by finite tick defaults scattered across CLI/server entrypoints and engine assumptions.
+- **Decision**: Represent `max_ticks` as `Optional[int]` across runtime boundaries. `None` means unbounded. Public interfaces accept the literal `infinite`, and omitted `ticks` now default to infinite. Machine-readable metadata stores infinite mode as JSON `null`. Runs still end automatically when all agents die.
+- **Rejected alternatives**: Huge integer sentinel (misleading and brittle), separate `run_forever` boolean (redundant state and invalid combinations).
+- **Consequences**: Long-running runs no longer require choosing an arbitrary ceiling. Consumers that display `max_ticks` must render `None`/`null` as `infinite` for humans. Engine loop logic must avoid finite-range assumptions.
+
+### DEC-038: Personality-survival analytics stay event-sourced
+- **Date**: 2026-03-13
+- **Context**: Personality traits influence behavior, but run artifacts did not preserve trait snapshots, so there was no deterministic way to analyze which traits align with longer survival across both initial and born agents.
+- **Decision**: Persist personality snapshots once per agent in canonical run events (`run_start` for initial agents, `agent_birth` for born agents) and compute per-run Pearson correlations in `metrics/summary.json`.
+- **Rejected alternatives**: Reading mutable external files such as lineage state, storing per-tick personality snapshots, or introducing a separate analytics builder for this narrow metric.
+- **Consequences**: Run artifacts remain self-contained for this metric, born agents are included, and older runs degrade cleanly to null coefficients when personality snapshots are unavailable.
+
+### DEC-039: Explicit planner/executor cognition behind a feature flag
 - **Date**: 2026-03-12
 - **Context**: Dual memory preserved useful lessons, but agents still decided one tick at a time from a recency-heavy prompt. They could remember facts like "fruit reduces hunger" while failing to sustain multi-step behavior such as moving toward fruit, then eating it. Metrics already reserved space for `self_generated_subgoals`, but the runtime emitted no planning state or planning events.
 - **Decision**: Add an explicit planning layer behind `ENABLE_EXPLICIT_PLANNING`. Agents now maintain `PlanningState` (goal, ordered subgoals, status, confidence, blockers), bounded task memory, and deterministic relevance-based retrieval over semantic, episodic, and task-memory entries. When planning is enabled, `simulation/agent.py` runs a planner call on cadence or trigger conditions, narrows the per-tick executor prompt around the active subgoal, and returns `_planning_trace` metadata. `simulation/engine.py` and `simulation/event_emitter.py` convert that trace into canonical planning lifecycle events: `plan_created`, `plan_updated`, `plan_abandoned`, `subgoal_completed`, and `subgoal_failed`.
 - **Rejected alternatives**: Prompt-only goal text with no explicit state (too fragile and hard to measure); embeddings or vector retrieval in the first pass (too much complexity and nondeterminism); planner call every tick (too expensive and noisy); full search-based hierarchical cognition (too large a redesign for the current architecture).
 - **Consequences**: Planning remains opt-in until tuned, so the previous reactive loop remains available as a safe baseline. `simulation/retrieval.py`, `simulation/planning_state.py`, and `simulation/planner.py` become core cognition modules. `simulation/ebs_builder.py` now derives real subgoal signals from planning events instead of hard-coding `self_generated_subgoals` to `0.0`.
 
-### DEC-034: Bound structured LLM text fields and use per-call token budgets
+### DEC-040: Bound structured LLM text fields and use per-call token budgets
 - **Date**: 2026-03-13
 - **Context**: With explicit planning enabled, the executor prompt carries more context. The vLLM structured-output call for `AgentDecisionResponse` occasionally filled free-text fields like `reason` with long internal narration, then hit `LLM_MAX_TOKENS` and returned invalid JSON truncated mid-string.
 - **Decision**: Add explicit `max_length` bounds to free-text fields in structured response schemas, especially `AgentDecisionResponse` and `AgentPlanResponse`, and allow `simulation/llm_client.py` callers to set smaller per-call `max_tokens` budgets for decision, planner, and oracle validations instead of raising the global cap.

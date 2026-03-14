@@ -23,7 +23,7 @@ This file proposes next steps that are consistent with the current implementatio
 
 ## 4) Innovation & Knowledge Systems
 
-- Score innovation usefulness over time (frequency, survival impact, transfer rate).
+- [ ] Score innovation usefulness over time (frequency, survival impact, transfer rate).
 - Add anti-bloat pruning for rarely used innovations.
 - Introduce multi-step craft chains and dependency graph analysis.
 

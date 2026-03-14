@@ -10,8 +10,11 @@ Usage (standalone):
 """
 
 import json
+import math
 import re
 from pathlib import Path
+
+from simulation.config import EBS_LONGEVITY_REFERENCE_AGENT_TICKS
 
 # Direction string → (dx, dy) for proactive_resource_acquisition
 _DIRECTION_TO_DELTA: dict[str, tuple[int, int]] = {
@@ -27,16 +30,18 @@ _DIRECTION_TO_DELTA: dict[str, tuple[int, int]] = {
 
 # EBS component weights (must sum to 1.0)
 _WEIGHTS = {
-    "novelty": 0.30,
-    "utility": 0.20,
-    "realization": 0.20,
-    "stability": 0.15,
-    "autonomy": 0.15,
+    "novelty":     0.25,  # was 0.30
+    "utility":     0.17,  # was 0.20
+    "realization": 0.17,  # was 0.20
+    "stability":   0.13,  # was 0.15
+    "autonomy":    0.13,  # was 0.15
+    "longevity":   0.15,  # new
 }
 
 # Stats that indicate survival value (higher is better for life+energy, lower is better for hunger)
 _HUNGER_URGENT_THRESHOLD = 60  # above this → resource-scarce state (environment_contingent_innovation)
 _HUNGER_PROACTIVE_THRESHOLD = 60  # below this → hunger non-urgent (proactive move)
+
 
 
 def _classify_structural_novelty(requires: dict | None, produces: dict | None, description: str) -> str:
@@ -105,10 +110,15 @@ def _check_contradiction(learning: str, resource_confirmed: set[str], action_suc
 class EBSBuilder:
     """Reads events.jsonl and writes metrics/ebs.json for a single run."""
 
-    def __init__(self, run_dir: Path):
+    def __init__(
+        self,
+        run_dir: Path,
+        longevity_reference_agent_ticks: int = EBS_LONGEVITY_REFERENCE_AGENT_TICKS,
+    ):
         self._run_dir = Path(run_dir)
         self._events_path = self._run_dir / "events.jsonl"
         self._metrics_dir = self._run_dir / "metrics"
+        self._longevity_reference_agent_ticks = longevity_reference_agent_ticks
 
     def build(self) -> None:
         """Compute and write ebs.json. No-op if events.jsonl missing."""
@@ -141,6 +151,9 @@ class EBSBuilder:
         action_total = 0
         innovation_attempts = 0
         innovation_approved = 0
+        initial_agents = 0
+        total_ticks_from_run_end: int | None = None
+        max_tick_seen = 0
 
         with self._events_path.open(encoding="utf-8") as fh:
             for raw in fh:
@@ -157,8 +170,12 @@ class EBSBuilder:
                 agent_id = ev.get("agent_id")
                 p = ev.get("payload", {})
 
+                if tick > max_tick_seen:
+                    max_tick_seen = tick
+
                 if et == "run_start":
                     run_id = ev.get("run_id")
+                    initial_agents = len(p.get("config", {}).get("agent_names", []))
 
                 elif et == "agent_decision":
                     action_total += 1
@@ -178,6 +195,7 @@ class EBSBuilder:
                             "hunger": p.get("hunger", 0),
                             "energy": p.get("energy", 0),
                             "life": p.get("life", 0),
+                            "alive": p.get("alive", False),
                         })
 
                 elif et == "agent_perception":
@@ -254,6 +272,9 @@ class EBSBuilder:
 
                 elif et == "subgoal_failed":
                     subgoals_failed += 1
+
+                elif et == "run_end":
+                    total_ticks_from_run_end = p.get("total_ticks")
 
         # --- Approved innovations only (exclude internal _attempt_ keys) ---
         approved = {k: v for k, v in innovation_registry.items() if not k.startswith("_attempt_")}
@@ -382,6 +403,19 @@ class EBSBuilder:
             + 0.30 * self_generated_subgoals
         )
 
+        # Longevity
+        total_ticks = total_ticks_from_run_end if total_ticks_from_run_end is not None else max_tick_seen
+        total_agent_ticks = sum(
+            sum(1 for s in states if s.get("alive"))
+            for states in state_history.values()
+        )
+        if initial_agents > 0 and total_ticks > 0:
+            population_vitality = total_agent_ticks / (initial_agents * total_ticks)
+        else:
+            population_vitality = 0.0
+        absolute_longevity = 1 - math.exp(-total_agent_ticks / self._longevity_reference_agent_ticks)
+        longevity_score = 100 * (0.5 * population_vitality + 0.5 * absolute_longevity)
+
         # Final EBS
         ebs = (
             _WEIGHTS["novelty"] * novelty_score
@@ -389,6 +423,7 @@ class EBSBuilder:
             + _WEIGHTS["realization"] * realization_score
             + _WEIGHTS["stability"] * stability_score
             + _WEIGHTS["autonomy"] * autonomy_score
+            + _WEIGHTS["longevity"] * longevity_score
         )
 
         # --- Build output ---
@@ -450,6 +485,14 @@ class EBSBuilder:
                         "proactive_resource_acquisition": round(proactive_rate, 4),
                         "environment_contingent_innovation": round(env_contingent_rate, 4),
                         "self_generated_subgoals": round(self_generated_subgoals, 4),
+                    },
+                },
+                "longevity": {
+                    "score": round(longevity_score, 2),
+                    "weight": _WEIGHTS["longevity"],
+                    "sub_scores": {
+                        "population_vitality": round(population_vitality, 4),
+                        "absolute_longevity": round(absolute_longevity, 4),
                     },
                 },
             },

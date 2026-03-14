@@ -28,6 +28,7 @@ Agent decides action → Oracle.resolve_action()
   ├── eat:      Search nearby resource, consume, reduce hunger
   ├── rest:     Recover energy
   ├── pickup:   Collect 1 item from the current tile into inventory
+  ├── drop_item: Place inventory items on the current tile if the stack is empty or same-typed
   ├── communicate / give_item / teach: Resolve social built-in actions deterministically
   ├── reproduce: Validate age/health/adjacency/cooldown, then spawn child
   ├── innovate: Validate with LLM, register new action
@@ -120,5 +121,5 @@ REJECT if:
 - Base actions now call `_oracle_reflect_physical()` once per novel situation. Results are cached as precedents — subsequent calls are fully deterministic and LLM-free.
 - Only `innovate` and custom actions call the oracle's LLM for effect determination.
 - Tests must verify: same input → same output (determinism), precedents are reused, invalid actions return success=false.
-- The oracle NEVER modifies the world directly except via consume_resource().
+- The oracle NEVER mutates tile resources directly except through `World` helpers such as `consume_resource()` and `place_resource()`.
 - Logging: each oracle decision must remain in the world_log with tick, agent, action, and result.

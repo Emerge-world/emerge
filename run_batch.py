@@ -12,6 +12,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from simulation.tick_limits import validate_tick_limit_value
 
 try:
     import yaml
@@ -19,7 +20,7 @@ except ImportError:
     print("ERROR: PyYAML not found. Run: uv add pyyaml", file=sys.stderr)
     sys.exit(1)
 
-VALID_KEYS = {"name", "seed", "agents", "ticks", "model", "no_llm", "wandb", "runs"}
+VALID_KEYS = {"name", "seed", "agents", "ticks", "model", "no_llm", "wandb", "runs", "width", "height"}
 
 
 def validate_experiments(experiments: list[dict]) -> None:
@@ -35,6 +36,15 @@ def validate_experiments(experiments: list[dict]) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+        if "ticks" in exp:
+            try:
+                validate_tick_limit_value(exp["ticks"])
+            except ValueError as exc:
+                print(
+                    f"ERROR: experiment '{exp['name']}' has invalid ticks value: {exc}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
 
 def expand_experiments(experiments: list[dict]) -> list[dict]:
@@ -64,6 +74,10 @@ def build_command(exp: dict) -> list[str]:
         cmd += ["--seed", str(exp["seed"])]
     if "model" in exp:
         cmd += ["--model", exp["model"]]
+    if "width" in exp:
+        cmd += ["--width", str(exp["width"])]
+    if "height" in exp:
+        cmd += ["--height", str(exp["height"])]
     if exp.get("no_llm", False):
         cmd.append("--no-llm")
 
