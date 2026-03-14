@@ -14,6 +14,8 @@ import math
 import re
 from pathlib import Path
 
+from simulation.config import EBS_LONGEVITY_REFERENCE_AGENT_TICKS
+
 # Direction string → (dx, dy) for proactive_resource_acquisition
 _DIRECTION_TO_DELTA: dict[str, tuple[int, int]] = {
     "north": (0, -1),
@@ -40,7 +42,6 @@ _WEIGHTS = {
 _HUNGER_URGENT_THRESHOLD = 60  # above this → resource-scarce state (environment_contingent_innovation)
 _HUNGER_PROACTIVE_THRESHOLD = 60  # below this → hunger non-urgent (proactive move)
 
-_LONGEVITY_REFERENCE_AGENT_TICKS = 1500  # λ: ~3 agents × 500 ticks baseline
 
 
 def _classify_structural_novelty(requires: dict | None, produces: dict | None, description: str) -> str:
@@ -112,7 +113,7 @@ class EBSBuilder:
     def __init__(
         self,
         run_dir: Path,
-        longevity_reference_agent_ticks: int = _LONGEVITY_REFERENCE_AGENT_TICKS,
+        longevity_reference_agent_ticks: int = EBS_LONGEVITY_REFERENCE_AGENT_TICKS,
     ):
         self._run_dir = Path(run_dir)
         self._events_path = self._run_dir / "events.jsonl"
