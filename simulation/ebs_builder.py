@@ -109,10 +109,15 @@ def _check_contradiction(learning: str, resource_confirmed: set[str], action_suc
 class EBSBuilder:
     """Reads events.jsonl and writes metrics/ebs.json for a single run."""
 
-    def __init__(self, run_dir: Path):
+    def __init__(
+        self,
+        run_dir: Path,
+        longevity_reference_agent_ticks: int = _LONGEVITY_REFERENCE_AGENT_TICKS,
+    ):
         self._run_dir = Path(run_dir)
         self._events_path = self._run_dir / "events.jsonl"
         self._metrics_dir = self._run_dir / "metrics"
+        self._longevity_reference_agent_ticks = longevity_reference_agent_ticks
 
     def build(self) -> None:
         """Compute and write ebs.json. No-op if events.jsonl missing."""
@@ -389,7 +394,7 @@ class EBSBuilder:
             population_vitality = total_agent_ticks / (initial_agents * total_ticks)
         else:
             population_vitality = 0.0
-        absolute_longevity = 1 - math.exp(-total_agent_ticks / _LONGEVITY_REFERENCE_AGENT_TICKS)
+        absolute_longevity = 1 - math.exp(-total_agent_ticks / self._longevity_reference_agent_ticks)
         longevity_score = 100 * (0.5 * population_vitality + 0.5 * absolute_longevity)
 
         # Final EBS
