@@ -74,6 +74,7 @@ ENERGY_COST_MOVE = 3
 ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 10
 ENERGY_COST_PICKUP = 0
+ENERGY_COST_DROP = 0
 COMMUNICATE_ENERGY_COST = 3
 COMMUNICATE_TRUST_DELTA = 0.05
 GIVE_ITEM_ENERGY_COST = 2
@@ -182,6 +183,7 @@ INITIAL_ACTIONS = [
     "rest",
     "innovate",
     "pickup",
+    "drop_item",
     "communicate",
     "give_item",
     "teach",

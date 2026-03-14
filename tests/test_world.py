@@ -196,6 +196,40 @@ def test_different_seeds_run_without_error():
 
 
 # ---------------------------------------------------------------------------
+# Resource placement
+# ---------------------------------------------------------------------------
+
+def test_place_resource_creates_new_stack_on_empty_tile():
+    world = World(width=5, height=5, seed=42)
+    world.resources.pop((1, 1), None)
+
+    placed = world.place_resource(1, 1, "fruit", 2)
+
+    assert placed is True
+    assert world.get_resource(1, 1) == {"type": "fruit", "quantity": 2}
+
+
+def test_place_resource_merges_same_type_stack():
+    world = World(width=5, height=5, seed=42)
+    world.resources[(1, 1)] = {"type": "fruit", "quantity": 2}
+
+    placed = world.place_resource(1, 1, "fruit", 3)
+
+    assert placed is True
+    assert world.get_resource(1, 1) == {"type": "fruit", "quantity": 5}
+
+
+def test_place_resource_rejects_conflicting_stack():
+    world = World(width=5, height=5, seed=42)
+    world.resources[(1, 1)] = {"type": "stone", "quantity": 2}
+
+    placed = world.place_resource(1, 1, "fruit", 1)
+
+    assert placed is False
+    assert world.get_resource(1, 1) == {"type": "stone", "quantity": 2}
+
+
+# ---------------------------------------------------------------------------
 # New tile types (Phase 2)
 # ---------------------------------------------------------------------------
 

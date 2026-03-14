@@ -154,6 +154,8 @@ class Oracle:
             return self._resolve_innovate(agent, action, tick)
         elif action_type == "pickup":
             return self._resolve_pickup(agent, tick)
+        elif action_type == "drop_item":
+            return self._resolve_drop_item(agent, action, tick)
         elif action_type == "communicate":
             return self._resolve_communicate(agent, action, tick)
         elif action_type == "give_item":
@@ -575,6 +577,35 @@ class Oracle:
             f"I picked up 1 {item_type} from this tile. Inventory: {agent.inventory.to_prompt()}."
         )
         return {"success": True, "message": msg, "effects": {"item_added": item_type}}
+
+    def _resolve_drop_item(self, agent: Agent, action: dict, tick: int) -> dict:
+        item = (action.get("item") or "").strip().lower()
+        try:
+            quantity = int(action.get("quantity", 1))
+        except (ValueError, TypeError):
+            quantity = 1
+
+        if not item:
+            return {"success": False, "message": "Item is required.", "effects": {}}
+        if quantity <= 0:
+            return {"success": False, "message": "Quantity must be at least 1.", "effects": {}}
+        if not agent.inventory.has(item, quantity):
+            return {"success": False, "message": f"You don't have {quantity}x {item}.", "effects": {}}
+        if not self.world.place_resource(agent.x, agent.y, item, quantity):
+            return {
+                "success": False,
+                "message": (
+                    f"{agent.name} cannot drop {item} here because the tile already holds "
+                    "another resource."
+                ),
+                "effects": {},
+            }
+
+        agent.inventory.remove(item, quantity)
+        msg = f"{agent.name} dropped {quantity}x {item} at ({agent.x},{agent.y})."
+        self._log(tick, msg)
+        agent.add_memory(f"I dropped {quantity}x {item} on my current tile.")
+        return {"success": True, "message": msg, "effects": {}}
 
     def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
         """Agent sends a message to a nearby agent."""

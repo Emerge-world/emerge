@@ -31,7 +31,8 @@ Memory   Precedents Resources
 ### Oracle (`simulation/oracle.py`)
 - Sole authority applying action outcomes and world mutations.
 - Uses precedents for deterministic reuse.
-- Handles base actions, innovated actions, crafting, social actions, reproduction checks.
+- Handles base actions, `drop_item` inventory placement/transfer, innovated actions, crafting, social actions, reproduction checks.
+- Resolves `drop_item` inventory-to-world placement through world helpers so tile resource mutations stay Oracle-mediated.
 
 ### Event Layer (`simulation/event_emitter.py`)
 - Always-on canonical telemetry per run.

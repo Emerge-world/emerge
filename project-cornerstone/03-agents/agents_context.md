@@ -21,7 +21,7 @@ Each agent has:
   - **Passive healing**: agents regenerate +1 life/tick when hunger < 50 AND energy > 30 (DEC-011)
 - **Posición**: (x, y) in the grid
 - **Memoria**: `Memory` class with episodic (max 20, raw events) + semantic (max 30, compressed knowledge)
-- **Acciones iniciales**: `["move", "eat", "rest", "innovate", "pickup", "communicate", "give_item", "teach"]`
+- **Acciones iniciales**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach"]`
   - `reproduce` is built-in but NOT available at birth; it unlocks once `current_tick - born_tick >= 100`
 - **LLM**: Ollama 
 
@@ -90,6 +90,7 @@ agent.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)  # default 10
 - **Prompt**: appears in decision prompt only when non-empty: `INVENTORY: fruit x2, stone x1 (3/10)`
 - **Serialized** in `get_status()` → `{"items": {...}, "capacity": 10}`
 - **`pickup` base action**: agents start with it — pick up 1 item per tick from their current tile (no energy cost)
+- **`drop_item` base action**: agents start with it — place inventory items onto their current tile (no energy cost); succeeds on empty/same-type stacks and fails on conflicting resource types
 - **`give_item` base action** *(Phase 3c)*: transfer any inventory item to an adjacent agent (manhattan dist ≤ 1); costs 2 energy; builds +0.15 trust on receiver toward giver; both get episodic memory
 - **`teach` base action** *(Phase 3c)*: deterministically copy an owned innovation to a visible agent (dist ≤ AGENT_VISION_RADIUS); costs 8 energy (teacher) + 5 energy (learner); both gain +0.20 trust; no LLM call (DEC-024)
 - **Source**: `simulation/inventory.py` — `Inventory` class

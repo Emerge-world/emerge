@@ -288,6 +288,30 @@ class TestSummaryJson:
         assert by_type["innovate"] == 1
         assert by_type["gather_wood"] == 1
 
+    def test_actions_by_type_counts_drop_item(self, tmp_path):
+        run_dir = tmp_path / "test-run"
+        events = _minimal_run()
+        events.append(
+            {
+                "run_id": "test-run",
+                "tick": 3,
+                "sim_time": {"day": 1, "hour": 8},
+                "event_type": "agent_decision",
+                "agent_id": "Ada",
+                "payload": {
+                    "parsed_action": {"action": "drop_item"},
+                    "parse_ok": True,
+                    "action_origin": "base",
+                },
+            }
+        )
+        _write_events(run_dir, events)
+
+        MetricsBuilder(run_dir).build()
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+
+        assert summary["actions"]["by_type"]["drop_item"] == 1
+
     def test_parse_fail_rate(self, tmp_path):
         run_dir = tmp_path / "test-run"
         _write_events(run_dir, _minimal_run())
