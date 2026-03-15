@@ -94,7 +94,7 @@ function tv(base: string, bx: number, by: number, over?: string, ox?: number, oy
  * for each terrain type.
  */
 const TILE_VARIANTS_MAP: Record<string, TileVariant[]> = {
-  // Grass: verified solid green tiles at y=160-176 in grass column
+  // Grass: solid green tiles at y=160-176 in grass column (100% opaque, verified)
   land: [
     tv('floors', 16, 160),
     tv('floors', 32, 160),
@@ -102,15 +102,15 @@ const TILE_VARIANTS_MAP: Record<string, TileVariant[]> = {
     tv('floors', 16, 176),
   ],
 
-  // Water: solid blue tiles from Water_tiles.png (verified y=96-128 area)
+  // Water: solid blue tiles from row 0 of Water_tiles.png (100% opaque)
   water: [
-    tv('water', 0,  96),
-    tv('water', 16, 96),
-    tv('water', 32, 96),
-    tv('water', 48, 96),
+    tv('water', 0,  0),
+    tv('water', 80, 0),
+    tv('water', 96, 0),
+    tv('water', 0,  0),
   ],
 
-  // Tree: solid grass base + small bush overlay (verified 77-88% opaque green sprites)
+  // Tree: solid grass base + bush overlay (77-88% opaque green sprites)
   tree: [
     tv('floors', 16, 160, 'vegetation', 16, 64),
     tv('floors', 32, 160, 'vegetation', 64, 64),
@@ -118,45 +118,62 @@ const TILE_VARIANTS_MAP: Record<string, TileVariant[]> = {
     tv('floors', 16, 176, 'vegetation', 64, 96),
   ],
 
-  // Sand: verified solid tan tiles at y=160 in sand column
+  // Sand: warm orange-tan tiles at y=384 in Floors_Tiles.png (100% opaque)
   sand: [
-    tv('floors', 176, 160),
-    tv('floors', 192, 160),
-    tv('floors', 208, 160),
-    tv('floors', 176, 160),
+    tv('floors', 80,  384),
+    tv('floors', 96,  384),
+    tv('floors', 112, 384),
+    tv('floors', 128, 384),
   ],
 
-  // Forest: solid grass base + vegetation overlay (denser)
+  // Forest: solid grass base + bright dense vegetation overlay (88% coverage, avgG=117)
   forest: [
-    tv('floors', 32, 160, 'vegetation', 0,  128),
-    tv('floors', 48, 160, 'vegetation', 16, 128),
-    tv('floors', 16, 176, 'vegetation', 32, 128),
-    tv('floors', 32, 176, 'vegetation', 48, 128),
+    tv('floors', 16, 160, 'vegetation', 16, 32),
+    tv('floors', 32, 160, 'vegetation', 64, 32),
+    tv('floors', 48, 160, 'vegetation', 16, 64),
+    tv('floors', 16, 176, 'vegetation', 64, 64),
   ],
 
-  // Mountain: verified solid grey/stone tiles at y=0-48 in stone column
+  // Mountain: beige stone base + grey rock overlay from Rocks.png (row 1+, row 0 is palette)
   mountain: [
-    tv('floors', 256, 0),
-    tv('floors', 272, 0),
-    tv('floors', 288, 0),
-    tv('floors', 256, 16),
+    tv('floors', 96,  0, 'rocks', 96,  16),
+    tv('floors', 128, 0, 'rocks', 112, 16),
+    tv('floors', 80,  16, 'rocks', 96,  16),
+    tv('floors', 144, 16, 'rocks', 112, 16),
   ],
 
-  // Cave: verified solid grey dungeon tiles at (272+, 0+)
+  // Cave: dark green mossy dungeon tiles (organic texture, no plank lines)
   cave: [
-    tv('dungeon', 272, 0),
-    tv('dungeon', 288, 0),
-    tv('dungeon', 304, 0),
-    tv('dungeon', 320, 0),
+    tv('dungeon', 176, 16),
+    tv('dungeon', 192, 16),
+    tv('dungeon', 176, 32),
+    tv('dungeon', 192, 32),
   ],
 
-  // River: solid blue water tiles (slightly different area for visual distinction)
+  // River: solid water base (same as water) — flow overlay added in composer
   river: [
-    tv('water', 0,  128),
-    tv('water', 16, 128),
-    tv('water', 32, 128),
-    tv('water', 48, 128),
+    tv('water', 0,  0),
+    tv('water', 80, 0),
+    tv('water', 96, 0),
+    tv('water', 0,  0),
   ],
+}
+
+// ── River flow overlay ──────────────────────────────────────────────
+
+/** Draw subtle horizontal flow lines on a river tile to distinguish from still water. */
+function drawRiverFlow(ctx: CanvasRenderingContext2D, dx: number, dy: number, variant: number) {
+  const offset = variant * 2
+  // Light current lines
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)'
+  for (let row = 2 + offset; row < S; row += 5) {
+    const col = (variant * 3 + row) % 4
+    ctx.fillRect(dx + col, dy + row, 3, 1)
+    ctx.fillRect(dx + col + 6, dy + row, 2, 1)
+  }
+  // Subtle darker channel in center
+  ctx.fillStyle = 'rgba(0, 30, 80, 0.12)'
+  ctx.fillRect(dx + 5, dy, 6, S)
 }
 
 // ── Tile atlas composer ───────────────────────────────────────────────
@@ -219,6 +236,11 @@ export async function loadExternalTileAtlas(): Promise<OffscreenCanvas | HTMLCan
             const oh = v.oh ?? S
             ctx.drawImage(overImg, v.ox, v.oy, ow, oh, dx, dy, S, S)
           }
+        }
+
+        // River: add flow lines to differentiate from still water
+        if (tile === 'river') {
+          drawRiverFlow(ctx, dx, dy, vi)
         }
       }
     })

@@ -61,3 +61,5 @@ wandb/
 *.out
 *.toc
 *.synctex.gz
+.claude/settings.local.json
+.superpowers/brainstorm/1682-1773590982/.server.pid
