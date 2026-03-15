@@ -1,5 +1,5 @@
 // Tile types matching simulation/config.py
-export type TileType = 'water' | 'land' | 'tree'
+export type TileType = 'water' | 'land' | 'tree' | 'sand' | 'forest' | 'mountain' | 'cave' | 'river'
 
 export interface WorldState {
   width: number
@@ -31,6 +31,11 @@ export interface SimEvent {
   message: string
 }
 
+/** SimEvent stamped with the tick it occurred in */
+export interface LogEntry extends SimEvent {
+  tick: number
+}
+
 // Messages received FROM the server
 export type ServerMessage =
   | {
@@ -55,3 +60,6 @@ export type ServerMessage =
 export type ClientMessage =
   | { type: 'pause' }
   | { type: 'resume' }
+
+// UI panel identifiers
+export type PanelId = 'agents' | 'log' | 'world'

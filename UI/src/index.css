@@ -8,25 +8,26 @@
 }
 
 :root {
-  /* --- Core palette --- */
-  --bg:            #0d1117;
-  --bg-inset:      #111318;
-  --surface:       #161b22;
-  --surface-hover: #1c2128;
-  --surface-active:#21262d;
-  --border:        #30363d;
+  /* --- Core palette (WC3 golden-dark) --- */
+  --bg:            #0f0e17;
+  --bg-inset:      #12111d;
+  --surface:       #1a1a2e;
+  --surface-hover: #232340;
+  --surface-active:#2c2c50;
+  --border:        #3d3522;
+  --border-glow:   #d4a843;
   --disabled:      #6b7280;
 
   /* --- Text --- */
-  --text:          #e6edf3;
+  --text:          #e8e8e8;
   --muted:         #9da5ae;
 
   /* --- Semantic --- */
-  --accent:        #58a6ff;
-  --danger:        #ef4444;
-  --green:         #22c55e;
-  --orange:        #f97316;
-  --blue:          #3b82f6;
+  --accent:        #d4a843;
+  --danger:        #f87171;
+  --green:         #4ade80;
+  --orange:        #fb923c;
+  --blue:          #60a5fa;
 
   /* --- Badge variants --- */
   --green-dim:     #14532d;
@@ -38,10 +39,14 @@
   --fruit:         #facc15;
 
   /* --- Layout --- */
-  --status-h: 44px;
-  --panel-w:  300px;
+  --hud-h: 64px;
+  --panel-w: 320px;
 
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  /* --- Fonts --- */
+  --font-body:  'Segoe UI', system-ui, sans-serif;
+  --font-pixel: 'Press Start 2P', monospace;
+
+  font-family: var(--font-body);
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
@@ -53,16 +58,13 @@ html, body, #root {
 }
 
 /* ============================================================
-   Focus indicators
+   Focus & reduced motion
    ============================================================ */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* ============================================================
-   Reduced motion
-   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -72,47 +74,127 @@ html, body, #root {
 }
 
 /* ============================================================
-   App shell
+   Scrollbar (global thin)
+   ============================================================ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ============================================================
+   App shell — fullscreen world + fixed HUD
    ============================================================ */
 .app {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  width: 100vw;
   height: 100vh;
   overflow: hidden;
+  background: var(--bg);
 }
 
 /* ============================================================
-   Status bar
+   World canvas (fullscreen behind everything)
    ============================================================ */
-.status-bar {
-  height: var(--status-h);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 0 16px;
-  gap: 12px;
+.world-canvas-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--hud-h);
+  overflow: hidden;
+  background: var(--bg-inset);
+  cursor: grab;
 }
 
-.status-section {
+.world-canvas-container:active {
+  cursor: grabbing;
+}
+
+.world-canvas-container canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+.world-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* ============================================================
+   Connection overlay
+   ============================================================ */
+.connection-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--hud-h);
+  background: rgba(15, 14, 23, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.connection-overlay span {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============================================================
+   HUD bar (fixed bottom)
+   ============================================================ */
+.hud {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--hud-h);
+  background: var(--surface);
+  border-top: 2px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--border-glow);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+  z-index: 50;
+}
+
+.hud-section {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
 }
 
-.status-section--centre {
+.hud-section--stats {
   flex: 1;
   justify-content: center;
-  min-width: 0;
+  gap: 16px;
 }
 
-.status-section--right {
-  justify-content: flex-end;
+.hud-section--controls {
+  gap: 6px;
 }
 
+.hud-section--tabs {
+  gap: 4px;
+}
+
+/* --- Connection dot --- */
 .conn-dot {
   width: 8px;
   height: 8px;
@@ -123,31 +205,54 @@ html, body, #root {
 .conn-dot--on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .conn-dot--off { background: var(--disabled); }
 
-.conn-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
-
-.status-title {
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.05em;
+/* --- HUD labels --- */
+.hud-title {
+  font-family: var(--font-pixel);
+  font-size: 10px;
   color: var(--accent);
+  letter-spacing: 0.05em;
 }
 
-.tick-label { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud-label {
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
-.agent-count { color: var(--muted); white-space: nowrap; }
+.hud-label--muted {
+  color: var(--muted);
+}
 
-.status-sep { color: var(--border); }
+.hud-sep {
+  color: var(--border);
+  font-size: 10px;
+}
 
+/* --- Day/night indicator --- */
+.day-indicator {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.day-indicator--day    { color: #fbbf24; border-color: #92400e; }
+.day-indicator--sunset { color: #fb923c; border-color: #7c2d12; }
+.day-indicator--night  { color: #60a5fa; border-color: #1e3a5f; }
+
+/* --- Control buttons --- */
 .ctrl-btn {
   padding: 4px 14px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
 
@@ -163,94 +268,147 @@ html, body, #root {
   color: var(--accent);
 }
 
-/* Panel toggle — hidden on desktop, visible on mobile */
-.ctrl-btn--panel-toggle {
-  display: none;
+/* --- Tab buttons --- */
+.tab-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.tab-btn--active {
+  background: var(--surface-active);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 4px rgba(212, 168, 67, 0.3);
 }
 
 /* ============================================================
-   Main layout
+   Minimap
    ============================================================ */
-.main-layout {
+.minimap-container {
+  width: 120px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.minimap-container canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+/* ============================================================
+   Panel overlay (slide from left)
+   ============================================================ */
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: var(--hud-h);
+  width: var(--panel-w);
+  background: var(--surface);
+  border-right: 2px solid var(--border);
+  box-shadow: inset -1px 0 0 var(--border-glow), 4px 0 12px rgba(0,0,0,0.4);
   display: flex;
-  flex: 1;
+  flex-direction: column;
+  z-index: 40;
+  transform: translateX(-100%);
+  transition: transform 0.2s ease-out;
   overflow: hidden;
 }
 
-/* ============================================================
-   World canvas container
-   ============================================================ */
-.world-container {
-  flex: 1;
-  overflow: auto;
-  background: var(--bg-inset);
+.panel-overlay--open {
+  transform: translateX(0);
+}
+
+.panel-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 12px;
-}
-
-.world-container canvas {
-  image-rendering: pixelated;
-}
-
-.world-placeholder {
-  margin: auto;
-  color: var(--muted);
-  font-size: 15px;
-  padding: 40px;
-}
-
-/* ============================================================
-   Agent panel (sidebar)
-   ============================================================ */
-.agent-panel {
-  width: var(--panel-w);
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  overflow-y: auto;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
+}
+
+.panel-title {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+.panel-close {
+  width: 24px;
+  height: 24px;
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.1s;
+}
+
+.panel-close:hover {
+  background: var(--surface-active);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-.panel-empty {
-  color: var(--muted);
-  padding: 20px;
-  text-align: center;
-}
-
 /* ============================================================
-   Agent card
+   Agent list (inside panel)
    ============================================================ */
-.agent-card {
-  padding: 12px;
+.agent-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.agent-card:hover { background: var(--surface-hover); }
-
-.agent-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+.agent-list-row:hover {
+  background: var(--surface-hover);
 }
 
-.agent-card--selected { background: var(--surface-hover); }
+.agent-list-row--selected {
+  background: var(--surface-hover);
+  border-left: 3px solid var(--accent);
+}
 
-.agent-card--dead { opacity: 0.45; }
-
-.agent-card-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  min-width: 0;
+.agent-list-row--dead {
+  opacity: 0.45;
 }
 
 .agent-dot {
@@ -262,7 +420,7 @@ html, body, #root {
 
 .agent-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -271,7 +429,7 @@ html, body, #root {
 }
 
 .agent-badge {
-  font-size: 10px;
+  font-size: 9px;
   padding: 1px 6px;
   border-radius: 999px;
   font-weight: 600;
@@ -283,11 +441,77 @@ html, body, #root {
 .badge-alive { background: var(--green-dim); color: var(--green-bright); }
 .badge-dead  { background: var(--danger-dim); color: var(--danger-bright); }
 
+/* Mini stat bars (for agent list rows) */
+.mini-stats {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.mini-bar {
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ============================================================
+   Agent detail panel
+   ============================================================ */
+.agent-detail {
+  padding: 12px;
+}
+
+.agent-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.agent-detail-name {
+  font-size: 15px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.agent-detail-section {
+  margin-top: 12px;
+}
+
+.agent-detail-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
 .agent-pos {
   color: var(--muted);
   font-size: 11px;
-  margin-top: 4px;
   font-variant-numeric: tabular-nums;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.action-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--surface-active);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 /* ============================================================
@@ -337,35 +561,18 @@ html, body, #root {
 /* ============================================================
    Memory list
    ============================================================ */
-.agent-memory {
-  margin-top: 8px;
-}
-
-.memory-title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
 .memory-list {
   list-style: none;
-  max-height: 140px;
+  max-height: 200px;
   overflow-y: auto;
-  padding-right: 2px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-.memory-list::-webkit-scrollbar { width: 4px; }
-.memory-list::-webkit-scrollbar-track { background: transparent; }
-.memory-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
 .memory-entry {
   font-size: 11px;
   color: var(--muted);
-  padding: 2px 0;
+  padding: 3px 0;
   border-bottom: 1px solid var(--surface-active);
   line-height: 1.4;
   overflow-wrap: break-word;
@@ -375,22 +582,101 @@ html, body, #root {
 .memory-entry:first-child { color: var(--text); }
 
 /* ============================================================
-   Scrollbar
+   Event log
    ============================================================ */
-.agent-panel::-webkit-scrollbar { width: 4px; }
-.agent-panel::-webkit-scrollbar-track { background: transparent; }
-.agent-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.event-log-list {
+  list-style: none;
+}
+
+.event-entry {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.4;
+  align-items: baseline;
+}
+
+.event-tick {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: right;
+}
+
+.event-agent {
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 48px;
+}
+
+.event-action {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.event-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.event-icon {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.event-icon--success { color: var(--green); }
+.event-icon--fail    { color: var(--danger); }
+
+.event-entry--success { border-left: 2px solid var(--green); }
+.event-entry--fail    { border-left: 2px solid var(--danger); }
+
+/* ============================================================
+   World stats panel
+   ============================================================ */
+.world-stats {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.world-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.world-stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.world-stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.panel-empty {
+  color: var(--muted);
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+}
 
 /* ============================================================
    Tablet (768px – 1023px)
    ============================================================ */
 @media (max-width: 1023px) {
   :root {
-    --panel-w: 240px;
-  }
-
-  .ctrl-btn {
-    padding: 8px 14px;
+    --panel-w: 280px;
   }
 }
 
@@ -399,72 +685,40 @@ html, body, #root {
    ============================================================ */
 @media (max-width: 767px) {
   :root {
-    --status-h: 48px;
+    --hud-h: 52px;
     --panel-w: 100%;
   }
 
-  /* --- Status bar: compact --- */
-  .status-bar {
-    padding: 0 12px;
-    gap: 8px;
+  .hud {
+    padding: 0 8px;
+    gap: 6px;
   }
 
-  .status-title { display: none; }
-  .status-sep   { display: none; }
-  .conn-label   { display: none; }
+  .hud-title { display: none; }
+  .hud-sep   { display: none; }
+  .minimap-container { display: none; }
 
-  .status-section {
-    min-width: 0;
+  .panel-overlay {
+    width: 100%;
+    top: auto;
+    bottom: var(--hud-h);
+    max-height: 50vh;
+    border-right: none;
+    border-top: 2px solid var(--border);
+    transform: translateY(100%);
+  }
+
+  .panel-overlay--open {
+    transform: translateY(0);
+  }
+
+  .tab-btn {
+    padding: 6px 8px;
+    font-size: 10px;
   }
 
   .ctrl-btn {
-    padding: 10px 14px;
-    font-size: 14px;
-  }
-
-  .ctrl-btn--panel-toggle {
-    display: inline-flex;
-    padding: 10px 12px;
-  }
-
-  /* --- Layout: vertical stack --- */
-  .main-layout {
-    flex-direction: column;
-    position: relative;
-  }
-
-  .world-container {
-    flex: 1;
-    padding: 8px;
-  }
-
-  /* --- Agent panel: bottom drawer --- */
-  .agent-panel {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid var(--border);
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease-out;
-  }
-
-  .agent-panel--open {
-    max-height: 50vh;
-    overflow-y: auto;
-  }
-
-  /* Horizontal card layout on mobile for better space use */
-  .agent-card {
-    padding: 10px 12px;
-    border-left: none;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .agent-card-header {
-    margin-bottom: 6px;
-  }
-
-  .memory-list {
-    max-height: 80px;
+    padding: 6px 10px;
+    font-size: 11px;
   }
 }

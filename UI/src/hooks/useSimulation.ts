@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { AgentState, ClientMessage, ServerMessage, SimEvent, WorldState } from '../types'
+import type { AgentState, ClientMessage, LogEntry, ServerMessage, WorldState } from '../types'
 
 // ---------------------------------------------------------------------------
 // State
@@ -10,8 +10,8 @@ export interface SimState {
   paused: boolean
   world: WorldState | null
   agents: AgentState[]
-  /** Rolling event log — last 200 entries */
-  eventLog: SimEvent[]
+  /** Rolling event log — last 200 entries, stamped with tick */
+  eventLog: LogEntry[]
 }
 
 const INITIAL_STATE: SimState = {
@@ -35,7 +35,7 @@ type Action =
       payload: {
         tick: number
         agents: AgentState[]
-        events: SimEvent[]
+        events: LogEntry[]
         world_resources: WorldState['resources']
       }
     }
@@ -120,9 +120,12 @@ export function useSimulation() {
           case 'init':
             dispatch({ type: 'INIT', payload: msg })
             break
-          case 'tick':
-            dispatch({ type: 'TICK', payload: msg })
+          case 'tick': {
+            // Stamp each event with the tick number
+            const stamped: LogEntry[] = msg.events.map(e => ({ ...e, tick: msg.tick }))
+            dispatch({ type: 'TICK', payload: { ...msg, events: stamped } })
             break
+          }
           case 'control':
             dispatch({ type: 'CONTROL', payload: msg })
             break

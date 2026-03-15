@@ -22,6 +22,10 @@ UI/dist/
 UI/build/
 *.tsbuildinfo
 
+# External sprite/tile asset packs (download separately)
+UI/public/assets/Pixel Crawler - Free Pack/
+UI/public/assets/spritesheets/
+
 # IDE and editor settings
 .vscode/
 .idea/
