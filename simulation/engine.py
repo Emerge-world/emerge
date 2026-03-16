@@ -520,8 +520,7 @@ class SimulationEngine:
             for parent in (parent_a, parent_b):
                 if act in parent.action_descriptions:
                     child.action_descriptions[act] = parent.action_descriptions[act]
-                if act in parent.action_requires:
-                    child.action_requires[act] = parent.action_requires[act]
+                    break
 
         # Bootstrap relationships: both parents bond with child and vice versa
         child.update_relationship(parent_a_name, delta=BONDING_TRUST_THRESHOLD, tick=tick)

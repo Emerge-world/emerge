@@ -513,8 +513,6 @@ class Oracle:
         # Approve innovation
         agent.actions.append(new_action_name)
         agent.action_descriptions[new_action_name] = description
-        if isinstance(requires, dict) and requires:
-            agent.action_requires[new_action_name] = requires
         agent.modify_energy(-ENERGY_COST_INNOVATE)
 
         # Register the new action as a precedent
@@ -733,8 +731,6 @@ class Oracle:
         target.actions.append(skill)
         if skill in agent.action_descriptions:
             target.action_descriptions[skill] = agent.action_descriptions[skill]
-        if skill in agent.action_requires:
-            target.action_requires[skill] = agent.action_requires[skill]
 
         agent.update_relationship(target_name, delta=TEACH_TRUST_DELTA, tick=tick, is_cooperation=True)
         target.update_relationship(agent.name, delta=TEACH_TRUST_DELTA, tick=tick, is_cooperation=True)
