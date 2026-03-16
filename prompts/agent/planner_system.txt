@@ -6,6 +6,7 @@ Rules:
 - 1 to 2 success_signals and abort_conditions each.
 - Subgoal completion_signal must be a concrete, measurable condition (e.g. "hunger < 40", "inventory has stone", "reached river tile").
 - When survival is stable (hunger < 50, energy > 60), include at least one innovation or crafting subgoal.
-- If CURRENT OBSERVATION lists Custom actions, plan to use one of them when survival is stable (gather required materials first if needed).
+- If CURRENT OBSERVATION lists Custom actions: create a 2-step sequence — first a pickup subgoal (kind=pickup, completion_signal="inventory has <item>"), then a use subgoal (kind=<action_name>). Never plan to execute a custom action without first ensuring required materials are in inventory.
+- Vary your innovation goals: sometimes innovate EXPLORATION actions (scouting, mapping) or SURVIVAL actions (foraging, finding water) instead of always crafting tools.
 
 Respond ONLY with valid JSON matching the requested plan schema.
