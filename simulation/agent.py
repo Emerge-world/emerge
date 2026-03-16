@@ -91,6 +91,8 @@ class Agent:
         self.actions: list[str] = list(INITIAL_ACTIONS)
         # Descriptions for custom (innovated) actions — populated when oracle approves
         self.action_descriptions: dict[str, str] = {}
+        # Requirements for custom actions — populated when oracle approves
+        self.action_requires: dict[str, dict] = {}
 
         # Generational tracking (Phase 4)
         self.generation: int = 0
@@ -507,7 +509,16 @@ class Agent:
         if self.action_descriptions:
             lines = ["", "YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):"]
             for name, desc in self.action_descriptions.items():
-                lines.append(f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}')
+                reqs = self.action_requires.get(name, {})
+                req_items = (reqs.get("items") or {}) if reqs else {}
+                req_tile = reqs.get("tile") if reqs else None
+                needs = []
+                if req_items:
+                    needs.append("items: " + ", ".join(f"{v}x {k}" for k, v in req_items.items()))
+                if req_tile:
+                    needs.append(f"tile: {req_tile}")
+                needs_str = f" (needs {'; '.join(needs)})" if needs else ""
+                lines.append(f'  - {name}{needs_str}: {desc} → use: {{"action": "{name}", "reason": "..."}}')
             custom_actions_section = "\n".join(lines)
         return prompt_loader.render(
             "agent/system",
