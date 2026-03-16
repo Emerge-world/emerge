@@ -295,31 +295,45 @@ C_{\text{stability}} = \text{clamp}\!\left(
 % --- 6.5 Autonomy -------------------------------------------------------------
 \subsection{Autonomy ($w = 0.13$)}
 
-Autonomy measures proactive, goal-directed behaviour as opposed to purely reactive survival.
+Autonomy measures proactive, goal-directed behaviour and the agent's capacity to accumulate knowledge and pursue multi-step plans. The component is decomposed into three sub-scores, each aggregating two underlying signals.
 
 \begin{equation}
 C_{\text{autonomy}} = 100 \left(
-    0.40 \cdot \underbrace{r_{\text{proactive}}}_{\substack{\text{proactive resource} \\ \text{acquisition}}}
-    + 0.30 \cdot \underbrace{r_{\text{contingent}}}_{\substack{\text{environment-contingent} \\ \text{innovation}}}
-    + 0.30 \cdot \underbrace{r_{\text{subgoals}}}_{\substack{\text{self-generated} \\ \text{subgoals}}}
+    0.25 \cdot \underbrace{s_{\text{BI}}}_{\substack{\text{behavioral} \\ \text{initiative}}}
+    + 0.375 \cdot \underbrace{s_{\text{KA}}}_{\substack{\text{knowledge} \\ \text{accumulation}}}
+    + 0.375 \cdot \underbrace{s_{\text{PE}}}_{\substack{\text{planning} \\ \text{effectiveness}}}
 \right)
 \label{eq:autonomy}
 \end{equation}
 
-\begin{warningbox}
-    In the current implementation, $r_{\text{subgoals}} = 0$ always (placeholder for future semantic analysis of agent reasoning). The effective maximum Autonomy score is therefore $\mathbf{70}$, not $100$.
-\end{warningbox}
+\paragraph{Behavioral initiative ($s_{\text{BI}}$).} Average of two proactive behavioral signals:
+\[
+    s_{\text{BI}} = \frac{r_{\text{proactive}} + r_{\text{contingent}}}{2}
+\]
+\begin{itemize}[nosep]
+    \item \textbf{Proactive rate} ($r_{\text{proactive}}$): Fraction of move actions that are ``proactive''---the agent moves \emph{toward} a nearby resource while its hunger is \emph{below} $60$ (not urgently hungry). A move is proactive if the action is \texttt{move}, hunger $< 60$, and a resource in perception matches the movement direction.
+    \item \textbf{Environment-contingent rate} ($r_{\text{contingent}}$): Fraction of innovation attempts occurring when hunger $> 60$. Captures innovation driven by environmental pressure.
+\end{itemize}
 
-\paragraph{Proactive resource acquisition ($r_{\text{proactive}}$).} Fraction of move actions that are ``proactive'': the agent moves \emph{toward} a nearby resource while its hunger is \emph{below} the threshold of $60$ (i.e., not urgently hungry). Specifically, a move is proactive if:
-\begin{enumerate}[nosep]
-    \item The action is \texttt{move} with a recognised direction.
-    \item The agent's hunger at that tick is $< 60$.
-    \item There exists a resource in the agent's perception whose relative position $(\Delta x, \Delta y)$ matches the movement direction.
-\end{enumerate}
+\paragraph{Knowledge accumulation ($s_{\text{KA}}$).} Average of two memory signals:
+\[
+    s_{\text{KA}} = \frac{r_{\text{semantic}} + r_{\text{compression}}}{2}
+\]
+\begin{itemize}[nosep]
+    \item \textbf{Semantic growth} ($r_{\text{semantic}}$): Mean final semantic memory count divided by \texttt{MEMORY\_SEMANTIC\_MAX} (default: 30), averaged across all agents. Uses the last \texttt{agent\_state} event per agent. Measures how fully agents populated their long-term semantic memory by run end.
+    \item \textbf{Compression yield} ($r_{\text{compression}}$): Mean $\min(1,\, \text{learnings} / \text{episode\_count})$ across all \texttt{memory\_compression\_result} events with $\text{episode\_count} > 0$. Measures information density of each memory compression---how many distinct learnings are extracted per episode compressed.
+\end{itemize}
 
-\paragraph{Environment-contingent innovation ($r_{\text{contingent}}$).} Fraction of innovation attempts that occur when the agent's hunger is $> 60$. This captures innovation driven by environmental pressure rather than idle experimentation.
+\paragraph{Planning effectiveness ($s_{\text{PE}}$).} Average of two planning signals:
+\[
+    s_{\text{PE}} = \frac{r_{\text{completion}} + r_{\text{activity}}}{2}
+\]
+\begin{itemize}[nosep]
+    \item \textbf{Plan completion rate} ($r_{\text{completion}}$): $\text{subgoals\_completed} / (\text{subgoals\_completed} + \text{subgoals\_failed})$. Measures how reliably the agent resolves the subgoals it creates; defaults to $0$ when no subgoal events are present.
+    \item \textbf{Planning activity} ($r_{\text{activity}}$): $\min(1,\, (\text{subgoals\_completed} + \text{subgoals\_failed}) / \text{action\_total})$. Measures the fraction of agent decisions accompanied by subgoal activity.
+\end{itemize}
 
-\paragraph{Self-generated subgoals ($r_{\text{subgoals}}$).} Intended to capture multi-step planning inferred from agent reasoning. Currently always $0$; will require semantic analysis of agent decision traces in a future version.
+\paragraph{Edge cases.} If no \texttt{agent\_state} events are logged, $r_{\text{semantic}} = 0$. If no \texttt{memory\_compression\_result} events with $\text{episode\_count} > 0$ are present, $r_{\text{compression}} = 0$. If no subgoal events are logged (e.g., \texttt{ENABLE\_EXPLICIT\_PLANNING = False}), both $r_{\text{completion}}$ and $r_{\text{activity}}$ default to $0$; this is intentional, not a bug.
 
 % --- 6.6 Longevity ------------------------------------------------------------
 \subsection{Longevity ($w = 0.15$)}
@@ -485,7 +499,7 @@ A radar chart (see Section~\ref{sec:examples}, Figure~\ref{fig:radar}) provides 
 \begin{enumerate}[nosep]
     \item \textbf{High EBS $\neq$ ``good'' simulation.} EBS measures emergence intensity, not whether the run answers your research question. A study of reactive survival \emph{expects} low EBS.
     \item \textbf{Low Stability with high Novelty $=$ hallucinating agent, not creative agent.} If an agent invents many actions but holds contradictory beliefs, the ``novelty'' may be driven by incoherent reasoning rather than genuine creativity.
-    \item \textbf{Autonomy's $r_{\text{subgoals}}$ is always $0$.} The current maximum Autonomy score is $70/100$. Do not interpret Autonomy $= 70$ as ``imperfect autonomy''---it is the theoretical ceiling in the current version.
+    \item \textbf{Autonomy's $s_{\text{PE}}$ is $0$ when planning is disabled.} Runs with \texttt{ENABLE\_EXPLICIT\_PLANNING = False} produce no \texttt{subgoal\_completed} or \texttt{subgoal\_failed} events. Both $r_{\text{completion}}$ and $r_{\text{activity}}$ default to $0$, and planning effectiveness contributes $0$ to Autonomy. This is correct behaviour; compare only runs with the same planning configuration.
     \item \textbf{Longevity can mask poor emergence.} If agents survive the entire run but never innovate, Longevity will contribute significantly to EBS while all other components are near zero. Always check the component breakdown.
 \end{enumerate}
 \end{warningbox}
@@ -543,10 +557,13 @@ Agent-ticks alive (A, B, C) & 100 + 80 + 60 = 240 \\
     C_{\text{stability}} &= \text{clamp}(100 - 40 \times 0.20 - 30 \times 0.20) = 100 - 8 - 6 = \mathbf{86.00}
 \end{align*}
 
-\paragraph{Autonomy.} No proactive moves, no environment-contingent innovation.
-\[
-    C_{\text{autonomy}} = 100(0.40 \cdot 0 + 0.30 \cdot 0) = \mathbf{0.00}
-\]
+\paragraph{Autonomy.} No proactive moves, no environment-contingent innovation, no semantic memory data, no compression events, no subgoal events.
+\begin{align*}
+    s_{\text{BI}} &= (0 + 0)/2 = 0 \\
+    s_{\text{KA}} &= (0 + 0)/2 = 0 \\
+    s_{\text{PE}} &= (0 + 0)/2 = 0 \\
+    C_{\text{autonomy}} &= 100(0.25 \cdot 0 + 0.375 \cdot 0 + 0.375 \cdot 0) = \mathbf{0.00}
+\end{align*}
 
 \paragraph{Longevity.}
 \begin{align*}
@@ -591,6 +608,9 @@ Total actions / parse failures & 100 / 5 \\
 Total learnings / contradictions & 10 / 0 \\
 Total moves / proactive moves & 80 / 50 \\
 Env-contingent innovation attempts & 6 of 10 \\
+Final memory\_semantic (per agent) & 15 / 30 (all 3 agents) \\
+Memory compression events & 2 (each: episode\_count = 5, learnings = 2) \\
+Subgoals completed / failed & 6 / 2 \\
 Agent-ticks alive (A, B, C) & 200 + 200 + 200 = 600 \\
 \bottomrule
 \end{tabular}
@@ -632,7 +652,15 @@ Agent-ticks alive (A, B, C) & 200 + 200 + 200 = 600 \\
 \begin{align*}
     r_{\text{proactive}} &= 50/80 = 0.625 \\
     r_{\text{contingent}} &= 6/10 = 0.60 \\
-    C_{\text{autonomy}} &= 100(0.40 \times 0.625 + 0.30 \times 0.60) = 100(0.250 + 0.180) = \mathbf{43.00}
+    s_{\text{BI}} &= (0.625 + 0.60)/2 = 0.6125 \\[4pt]
+    r_{\text{semantic}} &= (15/30 + 15/30 + 15/30)/3 = 0.50 \\
+    r_{\text{compression}} &= \bigl(\min(1,2/5) + \min(1,2/5)\bigr)/2 = 0.40 \\
+    s_{\text{KA}} &= (0.50 + 0.40)/2 = 0.45 \\[4pt]
+    r_{\text{completion}} &= 6/(6+2) = 0.75 \\
+    r_{\text{activity}} &= \min(1,\, 8/100) = 0.08 \\
+    s_{\text{PE}} &= (0.75 + 0.08)/2 = 0.415 \\[4pt]
+    C_{\text{autonomy}} &= 100(0.25 \times 0.6125 + 0.375 \times 0.45 + 0.375 \times 0.415) \\
+                        &= 100(0.1531 + 0.1688 + 0.1556) = \mathbf{47.75}
 \end{align*}
 
 \paragraph{Longevity.}
@@ -647,11 +675,11 @@ Agent-ticks alive (A, B, C) & 200 + 200 + 200 = 600 \\
 \begin{align*}
     \ebs &= 0.25 \times 80.75 + 0.17 \times 60.58 + 0.17 \times 77.00 \\
     &\quad + 0.13 \times 98.50 + 0.13 \times 43.00 + 0.15 \times 66.50 \\
-    &= 20.19 + 10.30 + 13.09 + 12.81 + 5.59 + 9.98 = \boxed{71.96}
+    &= 20.19 + 10.30 + 13.09 + 12.81 + 6.21 + 9.98 = \boxed{72.58}
 \end{align*}
 
 \begin{interpretbox}
-    EBS $\approx 72$ falls in the \textbf{technological ecology} tier. Strong Novelty and near-perfect Stability drive the score. Autonomy is moderate at $43/70$ (effective ceiling), reflecting good proactive behaviour. Longevity benefits from full population survival but is tempered by the asymptotic function ($\text{absolute\_longevity} \approx 0.33$ at 600 agent-ticks vs.\ the $\lambda = 1500$ baseline).
+    EBS $\approx 73$ falls in the \textbf{technological ecology} tier. Strong Novelty and near-perfect Stability drive the score. Autonomy benefits from good behavioral initiative ($s_{\text{BI}} = 0.61$) and partial knowledge accumulation ($s_{\text{KA}} = 0.45$), but planning activity remains low ($r_{\text{activity}} = 0.08$) relative to total actions. Longevity benefits from full population survival but is tempered by the asymptotic function ($\text{absolute\_longevity} \approx 0.33$ at 600 agent-ticks vs.\ the $\lambda = 1500$ baseline).
 \end{interpretbox}
 
 % --- Side-by-side comparison --------------------------------------------------
@@ -671,10 +699,10 @@ Novelty ($\times 0.25$)     &  0.00 &  0.00 & 80.75 & 20.19 \\
 Utility ($\times 0.17$)     &  0.00 &  0.00 & 60.58 & 10.30 \\
 Realization ($\times 0.17$) &  0.00 &  0.00 & 77.00 & 13.09 \\
 Stability ($\times 0.13$)   & 86.00 & 11.18 & 98.50 & 12.81 \\
-Autonomy ($\times 0.13$)    &  0.00 &  0.00 & 43.00 &  5.59 \\
+Autonomy ($\times 0.13$)    &  0.00 &  0.00 & 47.75 &  6.21 \\
 Longevity ($\times 0.15$)   & 47.40 &  7.11 & 66.50 &  9.98 \\
 \midrule
-\textbf{EBS}                &       & \textbf{18.29} &  & \textbf{71.96} \\
+\textbf{EBS}                &       & \textbf{18.29} &  & \textbf{72.58} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -739,29 +767,29 @@ Figure~\ref{fig:radar} shows the component profiles of both examples as a radar 
         ({cos(-150)*0},  {sin(-150)*0})  --
         ({cos(150)*47.4},{sin(150)*47.4}) -- cycle;
 
-    % Example 2 data: N=80.75, U=60.58, R=77, S=98.5, A=43, L=66.5
+    % Example 2 data: N=80.75, U=60.58, R=77, S=98.5, A=47.75, L=66.5
     \fill[red!15, opacity=0.5]
-        ({cos(90)*80.75}, {sin(90)*80.75})  --
-        ({cos(30)*60.58}, {sin(30)*60.58})  --
-        ({cos(-30)*77},   {sin(-30)*77})    --
-        ({cos(-90)*98.5}, {sin(-90)*98.5})  --
-        ({cos(-150)*43},  {sin(-150)*43})   --
-        ({cos(150)*66.5}, {sin(150)*66.5})  -- cycle;
+        ({cos(90)*80.75},  {sin(90)*80.75})  --
+        ({cos(30)*60.58},  {sin(30)*60.58})  --
+        ({cos(-30)*77},    {sin(-30)*77})    --
+        ({cos(-90)*98.5},  {sin(-90)*98.5})  --
+        ({cos(-150)*47.75},{sin(-150)*47.75}) --
+        ({cos(150)*66.5},  {sin(150)*66.5})  -- cycle;
     \draw[red!70!black, thick]
-        ({cos(90)*80.75}, {sin(90)*80.75})  --
-        ({cos(30)*60.58}, {sin(30)*60.58})  --
-        ({cos(-30)*77},   {sin(-30)*77})    --
-        ({cos(-90)*98.5}, {sin(-90)*98.5})  --
-        ({cos(-150)*43},  {sin(-150)*43})   --
-        ({cos(150)*66.5}, {sin(150)*66.5})  -- cycle;
+        ({cos(90)*80.75},  {sin(90)*80.75})  --
+        ({cos(30)*60.58},  {sin(30)*60.58})  --
+        ({cos(-30)*77},    {sin(-30)*77})    --
+        ({cos(-90)*98.5},  {sin(-90)*98.5})  --
+        ({cos(-150)*47.75},{sin(-150)*47.75}) --
+        ({cos(150)*66.5},  {sin(150)*66.5})  -- cycle;
 
     % Legend
     \draw[blue!70!black, thick] (70, -90) -- ++(15, 0) node[right, font=\small, black] {Example 1 (EBS $\approx 18$)};
     \fill[blue!15, opacity=0.6] (70, -90) rectangle ++(15, 3);
-    \draw[red!70!black, thick]  (70, -100) -- ++(15, 0) node[right, font=\small, black] {Example 2 (EBS $\approx 72$)};
+    \draw[red!70!black, thick]  (70, -100) -- ++(15, 0) node[right, font=\small, black] {Example 2 (EBS $\approx 73$)};
     \fill[red!15, opacity=0.5]  (70, -100) rectangle ++(15, 3);
 \end{tikzpicture}
-\caption{Radar chart comparing the component profiles of Example~1 (low emergence) and Example~2 (rich emergence). Example~1 collapses toward the origin except for Stability and Longevity; Example~2 fills most of the hexagonal area.}
+\caption{Radar chart comparing the component profiles of Example~1 (EBS~$\approx 18$, low emergence) and Example~2 (EBS~$\approx 73$, rich emergence). Example~1 collapses toward the origin except for Stability and Longevity; Example~2 fills most of the hexagonal area.}
 \label{fig:radar}
 \end{figure}
 
@@ -845,6 +873,9 @@ Credit scoring & Financial dimensions & Moderate (feature engineering) & Low (op
         \item $N_{\text{learnings}} = 0 \Rightarrow$ false knowledge rate $= 0$
         \item $N_{\text{actions}} = 0 \Rightarrow$ invalid action rate $= 0$
         \item Total moves $= 0 \Rightarrow$ proactive rate $= 0$
+        \item No \texttt{agent\_state} events $\Rightarrow$ semantic growth $= 0$
+        \item No \texttt{memory\_compression\_result} events with $\text{episode\_count} > 0 \Rightarrow$ compression yield $= 0$
+        \item No subgoal events $\Rightarrow$ plan completion rate $= 0$, planning activity $= 0$
         \item $A_0 = 0$ or $T = 0 \Rightarrow$ population vitality $= 0$
     \end{itemize}
 \end{enumerate}
@@ -854,7 +885,7 @@ Credit scoring & Financial dimensions & Moderate (feature engineering) & Low (op
 % =============================================================================
 
 \begin{enumerate}
-    \item \textbf{Self-generated subgoals is always 0.} The Autonomy component's third sub-score is a placeholder. Until a semantic analysis pipeline is implemented, the maximum Autonomy score is 70, and the effective weight of Autonomy in the EBS formula is lower than its nominal 0.13.
+    \item \textbf{Planning effectiveness is 0 when planning is disabled.} The $s_{\text{PE}}$ sub-score requires \texttt{subgoal\_completed}/\texttt{subgoal\_failed} events, which are only emitted when \texttt{ENABLE\_EXPLICIT\_PLANNING = True}. In planning-disabled runs, the 37.5\% weight assigned to $s_{\text{PE}}$ within Autonomy is effectively unused, reducing Autonomy's practical ceiling. This is honest measurement, not a defect.
 
     \item \textbf{Contradiction detection is pattern-based, not semantic.} The current detector matches exact string patterns (``no $X$'', ``$X$ never works'') against ground-truth sets. It misses paraphrased contradictions and may produce false positives on coincidental string matches.
 
@@ -882,7 +913,7 @@ Credit scoring & Financial dimensions & Moderate (feature engineering) & Low (op
 
     \item \textbf{Report component scores alongside EBS.} When presenting results, always include the six component scores (and ideally the radar chart) alongside the aggregate EBS. The aggregate alone loses diagnostic information.
 
-    \item \textbf{Be cautious with Autonomy comparisons.} Due to the $r_{\text{subgoals}} = 0$ placeholder, Autonomy scores are compressed into the $[0, 70]$ range. When comparing runs, normalise Autonomy to its effective range or note the ceiling.
+    \item \textbf{Stratify Autonomy comparisons by planning configuration.} The $s_{\text{PE}}$ sub-score is $0$ when \texttt{ENABLE\_EXPLICIT\_PLANNING = False}. Compare Autonomy scores only across runs with the same planning configuration, or normalise $s_{\text{PE}}$ out of the comparison and note the configuration difference.
 
     \item \textbf{Recalibrate interpretation tiers empirically.} As more runs are collected, validate and adjust the tier thresholds in Table~\ref{tab:interpretation} against qualitative assessments of run behaviour.
 
@@ -938,10 +969,16 @@ The metric is currently in active use within the Emerge project. Its known limit
     & false\_knowledge\_rate  & $-40$ & $N_{\text{contradictions}} / N_{\text{learnings}}$ \\
     & & invalid\_action\_rate   & $-30$ & $N_{\text{parse fails}} / N_{\text{actions}}$ \\
 \addlinespace
-\multirow{3}{*}{Autonomy} & \multirow{3}{*}{0.13}
-    & proactive\_resource\_acq.           & 0.40 & proactive moves / total moves \\
-    & & environment\_contingent\_innov.    & 0.30 & hungry attempts / total attempts \\
-    & & self\_generated\_subgoals          & 0.30 & \emph{always 0 (placeholder)} \\
+\multirow{9}{*}{Autonomy} & \multirow{9}{*}{0.13}
+    & \multicolumn{3}{l}{\textit{Sub-score: behavioral\_initiative (weight 0.25)}} \\
+    & & \quad proactive\_rate          & 0.125  & proactive moves / total moves \\
+    & & \quad env\_contingent\_rate    & 0.125  & hungry attempts / total attempts \\
+    & & \multicolumn{3}{l}{\textit{Sub-score: knowledge\_accumulation (weight 0.375)}} \\
+    & & \quad semantic\_growth         & 0.1875 & mean(memory\_semantic / MEMORY\_SEMANTIC\_MAX) \\
+    & & \quad compression\_yield       & 0.1875 & mean(min(1, learnings / episode\_count)) \\
+    & & \multicolumn{3}{l}{\textit{Sub-score: planning\_effectiveness (weight 0.375)}} \\
+    & & \quad plan\_completion\_rate   & 0.1875 & subgoals\_completed / planning\_signal \\
+    & & \quad planning\_activity       & 0.1875 & min(1, planning\_signal / action\_total) \\
 \addlinespace
 \multirow{2}{*}{Longevity} & \multirow{2}{*}{0.15}
     & population\_vitality   & 0.50 & $T_{\text{agent}} / (A_0 \cdot T)$ \\
