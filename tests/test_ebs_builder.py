@@ -570,7 +570,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 1.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 1.0
 
     def test_hungry_move_not_proactive(self, tmp_path):
         """Agent moves east while hunger >= 60 → reactive, not proactive."""
@@ -583,7 +583,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 0.0
 
     def test_move_away_from_resource_not_proactive(self, tmp_path):
         """Agent moves west while resource is to the east → not proactive."""
@@ -596,14 +596,14 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 0.0
 
     def test_self_generated_subgoals_still_zero_without_planning_events(self, tmp_path):
         events = [_run_start(), _run_end()]
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["planning_activity"] == 0.0
 
     def test_self_generated_subgoals_uses_planning_events(self, tmp_path):
         events = [
@@ -635,7 +635,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] > 0.0
+        assert data["components"]["autonomy"]["detail"]["planning_activity"] > 0.0
 
 
 # ------------------------------------------------------------------ #
