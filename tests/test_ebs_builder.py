@@ -31,10 +31,12 @@ def _run_start(run_id: str = "test") -> dict:
     }
 
 
-def _agent_state(tick: int, agent: str = "Ada", hunger: float = 20, energy: float = 80, life: float = 100) -> dict:
+def _agent_state(tick: int, agent: str = "Ada", hunger: float = 20, energy: float = 80,
+                 life: float = 100, memory_semantic: int = 0) -> dict:
     return {
         "run_id": "test", "tick": tick, "event_type": "agent_state", "agent_id": agent,
-        "payload": {"hunger": hunger, "energy": energy, "life": life, "alive": True},
+        "payload": {"hunger": hunger, "energy": energy, "life": life, "alive": True,
+                    "memory_semantic": memory_semantic},
     }
 
 
@@ -95,10 +97,11 @@ def _custom_action_executed(tick: int, agent: str = "Ada",
     }
 
 
-def _memory_compression(tick: int, agent: str = "Ada", learnings: list[str] | None = None) -> dict:
+def _memory_compression(tick: int, learnings: list | None = None, episode_count: int = 5,
+                        agent: str = "Ada") -> dict:
     return {
         "run_id": "test", "tick": tick, "event_type": "memory_compression_result", "agent_id": agent,
-        "payload": {"episode_count": 5, "learnings": learnings or []},
+        "payload": {"episode_count": episode_count, "learnings": learnings or []},
     }
 
 
@@ -397,6 +400,161 @@ class TestStabilityComponent:
 
 
 # ------------------------------------------------------------------ #
+# EBSBuilder — Autonomy component (rebuilt)
+# ------------------------------------------------------------------ #
+
+class TestAutonomyRebuilt:
+    def test_semantic_growth_nonzero_when_memory_semantic_present(self, tmp_path):
+        """Agent ends run with 15/30 semantic entries → semantic_growth = 0.5."""
+        events = [
+            _run_start(),
+            _agent_state(1, memory_semantic=15),
+            _agent_state(5, memory_semantic=15),
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        detail = data["components"]["autonomy"]["detail"]
+        assert detail["semantic_growth"] == pytest.approx(0.5)
+
+    def test_semantic_growth_uses_last_agent_state_per_agent(self, tmp_path):
+        """Only the final agent_state per agent contributes to semantic_growth."""
+        events = [
+            _run_start(),
+            _agent_state(1, memory_semantic=5),
+            _agent_state(10, memory_semantic=20),  # last → 20/30 ≈ 0.667
+            _run_end(tick=10),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        detail = data["components"]["autonomy"]["detail"]
+        assert detail["semantic_growth"] == pytest.approx(20 / 30, abs=1e-3)
+
+    def test_semantic_growth_zero_when_no_agent_state_events(self, tmp_path):
+        events = [_run_start(), _run_end()]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["detail"]["semantic_growth"] == 0.0
+
+    def test_compression_yield_nonzero_when_learnings_present(self, tmp_path):
+        """Compression event: 5 episodes → 2 learnings → yield = 2/5 = 0.4."""
+        events = [
+            _run_start(),
+            _memory_compression(10, learnings=["fruit restores hunger", "rest near water"]),
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        # _memory_compression helper sets episode_count=5
+        assert data["components"]["autonomy"]["detail"]["compression_yield"] == pytest.approx(0.4)
+
+    def test_compression_yield_capped_at_one(self, tmp_path):
+        """More learnings than episodes → yield capped at 1.0."""
+        events = [
+            _run_start(),
+            {
+                "run_id": "test", "tick": 10, "event_type": "memory_compression_result",
+                "agent_id": "Ada",
+                "payload": {"episode_count": 2, "learnings": ["a", "b", "c", "d"]},
+            },
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["detail"]["compression_yield"] == pytest.approx(1.0)
+
+    def test_compression_yield_zero_when_no_compression_events(self, tmp_path):
+        events = [_run_start(), _run_end()]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["detail"]["compression_yield"] == 0.0
+
+    def test_plan_completion_rate_uses_subgoal_events(self, tmp_path):
+        """2 completed, 1 failed → plan_completion_rate = 2/3 ≈ 0.667."""
+        events = [
+            _run_start(),
+            _agent_decision(1, action="move"),
+            {"run_id": "test", "tick": 1, "event_type": "subgoal_completed", "agent_id": "Ada", "payload": {}},
+            {"run_id": "test", "tick": 2, "event_type": "subgoal_completed", "agent_id": "Ada", "payload": {}},
+            {"run_id": "test", "tick": 3, "event_type": "subgoal_failed", "agent_id": "Ada", "payload": {}},
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["detail"]["plan_completion_rate"] == pytest.approx(2 / 3, abs=1e-3)
+
+    def test_plan_completion_rate_zero_when_no_subgoals(self, tmp_path):
+        events = [_run_start(), _agent_decision(1), _run_end()]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        assert data["components"]["autonomy"]["detail"]["plan_completion_rate"] == 0.0
+
+    def test_autonomy_sub_scores_keys_present(self, tmp_path):
+        """Output must have the three new sub_scores and a detail block."""
+        events = [_run_start(), _run_end()]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        autonomy = data["components"]["autonomy"]
+        assert set(autonomy["sub_scores"].keys()) == {
+            "behavioral_initiative", "knowledge_accumulation", "planning_effectiveness"
+        }
+        assert "detail" in autonomy
+        assert set(autonomy["detail"].keys()) == {
+            "proactive_rate", "env_contingent_rate",
+            "semantic_growth", "compression_yield",
+            "plan_completion_rate", "planning_activity",
+        }
+
+    def test_autonomy_score_formula(self, tmp_path):
+        """Verify formula: 0.25*bi + 0.375*ka + 0.375*pe (all signals exercised)."""
+        events = [
+            _run_start(),
+            # behavioral: proactive move (hunger=20, fruit east, move east)
+            _agent_perception(1, hunger=20, resources_nearby=[{"type": "fruit", "tile": "forest", "dx": 1, "dy": 0}]),
+            _agent_decision(1, action="move", direction="east"),
+            # knowledge: 15/30 semantic, 2/5 compression yield
+            _agent_state(1, memory_semantic=15),
+            _memory_compression(10, learnings=["a", "b"]),
+            # planning: 1 completed, 1 failed
+            {"run_id": "test", "tick": 2, "event_type": "subgoal_completed", "agent_id": "Ada", "payload": {}},
+            {"run_id": "test", "tick": 3, "event_type": "subgoal_failed", "agent_id": "Ada", "payload": {}},
+            _run_end(),
+        ]
+        _write_events(tmp_path, events)
+        EBSBuilder(tmp_path).build()
+        data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        detail = data["components"]["autonomy"]["detail"]
+        sub = data["components"]["autonomy"]["sub_scores"]
+
+        # Verify sub-scores are averages of their signals
+        assert sub["behavioral_initiative"] == pytest.approx(
+            (detail["proactive_rate"] + detail["env_contingent_rate"]) / 2, abs=1e-3
+        )
+        assert sub["knowledge_accumulation"] == pytest.approx(
+            (detail["semantic_growth"] + detail["compression_yield"]) / 2, abs=1e-3
+        )
+        assert sub["planning_effectiveness"] == pytest.approx(
+            (detail["plan_completion_rate"] + detail["planning_activity"]) / 2, abs=1e-3
+        )
+        # Verify score formula
+        expected_score = 100 * (
+            0.25 * sub["behavioral_initiative"]
+            + 0.375 * sub["knowledge_accumulation"]
+            + 0.375 * sub["planning_effectiveness"]
+        )
+        assert data["components"]["autonomy"]["score"] == pytest.approx(expected_score, abs=0.01)
+
+
+# ------------------------------------------------------------------ #
 # EBSBuilder — Autonomy component (proactive join)
 # ------------------------------------------------------------------ #
 
@@ -412,7 +570,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 1.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 1.0
 
     def test_hungry_move_not_proactive(self, tmp_path):
         """Agent moves east while hunger >= 60 → reactive, not proactive."""
@@ -425,7 +583,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 0.0
 
     def test_move_away_from_resource_not_proactive(self, tmp_path):
         """Agent moves west while resource is to the east → not proactive."""
@@ -438,14 +596,14 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["proactive_resource_acquisition"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["proactive_rate"] == 0.0
 
     def test_self_generated_subgoals_still_zero_without_planning_events(self, tmp_path):
         events = [_run_start(), _run_end()]
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] == 0.0
+        assert data["components"]["autonomy"]["detail"]["planning_activity"] == 0.0
 
     def test_self_generated_subgoals_uses_planning_events(self, tmp_path):
         events = [
@@ -477,7 +635,7 @@ class TestAutonomyComponent:
         _write_events(tmp_path, events)
         EBSBuilder(tmp_path).build()
         data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
-        assert data["components"]["autonomy"]["sub_scores"]["self_generated_subgoals"] > 0.0
+        assert data["components"]["autonomy"]["detail"]["planning_activity"] > 0.0
 
 
 # ------------------------------------------------------------------ #

@@ -126,6 +126,23 @@ self.planner = Planner(llm) if llm else None
 - **Planner output**: structured goal, goal type, subgoals, success signals, abort conditions, confidence, and rationale summary.
 - **Observability**: agent decisions can carry a hidden `_planning_trace` consumed by `simulation/engine.py`.
 
+### EBS Autonomy component *(rebuilt — see DEC-041)*
+
+Weight: 13% of total EBS. Three sub-scores:
+
+| Sub-score | Weight | Signals |
+|---|---|---|
+| `behavioral_initiative` | 25% | avg(`proactive_rate`, `env_contingent_rate`) |
+| `knowledge_accumulation` | 37.5% | avg(`semantic_growth`, `compression_yield`) |
+| `planning_effectiveness` | 37.5% | avg(`plan_completion_rate`, `planning_activity`) |
+
+- `semantic_growth` — mean final `memory_semantic` count / `MEMORY_SEMANTIC_MAX` across agents (from `agent_state` events)
+- `compression_yield` — mean `min(1, learnings / episode_count)` per compression event
+- `plan_completion_rate` — `subgoals_completed / (subgoals_completed + subgoals_failed)`; 0 when planning disabled
+- `planning_activity` — `min(1, planning_signal / action_total)`
+
+All six underlying signals are exposed in `ebs.json` under `components.autonomy.detail`.
+
 ### Inventory *(implemented — see DEC-017)*
 
 ```python

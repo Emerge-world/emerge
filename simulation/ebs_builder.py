@@ -14,7 +14,7 @@ import math
 import re
 from pathlib import Path
 
-from simulation.config import EBS_LONGEVITY_REFERENCE_AGENT_TICKS
+from simulation.config import EBS_LONGEVITY_REFERENCE_AGENT_TICKS, MEMORY_SEMANTIC_MAX
 
 # Direction string → (dx, dy) for proactive_resource_acquisition
 _DIRECTION_TO_DELTA: dict[str, tuple[int, int]] = {
@@ -154,6 +154,7 @@ class EBSBuilder:
         initial_agents = 0
         total_ticks_from_run_end: int | None = None
         max_tick_seen = 0
+        last_semantic: dict[str, int] = {}  # agent_id → final memory_semantic count
 
         with self._events_path.open(encoding="utf-8") as fh:
             for raw in fh:
@@ -197,6 +198,7 @@ class EBSBuilder:
                             "life": p.get("life", 0),
                             "alive": p.get("alive", False),
                         })
+                        last_semantic[agent_id] = p.get("memory_semantic", 0)
 
                 elif et == "agent_perception":
                     if agent_id:
@@ -262,6 +264,7 @@ class EBSBuilder:
                     learnings_log.append({
                         "tick": tick, "agent_id": agent_id,
                         "learnings": p.get("learnings", []),
+                        "episode_count": p.get("episode_count", 0),
                     })
 
                 elif et == "plan_created":
@@ -392,15 +395,39 @@ class EBSBuilder:
             100 - 40 * false_knowledge_rate - 30 * invalid_action_rate
         ))
 
-        # Autonomy
+        # Autonomy — rebuilt sub-scores
+        # behavioral_initiative: consolidation of two existing behavioral signals
         proactive_rate = proactive_moves / total_moves if total_moves else 0.0
         env_contingent_rate = contingent_attempts / n_attempts if n_attempts else 0.0
+        behavioral_initiative = (proactive_rate + env_contingent_rate) / 2
+
+        # knowledge_accumulation: semantic memory growth + compression density
+        semantic_growth = (
+            sum(v / MEMORY_SEMANTIC_MAX for v in last_semantic.values()) / len(last_semantic)
+            if last_semantic else 0.0
+        )
+        compression_events = [
+            e for e in learnings_log if e.get("episode_count", 0) > 0
+        ]
+        compression_yield = (
+            sum(min(1.0, len(e["learnings"]) / e["episode_count"]) for e in compression_events)
+            / len(compression_events)
+            if compression_events else 0.0
+        )
+        knowledge_accumulation = (semantic_growth + compression_yield) / 2
+
+        # planning_effectiveness: completion quality + activity quantity
         planning_signal = subgoals_completed + subgoals_failed
-        self_generated_subgoals = min(1.0, planning_signal / action_total) if action_total else 0.0
+        plan_completion_rate = (
+            subgoals_completed / planning_signal if planning_signal else 0.0
+        )
+        planning_activity = min(1.0, planning_signal / action_total) if action_total else 0.0
+        planning_effectiveness = (plan_completion_rate + planning_activity) / 2
+
         autonomy_score = 100 * (
-            0.40 * proactive_rate
-            + 0.30 * env_contingent_rate
-            + 0.30 * self_generated_subgoals
+            0.25 * behavioral_initiative
+            + 0.375 * knowledge_accumulation
+            + 0.375 * planning_effectiveness
         )
 
         # Longevity
@@ -482,9 +509,17 @@ class EBSBuilder:
                     "score": round(autonomy_score, 2),
                     "weight": _WEIGHTS["autonomy"],
                     "sub_scores": {
-                        "proactive_resource_acquisition": round(proactive_rate, 4),
-                        "environment_contingent_innovation": round(env_contingent_rate, 4),
-                        "self_generated_subgoals": round(self_generated_subgoals, 4),
+                        "behavioral_initiative": round(behavioral_initiative, 4),
+                        "knowledge_accumulation": round(knowledge_accumulation, 4),
+                        "planning_effectiveness": round(planning_effectiveness, 4),
+                    },
+                    "detail": {
+                        "proactive_rate": round(proactive_rate, 4),
+                        "env_contingent_rate": round(env_contingent_rate, 4),
+                        "semantic_growth": round(semantic_growth, 4),
+                        "compression_yield": round(compression_yield, 4),
+                        "plan_completion_rate": round(plan_completion_rate, 4),
+                        "planning_activity": round(planning_activity, 4),
                     },
                 },
                 "longevity": {

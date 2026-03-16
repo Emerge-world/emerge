@@ -241,6 +241,7 @@ class EventEmitter:
             "pos": [agent.x, agent.y],
             "alive": agent.alive,
             "inventory": dict(agent.inventory.items),
+            "memory_semantic": len(agent.memory_system.semantic),
         }, agent_id=agent.name)
 
     def emit_run_end(self, tick: int, survivors: list[str], total_ticks: int):
