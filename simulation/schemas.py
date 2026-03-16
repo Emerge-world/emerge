@@ -57,12 +57,21 @@ class ItemEatEffectResponse(BaseModel):
     reason: ReasonText
 
 
+class InnovationRequires(BaseModel):
+    """Requirements declared by the agent for an innovation action."""
+    tile: Optional[IdentifierText] = None
+    min_energy: Optional[int] = None
+    items: Optional[dict[str, int]] = None
+
+
 class AgentDecisionResponse(BaseModel):
     action: IdentifierText
     reason: ReasonText
     direction: Optional[DirectionText] = None       # move
     new_action_name: Optional[IdentifierText] = None  # innovate
     description: Optional[LongText] = None     # innovate
+    requires: Optional[InnovationRequires] = None    # innovate
+    produces: Optional[dict[str, int]] = None        # innovate
     target: Optional[IdentifierText] = None          # communicate / give_item / teach / reproduce
     message: Optional[LongText] = None         # communicate
     intent: Optional[IdentifierText] = None          # communicate
