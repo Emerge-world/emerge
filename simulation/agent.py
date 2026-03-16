@@ -89,6 +89,8 @@ class Agent:
 
         # Available actions (starts with initial actions, can unlock or innovate more)
         self.actions: list[str] = list(INITIAL_ACTIONS)
+        # Descriptions for custom (innovated) actions — populated when oracle approves
+        self.action_descriptions: dict[str, str] = {}
 
         # Generational tracking (Phase 4)
         self.generation: int = 0
@@ -497,11 +499,18 @@ class Agent:
         return "\n".join(hints)
 
     def _build_system_prompt(self) -> str:
+        custom_actions_section = ""
+        if self.action_descriptions:
+            lines = ["", "YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):"]
+            for name, desc in self.action_descriptions.items():
+                lines.append(f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}')
+            custom_actions_section = "\n".join(lines)
         return prompt_loader.render(
             "agent/system",
             name=self.name,
             actions=", ".join(self.actions),
             personality_description=self.personality.to_prompt(),
+            custom_actions_section=custom_actions_section,
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
