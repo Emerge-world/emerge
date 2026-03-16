@@ -4,7 +4,5 @@ Create a short, explicit plan that helps you survive and make progress over mult
 Rules:
 - 1 to 3 subgoals maximum. Keep descriptions short.
 - 1 to 2 success_signals and abort_conditions each.
-- Subgoal completion_signal must be a concrete, measurable condition (e.g. "hunger < 40", "inventory has stone", "reached river tile").
-- When survival is stable (hunger < 50, energy > 60), include at least one innovation or crafting subgoal.
 
 Respond ONLY with valid JSON matching the requested plan schema.

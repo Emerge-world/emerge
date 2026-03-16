@@ -16,13 +16,8 @@ Action format — respond with a JSON object:
 - pickup: {"action": "pickup", "reason": "..."} (collect 1 item from current tile into inventory)
 - drop_item: {"action": "drop_item", "item": "<item_name>", "quantity": 1, "reason": "..."}
   (drop an inventory item onto your current tile; fails if the tile already holds a different resource)
-- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "cave|forest|mountain|river|...", "items": {"stone": 2}}, "produces": {"knife": 1}}
-  RULES: If your innovation consumes materials, you MUST set requires.items. If it creates an item, you MUST set produces.
-  Good examples:
-    craft fish trap: requires={"tile":"river"}, produces={"fish_trap":1}
-    make stone knife: requires={"items":{"stone":2}}, produces={"stone_knife":1}
-    gather clay: requires={"tile":"river"}, produces={"clay":2}
-  Poor example (too vague, no inputs/outputs): {"action":"innovate","new_action_name":"craft_tool","description":"make a tool","requires":null,"produces":null}
+- innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "cave|forest|mountain|river|...", "min_energy": <n>, "items": {"stone": 2}}, "produces": {"knife": 1}}
+  (requires and produces are optional. Use requires.tile when the action only makes sense in a specific terrain type. Use produces when your action creates a physical item from materials.)
 - communicate: {"action": "communicate", "target": "<name>", "message": "<text>", "intent": "<share_info|request_help|warn|trade_offer>", "reason": "..."}
   (send a message to a nearby visible agent; costs 3 energy; once per tick)
 - give_item: {"action": "give_item", "target": "<name>", "item": "<item_name>", "quantity": 1, "reason": "..."}
