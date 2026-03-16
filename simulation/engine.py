@@ -29,6 +29,7 @@ from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
 from simulation.ebs_builder import EBSBuilder
 from simulation.tick_limits import format_tick_limit, iter_tick_numbers
+from simulation.subgoal_evaluator import check_completion, check_failure
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +332,28 @@ class SimulationEngine:
                 )
             elif action_str not in _BASE_ACTIONS:
                 self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
+
+            # 4c. Evaluate active subgoal progress after oracle resolution
+            _subgoal = agent.current_subgoal()
+            if _subgoal is not None:
+                _consecutive = getattr(agent.planning_state, "_subgoal_fail_streak", 0)
+                if check_completion(_subgoal, agent, result, action_str):
+                    agent.planning_state.active_subgoal_index += 1
+                    agent.planning_state._subgoal_fail_streak = 0  # type: ignore[attr-defined]
+                    self.event_emitter.emit_subgoal_completed(tick, agent.name, {
+                        "subgoal": _subgoal.description,
+                        "kind": _subgoal.kind,
+                    })
+                elif check_failure(_subgoal, agent, result, action_str, _consecutive):
+                    agent.planning_state.status = "blocked"
+                    agent.planning_state._subgoal_fail_streak = 0  # type: ignore[attr-defined]
+                    self.event_emitter.emit_subgoal_failed(tick, agent.name, {
+                        "subgoal": _subgoal.description,
+                        "kind": _subgoal.kind,
+                    })
+                elif not result.get("success"):
+                    agent.planning_state._subgoal_fail_streak = _consecutive + 1  # type: ignore[attr-defined]
+
             crafting_event = result.get("crafting_event")
             status = "✅" if result["success"] else "❌"
 
