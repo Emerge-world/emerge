@@ -146,7 +146,7 @@ All other signals are already fully present in `events.jsonl`:
 | File | Change |
 |---|---|
 | `simulation/event_emitter.py` | Add `memory_semantic` (int) to `emit_agent_state` payload |
-| `simulation/ebs_builder.py` | (1) Extend `learnings_log` accumulator to also store `episode_count`; (2) add `memory_semantic` tracking from `agent_state` events; (3) replace autonomy scoring block; (4) update output dict structure |
+| `simulation/ebs_builder.py` | (1) Add `MEMORY_SEMANTIC_MAX` to the import from `simulation.config`; (2) extend `learnings_log` accumulator to also store `episode_count`; (3) add a `last_semantic: dict[str, int]` accumulator — overwrite on each `agent_state` event with `p.get("memory_semantic", 0)` — to track the final semantic count per agent; (4) replace autonomy scoring block; (5) update output dict structure |
 | `project-cornerstone/00-master-plan/DECISION_LOG.md` | Add decision entry |
 | `project-cornerstone/03-agents/agents_context.md` | Update EBS autonomy description |
 | `tests/test_ebs_builder.py` | Update or add tests for new sub-scores and output shape |
