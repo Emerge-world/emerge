@@ -13,7 +13,7 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP, ENERGY_COST_DROP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
-    INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS,
+    INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS, BASE_ACTIONS,
     AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
@@ -336,6 +336,9 @@ class Agent:
             f"Inventory: {self.inventory.to_prompt() or 'empty'}",
             f"Nearby agents: {', '.join(nearby_names) if nearby_names else 'none'}",
         ]
+        innovations = [a for a in self.actions if a not in BASE_ACTIONS]
+        if innovations:
+            parts.append(f"Custom actions: {', '.join(innovations)}")
         if time_description:
             parts.insert(0, time_description.strip())
         return "\n".join(parts)
