@@ -206,6 +206,7 @@ class TestGenerateStructured:
         result = client.generate_structured("prompt", AgentDecisionResponse)
 
         assert result is None
+        assert "repaired_reason_too_long" not in client.last_call
 
     def test_repair_not_applied_to_non_decision_models(self):
         """Overlong reason in PhysicalReflectionResponse is not repaired; returns None."""
