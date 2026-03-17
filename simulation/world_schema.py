@@ -38,16 +38,19 @@ class WorldSchema:
         self.source_path = source_path
 
         # Top-level sections as direct attributes for convenience
-        self.schema_version: str = data["schema_version"]
-        self.metadata: dict = data["metadata"]
-        self.world: dict = data["world"]
-        self.tiles: dict[str, Any] = data["tiles"]
-        self.resources: dict[str, Any] = data["resources"]
-        self.agents: dict = data["agents"]
-        self.day_night: dict = data["day_night"]
-        self.regeneration: dict = data["regeneration"]
-        self.innovation: dict = data["innovation"]
-        self.reproduction: dict = data["reproduction"]
+        try:
+            self.schema_version: str = data["schema_version"]
+            self.metadata: dict = data["metadata"]
+            self.world: dict = data["world"]
+            self.tiles: dict[str, Any] = data["tiles"]
+            self.resources: dict[str, Any] = data["resources"]
+            self.agents: dict = data["agents"]
+            self.day_night: dict = data["day_night"]
+            self.regeneration: dict = data["regeneration"]
+            self.innovation: dict = data["innovation"]
+            self.reproduction: dict = data["reproduction"]
+        except KeyError as exc:
+            raise ValueError(f"WorldSchema validation failed: missing required field {exc}") from exc
 
         # Resolve the overflow tile name (for height > max tile)
         self._overflow_tile: str = self.tiles.get("_overflow", "mountain")

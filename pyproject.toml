@@ -10,6 +10,8 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "opensimplex>=0.4",
     "wandb>=0.25.0",
+    "streamlit>=1.40.0",
+    "plotly>=5.0.0",
 ]
 
 [tool.pytest.ini_options]
