@@ -36,6 +36,8 @@ logs/
 
 # Runtime data (oracle precedents, world state snapshots)
 data/
+# But track schema definitions
+!data/schemas/
 
 # Environment variables
 .env

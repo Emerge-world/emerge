@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorldSchema",
+  "type": "object",
+  "required": ["schema_version", "metadata", "world", "tiles", "resources", "agents", "day_night", "regeneration", "innovation", "reproduction"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "metadata": {
+      "type": "object",
+      "required": ["name", "generation"],
+      "properties": {
+        "name": {"type": "string"},
+        "parent": {"type": ["string", "null"]},
+        "generation": {"type": "integer", "minimum": 0},
+        "mutations_applied": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "world": {
+      "type": "object",
+      "required": ["width", "height", "noise"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 5},
+        "height": {"type": "integer", "minimum": 5},
+        "noise": {
+          "type": "object",
+          "required": ["primary_scale", "river_scale", "river_threshold"],
+          "properties": {
+            "primary_scale": {"type": "number", "exclusiveMinimum": 0},
+            "river_scale": {"type": "number", "exclusiveMinimum": 0},
+            "river_threshold": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      }
+    },
+    "tiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "required": ["walkable"],
+            "properties": {
+              "height_max": {"type": ["number", "null"]},
+              "walkable": {"type": "boolean"},
+              "spawn_tiles": {"type": "boolean"},
+              "river_overlay": {"type": "boolean"},
+              "resource": {
+                "type": "object",
+                "required": ["type", "min", "max"],
+                "properties": {
+                  "type": {"type": "string"},
+                  "min": {"type": "integer", "minimum": 0},
+                  "max": {"type": "integer", "minimum": 0},
+                  "regenerates": {"type": "boolean"},
+                  "inexhaustible": {"type": "boolean"}
+                }
+              },
+              "risk": {
+                "type": "object",
+                "properties": {
+                  "life_damage": {"type": "number"},
+                  "energy_cost_add": {"type": "number", "minimum": 0}
+                }
+              },
+              "rest_bonus": {
+                "type": "object",
+                "properties": {
+                  "energy_add": {"type": "number", "minimum": 0}
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "resources": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["edible"],
+        "properties": {
+          "edible": {"type": "boolean"},
+          "hunger_reduction": {"type": "number"},
+          "life_change": {"type": "number"},
+          "inexhaustible": {"type": "boolean"}
+        }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "required": ["max_count", "stats", "costs", "thresholds", "vision_radius", "rest_recovery", "inventory_capacity"],
+      "properties": {
+        "max_count": {"type": "integer", "minimum": 1},
+        "stats": {
+          "type": "object",
+          "properties": {
+            "max_life": {"type": "number", "minimum": 1},
+            "max_hunger": {"type": "number", "minimum": 1},
+            "max_energy": {"type": "number", "minimum": 1},
+            "start_life": {"type": "number", "minimum": 0},
+            "start_hunger": {"type": "number", "minimum": 0},
+            "start_energy": {"type": "number", "minimum": 0}
+          }
+        },
+        "costs": {"type": "object", "additionalProperties": {"type": "number"}},
+        "thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
+        "vision_radius": {"type": "integer", "minimum": 1},
+        "rest_recovery": {"type": "number", "minimum": 0},
+        "inventory_capacity": {"type": "integer", "minimum": 1}
+      }
+    },
+    "day_night": {
+      "type": "object",
+      "required": ["day_length", "start_hour", "sunset_start", "night_start", "night_vision_reduction", "sunset_vision_reduction", "night_energy_multiplier"],
+      "properties": {
+        "day_length": {"type": "integer", "minimum": 1},
+        "start_hour": {"type": "integer", "minimum": 0, "maximum": 23},
+        "sunset_start": {"type": "integer", "minimum": 0, "maximum": 23},
+        "night_start": {"type": "integer", "minimum": 0, "maximum": 23},
+        "night_vision_reduction": {"type": "integer", "minimum": 0},
+        "sunset_vision_reduction": {"type": "integer", "minimum": 0},
+        "night_energy_multiplier": {"type": "number", "minimum": 1}
+      }
+    },
+    "regeneration": {
+      "type": "object",
+      "required": ["chance", "amount_min", "amount_max"],
+      "properties": {
+        "chance": {"type": "number", "minimum": 0, "maximum": 1},
+        "amount_min": {"type": "integer", "minimum": 0},
+        "amount_max": {"type": "integer", "minimum": 0}
+      }
+    },
+    "innovation": {
+      "type": "object",
+      "required": ["effect_bounds"],
+      "properties": {
+        "effect_bounds": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "reproduction": {
+      "type": "object",
+      "properties": {
+        "min_life": {"type": "number"},
+        "max_hunger": {"type": "number"},
+        "min_energy": {"type": "number"},
+        "min_ticks_alive": {"type": "integer"},
+        "adjacency_max": {"type": "integer"},
+        "cooldown": {"type": "integer"},
+        "life_cost": {"type": "number"},
+        "hunger_cost": {"type": "number"},
+        "energy_cost": {"type": "number"},
+        "child_start_life": {"type": "number"},
+        "child_start_hunger": {"type": "number"},
+        "child_start_energy": {"type": "number"},
+        "personality_mutation_std": {"type": "number"},
+        "inherit_semantic_max": {"type": "integer"}
+      }
+    }
+  }
+}

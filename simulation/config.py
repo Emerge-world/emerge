@@ -223,3 +223,16 @@ EBS_LONGEVITY_REFERENCE_AGENT_TICKS = 1500  # λ: ~3 agents × 500 ticks baselin
 RESOURCE_REGEN_CHANCE = 0.3          # probability per depleted tree at each dawn
 RESOURCE_REGEN_AMOUNT_MIN = 1        # minimum fruit spawned on regeneration
 RESOURCE_REGEN_AMOUNT_MAX = 3        # maximum fruit spawned on regeneration
+
+# ---------------------------------------------------------------------------
+# WorldSchema bridge (PR: world-schema-extraction)
+# ---------------------------------------------------------------------------
+# All constants above remain importable for backward compatibility.
+# New code should prefer WorldSchema directly.  This bridge is scaffolding
+# that will be removed once all consumers are migrated (PR: schema-wiring).
+# ---------------------------------------------------------------------------
+try:
+    from simulation.world_schema import WorldSchema as _WorldSchema  # noqa: F401
+    _DEFAULT_WORLD_SCHEMA = _WorldSchema.load_default()
+except Exception:
+    _DEFAULT_WORLD_SCHEMA = None  # type: ignore[assignment]

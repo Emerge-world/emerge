@@ -1,0 +1,171 @@
+schema_version: "1.0"
+
+metadata:
+  name: "base"
+  parent: null
+  generation: 0
+  mutations_applied: []
+
+world:
+  width: 15
+  height: 15
+  noise:
+    primary_scale: 3.5
+    river_scale: 7.0
+    river_threshold: 0.15
+
+tiles:
+  water:
+    height_max: 0.28
+    walkable: false
+    spawn_tiles: false
+  sand:
+    height_max: 0.38
+    walkable: true
+    spawn_tiles: true
+    river_overlay: true
+  land:
+    height_max: 0.70
+    walkable: true
+    spawn_tiles: true
+    river_overlay: true
+  tree:
+    height_max: 0.76
+    walkable: true
+    spawn_tiles: false
+    resource:
+      type: fruit
+      min: 1
+      max: 5
+      regenerates: true
+  forest:
+    height_max: 0.82
+    walkable: true
+    spawn_tiles: true
+    resource:
+      type: mushroom
+      min: 1
+      max: 3
+      regenerates: true
+  mountain:
+    height_max: 0.90
+    walkable: true
+    spawn_tiles: false
+    risk:
+      energy_cost_add: 6
+    resource:
+      type: stone
+      min: 2
+      max: 5
+      regenerates: false
+  cave:
+    height_max: 0.96
+    walkable: true
+    spawn_tiles: false
+    rest_bonus:
+      energy_add: 20
+    resource:
+      type: stone
+      min: 1
+      max: 4
+      regenerates: false
+  # river is an overlay tile (not height-based); appears on sand/land via secondary noise
+  river:
+    height_max: null
+    walkable: true
+    spawn_tiles: false
+    risk:
+      energy_cost_add: 3
+    resource:
+      type: water
+      min: 99
+      max: 99
+      regenerates: false
+      inexhaustible: true
+  # height > cave.height_max = mountain peak (same type as mountain)
+  _overflow: mountain
+
+resources:
+  fruit:
+    edible: true
+    hunger_reduction: 20
+    life_change: 0
+  mushroom:
+    edible: true
+    hunger_reduction: 15
+    life_change: 0
+  water:
+    edible: true
+    hunger_reduction: 5
+    life_change: 0
+    inexhaustible: true
+  stone:
+    edible: false
+
+agents:
+  max_count: 50
+  stats:
+    max_life: 100
+    max_hunger: 100
+    max_energy: 100
+    start_life: 100
+    start_hunger: 0
+    start_energy: 100
+  costs:
+    move: 3
+    eat: 2
+    innovate: 10
+    pickup: 0
+    drop: 0
+    communicate: 3
+    give_item: 2
+    teach_teacher: 8
+    teach_learner: 5
+  thresholds:
+    hunger_per_tick: 1
+    hunger_damage_threshold: 80
+    hunger_damage_per_tick: 3
+    energy_low_threshold: 20
+    energy_damage_per_tick: 2
+    heal_hunger_threshold: 50
+    heal_energy_threshold: 30
+    heal_per_tick: 1
+  vision_radius: 3
+  rest_recovery: 50
+  inventory_capacity: 10
+
+day_night:
+  day_length: 24
+  start_hour: 6
+  sunset_start: 16
+  night_start: 21
+  night_vision_reduction: 2
+  sunset_vision_reduction: 1
+  night_energy_multiplier: 1.5
+
+regeneration:
+  chance: 0.3
+  amount_min: 1
+  amount_max: 3
+
+innovation:
+  effect_bounds:
+    hunger: [-30, 10]
+    energy: [-20, 20]
+    life: [-15, 10]
+
+reproduction:
+  min_life: 70
+  max_hunger: 30
+  min_energy: 50
+  min_ticks_alive: 100
+  adjacency_max: 1
+  cooldown: 48
+  life_cost: 30
+  hunger_cost: 30
+  energy_cost: 30
+  child_start_life: 50
+  child_start_hunger: 40
+  child_start_energy: 40
+  personality_mutation_std: 0.1
+  inherit_semantic_max: 5
