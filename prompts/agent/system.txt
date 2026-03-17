@@ -15,6 +15,7 @@ Action format — respond with a JSON object:
   Edible items: fruit, mushroom, water. You cannot eat stone.
 - rest: {"action": "rest", "reason": "..."} (recover energy, skip turn)
 - pickup: {"action": "pickup", "reason": "..."} (collect 1 item from current tile into inventory)
+  IMPORTANT: Only use pickup when the resource is on your current tile. If a resource is visible on another tile, move first.
 - drop_item: {"action": "drop_item", "item": "<item_name>", "quantity": 1, "reason": "..."}
   (drop an inventory item onto your current tile; fails if the tile already holds a different resource)
 - innovate: {"action": "innovate", "new_action_name": "...", "description": "...", "reason": "...", "requires": {"tile": "cave|forest|mountain|river|...", "min_energy": <n>, "items": {"stone": 2}}, "produces": {"knife": 1}}

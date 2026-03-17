@@ -21,6 +21,14 @@ def test_planner_prompt_includes_reflection_questions():
     assert "Do I need to change my goal?" in prompt
 
 
+def test_planner_system_requires_movement_before_pickup_for_nearby_items():
+    prompt = prompt_loader.render("agent/planner_system", agent_name="Ada")
+
+    assert "move" in prompt.lower()
+    assert "before" in prompt.lower()
+    assert "pickup" in prompt.lower()
+
+
 def test_planner_returns_planning_state():
     llm = MagicMock()
     typed = MagicMock()

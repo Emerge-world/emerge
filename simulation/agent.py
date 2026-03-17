@@ -324,17 +324,45 @@ class Agent:
         lines = "\n".join(f"- [RELEVANT] {entry}" for entry in ranked)
         return f"RELEVANT MEMORY:\n{lines}"
 
+    def _resource_tiles(self, nearby_tiles: list[dict], *, distance: int | None = None) -> list[dict]:
+        tiles = [
+            tile for tile in nearby_tiles
+            if tile.get("resource") and isinstance(tile["resource"], dict)
+        ]
+        if distance is None:
+            return tiles
+        return [tile for tile in tiles if tile.get("distance") == distance]
+
+    def _resource_names_for_distance(self, nearby_tiles: list[dict], *, distance: int | None) -> str:
+        names = sorted(
+            {
+                tile["resource"]["type"]
+                for tile in self._resource_tiles(nearby_tiles, distance=distance)
+            }
+        )
+        return ", ".join(names) if names else "none"
+
+    def _nearby_resource_names(self, nearby_tiles: list[dict]) -> str:
+        names = sorted(
+            {
+                tile["resource"]["type"]
+                for tile in self._resource_tiles(nearby_tiles)
+                if tile.get("distance", 0) > 0
+            }
+        )
+        return ", ".join(names) if names else "none"
+
     def _build_observation_text(
         self,
         nearby_tiles: list[dict],
         time_description: str,
         nearby_agents: list | None = None,
     ) -> str:
-        resources = sorted(self._visible_resource_names(nearby_tiles))
         nearby_names = [other.name for other, _ in (nearby_agents or [])]
         parts = [
             f"Stats: life={self.life}, hunger={self.hunger}, energy={self.energy}",
-            f"Visible resources: {', '.join(resources) if resources else 'none'}",
+            f"Resources on current tile: {self._resource_names_for_distance(nearby_tiles, distance=0)}",
+            f"Nearby resources: {self._nearby_resource_names(nearby_tiles)}",
             f"Inventory: {self.inventory.to_prompt() or 'empty'}",
             f"Nearby agents: {', '.join(nearby_names) if nearby_names else 'none'}",
         ]
@@ -475,32 +503,44 @@ class Agent:
             rows.append(" ".join(row_chars))
         return "\n".join(rows)
 
-    def _build_resource_hints(self, nearby_tiles: list[dict]) -> str:
-        """Pre-compute directional hints so the model never has to do coordinate math."""
-        resource_tiles = [t for t in nearby_tiles if "resource" in t]
+    def _build_resource_hint_line(self, tile: dict) -> str:
+        dx = tile["x"] - self.x
+        dy = tile["y"] - self.y  # negative dy = north
+        resource_type = tile["resource"]["type"]
+        qty = tile["resource"]["quantity"]
+        dist = tile["distance"]
+        if dist == 0:
+            return f"- {resource_type} HERE (qty: {qty})"
+
+        parts = []
+        if dy < 0:
+            parts.append("NORTH")
+        elif dy > 0:
+            parts.append("SOUTH")
+        if dx > 0:
+            parts.append("EAST")
+        elif dx < 0:
+            parts.append("WEST")
+        direction = "-".join(parts) if parts else "HERE"
+        tile_word = "tile" if dist == 1 else "tiles"
+        return f"- {resource_type} {dist} {tile_word} {direction} (qty: {qty})"
+
+    def _build_current_tile_resource_hints(self, nearby_tiles: list[dict]) -> str:
+        resource_tiles = self._resource_tiles(nearby_tiles, distance=0)
         if not resource_tiles:
-            return "No resources visible."
-        resource_tiles.sort(key=lambda t: t["distance"])
-        hints = []
-        for t in resource_tiles:
-            dx = t["x"] - self.x
-            dy = t["y"] - self.y  # negative dy = north
-            resource_type = t["resource"]["type"]
-            qty = t["resource"]["quantity"]
-            dist = t["distance"]
-            parts = []
-            if dy < 0:
-                parts.append("NORTH")
-            elif dy > 0:
-                parts.append("SOUTH")
-            if dx > 0:
-                parts.append("EAST")
-            elif dx < 0:
-                parts.append("WEST")
-            direction = "-".join(parts) if parts else "HERE"
-            tile_word = "tile" if dist == 1 else "tiles"
-            hints.append(f"- {resource_type} {dist} {tile_word} {direction} (qty: {qty})")
-        return "\n".join(hints)
+            return "No resources on your tile."
+        return "\n".join(self._build_resource_hint_line(tile) for tile in resource_tiles)
+
+    def _build_nearby_resource_hints(self, nearby_tiles: list[dict]) -> str:
+        """Pre-compute directional hints so the model never has to do coordinate math."""
+        resource_tiles = [
+            tile for tile in self._resource_tiles(nearby_tiles)
+            if tile.get("distance", 0) > 0
+        ]
+        if not resource_tiles:
+            return "No nearby resources visible."
+        resource_tiles.sort(key=lambda tile: tile["distance"])
+        return "\n".join(self._build_resource_hint_line(tile) for tile in resource_tiles)
 
     def _build_system_prompt(self) -> str:
         custom_actions_section = ""
@@ -529,7 +569,8 @@ class Agent:
             "land",
         )
         current_tile_info = f"[Tile: {_current_tile}]"
-        resource_hints = self._build_resource_hints(nearby_tiles)
+        pickup_ready_resources = self._build_current_tile_resource_hints(nearby_tiles)
+        nearby_resource_hints = self._build_nearby_resource_hints(nearby_tiles)
         memory_text = self._build_executor_memory_text(nearby_tiles)
 
         if self.energy <= 0:
@@ -567,7 +608,8 @@ class Agent:
             energy=self.energy,
             max_energy=AGENT_MAX_ENERGY,
             ascii_grid=ascii_grid,
-            resource_hints=resource_hints,
+            pickup_ready_resources=pickup_ready_resources,
+            nearby_resource_hints=nearby_resource_hints,
             memory_text=memory_text,
             status_effects=status_effects,
             time_info=time_description,
@@ -603,6 +645,20 @@ class Agent:
         # If low on energy, rest
         if self.energy < 20:
             return {"action": "rest", "reason": "I'm exhausted"}
+
+        current_tile_resource = next(
+            (
+                tile for tile in nearby_tiles
+                if tile.get("distance") == 0
+                and tile.get("resource", {}).get("quantity", 0) > 0
+            ),
+            None,
+        )
+        if current_tile_resource and self.inventory.free_space() > 0:
+            return {
+                "action": "pickup",
+                "reason": "There's a resource on my tile I can collect now",
+            }
 
         # Otherwise, move towards edible resources
         food_tiles = [

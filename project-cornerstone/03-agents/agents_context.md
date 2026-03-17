@@ -5,7 +5,7 @@
 The following agent cognition features are live:
 
 - **Compact 7×7 ASCII grid**: Nearby tiles are rendered as a compact ASCII grid (`@`=agent, `F`=fruit, `t`=tree, `W`=water, `.`=land, `#`=obstacle) instead of a JSON list.
-- **Directional resource hints**: The decision prompt includes natural-language hints like `"fruit 2 tiles NORTH"` so the agent can act without parsing the full grid.
+- **Split resource visibility**: The decision prompt separates `Resources on your tile` from `Nearby resources (move first)` so pickup-ready items are distinct from merely visible ones.
 - **Few-shot examples**: `prompts/agent/system.txt` contains 2–3 worked examples of good decisions baked into the system prompt.
 - **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
 - **Dual memory system**: Episodic (short-term, max 20) + semantic (long-term, max 30) memory. See DEC-009, implemented in `simulation/memory.py`.
@@ -154,6 +154,7 @@ agent.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)  # default 10
 - **Prompt**: appears in decision prompt only when non-empty: `INVENTORY: fruit x2, stone x1 (3/10)`
 - **Serialized** in `get_status()` → `{"items": {...}, "capacity": 10}`
 - **`pickup` base action**: agents start with it — pick up 1 item per tick from their current tile (no energy cost)
+  - Prompt contract: only use `pickup` for resources on the current tile; if the resource is nearby but not underfoot, move first
 - **`drop_item` base action**: agents start with it — place inventory items onto their current tile (no energy cost); succeeds on empty/same-type stacks and fails on conflicting resource types
 - **`give_item` base action** *(Phase 3c)*: transfer any inventory item to an adjacent agent (manhattan dist ≤ 1); costs 2 energy; builds +0.15 trust on receiver toward giver; both get episodic memory
 - **`teach` base action** *(Phase 3c)*: deterministically copy an owned innovation to a visible agent (dist ≤ AGENT_VISION_RADIUS); costs 8 energy (teacher) + 5 energy (learner); both gain +0.20 trust; no LLM call (DEC-024)
