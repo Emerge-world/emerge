@@ -70,7 +70,20 @@ def main():
     args = parser.parse_args()
     setup_logging(args.verbose)
 
-    wandb_logger = None
+    print("🧬 Starting autonomous agent life simulation...\n")
+
+    engine = SimulationEngine(
+        num_agents=args.agents,
+        world_seed=args.seed,
+        use_llm=not args.no_llm,
+        max_ticks=args.ticks,
+        start_hour=args.start_hour,
+        world_width=args.width,
+        world_height=args.height,
+        ollama_model=args.model,
+        run_digest=not args.no_digest,
+    )
+
     if args.wandb:
         run_config = {
             "agents": args.agents,
@@ -94,28 +107,13 @@ def main():
             "MEMORY_COMPRESSION_INTERVAL": sim_config.MEMORY_COMPRESSION_INTERVAL,
         }
         prompts_dir = Path(__file__).parent / "prompts"
-        wandb_logger = WandbLogger(
+        engine.wandb_logger = WandbLogger(
             project=args.wandb_project,
             entity=args.wandb_entity,
             run_config=run_config,
             prompts_dir=prompts_dir,
-            run_name=args.wandb_run_name,
+            run_name=args.wandb_run_name or engine.run_id,
         )
-
-    print("🧬 Starting autonomous agent life simulation...\n")
-
-    engine = SimulationEngine(
-        num_agents=args.agents,
-        world_seed=args.seed,
-        use_llm=not args.no_llm,
-        max_ticks=args.ticks,
-        start_hour=args.start_hour,
-        world_width=args.width,
-        world_height=args.height,
-        wandb_logger=wandb_logger,
-        ollama_model=args.model,
-        run_digest=not args.no_digest,
-    )
 
     try:
         engine.run()
