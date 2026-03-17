@@ -4,7 +4,7 @@ Has life, hunger, energy, memory, and an action repertoire.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from simulation.config import (
     AGENT_MAX_LIFE, AGENT_MAX_HUNGER, AGENT_MAX_ENERGY,
@@ -33,6 +33,9 @@ from simulation import prompt_loader
 from simulation.message import IncomingMessage
 from simulation.relationship import Relationship
 
+if TYPE_CHECKING:
+    from simulation.world_schema import WorldSchema
+
 logger = logging.getLogger(__name__)
 
 # Mapping from tile type to ASCII character for the 7x7 vision grid.
@@ -57,7 +60,8 @@ class Agent:
 
     _id_counter = 0
 
-    def __init__(self, name: Optional[str] = None, x: int = 0, y: int = 0, llm: Optional[LLMClient] = None):
+    def __init__(self, name: Optional[str] = None, x: int = 0, y: int = 0, llm: Optional[LLMClient] = None,
+                 world_schema: Optional["WorldSchema"] = None):
         Agent._id_counter += 1
         self.id = Agent._id_counter
         self.name = name or AGENT_NAMES[(self.id - 1) % len(AGENT_NAMES)]
@@ -77,6 +81,13 @@ class Agent:
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
+
+        # Edible items: schema-driven when available, else config constant
+        self._edible_items: frozenset[str] = (
+            frozenset(world_schema.get_edible_resources())
+            if world_schema is not None
+            else EDIBLE_ITEMS
+        )
 
         # Incoming messages from other agents (cleared after decide_action each tick)
         self.incoming_messages: list[IncomingMessage] = []
@@ -630,12 +641,12 @@ class Agent:
                 if (
                     "resource" in t
                     and t["distance"] <= 1
-                    and t["resource"].get("type") in EDIBLE_ITEMS
+                    and t["resource"].get("type") in self._edible_items
                 ):
                     return {"action": "eat", "reason": "I'm hungry and there's food nearby"}
             # Fall back to inventory food
             for item_name in self.inventory.items:
-                if item_name in EDIBLE_ITEMS:
+                if item_name in self._edible_items:
                     return {"action": "eat", "item": item_name, "reason": "I'm hungry and eating from my inventory"}
 
         # If low on energy, rest

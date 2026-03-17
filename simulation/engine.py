@@ -107,7 +107,7 @@ class SimulationEngine:
         self.agents: list[Agent] = []
         for i in range(num_agents):
             x, y = self.world.find_spawn_point()
-            agent = Agent(x=x, y=y, llm=self.llm)
+            agent = Agent(x=x, y=y, llm=self.llm, world_schema=world_schema)
             self.agents.append(agent)
             self._used_names.add(agent.name)
             self.lineage.record_birth(agent.name, [], 0, tick=0)
@@ -503,7 +503,7 @@ class SimulationEngine:
         parent_b = next(a for a in self.agents if a.name == parent_b_name)
 
         name = self._pick_child_name(parent_a_name, parent_b_name)
-        child = Agent(name=name, x=pos[0], y=pos[1], llm=self.llm)
+        child = Agent(name=name, x=pos[0], y=pos[1], llm=self.llm, world_schema=self._world_schema)
 
         # Override default stats with child (infant) values
         child.life = CHILD_START_LIFE
