@@ -14,7 +14,7 @@ from simulation.config import (
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
     INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS, BASE_ACTIONS,
-    AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
+    AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY, EDIBLE_ITEMS,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
     REPRODUCE_MIN_TICKS_ALIVE, REPRODUCE_COOLDOWN,
@@ -585,18 +585,32 @@ class Agent:
 
     def _fallback_decision(self, nearby_tiles: list[dict]) -> dict:
         """Basic decision without LLM based on simple rules."""
-        # If very hungry and food is nearby, eat
+        # If very hungry, try to eat
         if self.hunger > 40:
+            # Prefer ground food at distance <= 1
             for t in nearby_tiles:
-                if "resource" in t and t["distance"] <= 1:
+                if (
+                    "resource" in t
+                    and t["distance"] <= 1
+                    and t["resource"].get("type") in EDIBLE_ITEMS
+                ):
                     return {"action": "eat", "reason": "I'm hungry and there's food nearby"}
+            # Fall back to inventory food
+            for item_name in self.inventory.items:
+                if item_name in EDIBLE_ITEMS:
+                    return {"action": "eat", "item": item_name, "reason": "I'm hungry and eating from my inventory"}
 
         # If low on energy, rest
         if self.energy < 20:
             return {"action": "rest", "reason": "I'm exhausted"}
 
-        # Otherwise, move towards resources
-        food_tiles = [t for t in nearby_tiles if "resource" in t and t["distance"] > 0]
+        # Otherwise, move towards edible resources
+        food_tiles = [
+            t for t in nearby_tiles
+            if "resource" in t
+            and t["resource"].get("type") in EDIBLE_ITEMS
+            and t["distance"] > 0
+        ]
         if food_tiles:
             closest = min(food_tiles, key=lambda t: t["distance"])
             dx = closest["x"] - self.x

@@ -617,9 +617,9 @@ class Oracle:
 
     def _resolve_communicate(self, agent: Agent, action: dict, tick: int) -> dict:
         """Agent sends a message to a nearby agent."""
-        intent = action.get("intent", "")
+        intent = action.get("intent", "") or "share_info"
         if intent not in VALID_INTENTS:
-            return {"success": False, "message": f"Unknown intent '{intent}'.", "effects": {}}
+            intent = "share_info"
 
         if agent.name in self._communicated_this_tick:
             return {"success": False, "message": "Already communicated this tick.", "effects": {}}

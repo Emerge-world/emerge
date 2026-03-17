@@ -242,11 +242,20 @@ def _make_ebs_json(tmp_path: Path, ebs: float = 0.75, components: dict | None = 
     data = {
         "ebs": ebs,
         "components": components or {
-            "novelty":     {"score": 0.8},
-            "utility":     {"score": 0.7},
-            "realization": {"score": 0.6},
-            "stability":   {"score": 0.9},
-            "autonomy":    {"score": 0.5},
+            "novelty":     {"score": 0.8, "sub_scores": {"approval_rate": 0.7, "uniqueness_rate": 0.9}},
+            "utility":     {"score": 0.7, "sub_scores": {"survival_impact": 0.6}},
+            "realization": {"score": 0.6, "sub_scores": {"completion_rate": 0.5}},
+            "stability":   {"score": 0.9, "sub_scores": {"survival_rate": 0.95}},
+            "autonomy":    {
+                "score": 0.5,
+                "sub_scores": {
+                    "behavioral_initiative": 0.4,
+                    "knowledge_accumulation": 0.6,
+                    "planning_effectiveness": 0.5,
+                },
+                "detail": {"proactive_rate": 0.3, "reactive_rate": 0.7},
+            },
+            "longevity":   {"score": 0.65, "sub_scores": {"population_vitality": 0.7, "absolute_longevity": 0.6}},
         },
     }
     (metrics_dir / "ebs.json").write_text(json.dumps(data), encoding="utf-8")
@@ -302,14 +311,36 @@ class TestWandbLoggerPostRun:
         assert logged["post_run/ebs"] == 0.75
 
     @patch("simulation.wandb_logger.wandb")
-    def test_logs_all_five_ebs_components(self, mock_wandb, tmp_path):
+    def test_logs_all_six_ebs_components(self, mock_wandb, tmp_path):
         run_dir = _make_ebs_json(tmp_path)
         wl = _make_logger(mock_wandb, tmp_path)
         mock_wandb.log.reset_mock()
         wl.log_post_run(run_dir, include_digest=False)
         logged = _collect_log_calls(mock_wandb)
-        for name in ("novelty", "utility", "realization", "stability", "autonomy"):
+        for name in ("novelty", "utility", "realization", "stability", "autonomy", "longevity"):
             assert f"post_run/ebs_{name}" in logged
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_ebs_sub_scores(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=False)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/ebs_novelty/approval_rate"] == pytest.approx(0.7)
+        assert logged["post_run/ebs_longevity/population_vitality"] == pytest.approx(0.7)
+        assert logged["post_run/ebs_longevity/absolute_longevity"] == pytest.approx(0.6)
+        assert logged["post_run/ebs_autonomy/behavioral_initiative"] == pytest.approx(0.4)
+
+    @patch("simulation.wandb_logger.wandb")
+    def test_logs_ebs_detail_signals(self, mock_wandb, tmp_path):
+        run_dir = _make_ebs_json(tmp_path)
+        wl = _make_logger(mock_wandb, tmp_path)
+        mock_wandb.log.reset_mock()
+        wl.log_post_run(run_dir, include_digest=False)
+        logged = _collect_log_calls(mock_wandb)
+        assert logged["post_run/ebs_autonomy/detail/proactive_rate"] == pytest.approx(0.3)
+        assert logged["post_run/ebs_autonomy/detail/reactive_rate"] == pytest.approx(0.7)
 
     @patch("simulation.wandb_logger.wandb")
     def test_logs_digest_summary_metrics(self, mock_wandb, tmp_path):
