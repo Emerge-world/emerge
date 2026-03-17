@@ -133,8 +133,12 @@ class WandbLogger:
         try:
             ebs_data = json.loads(ebs_path.read_text(encoding="utf-8"))
             metrics: dict = {"post_run/ebs": ebs_data.get("ebs", 0.0)}
-            for name in ("novelty", "utility", "realization", "stability", "autonomy"):
-                metrics[f"post_run/ebs_{name}"] = ebs_data.get("components", {}).get(name, {}).get("score", 0.0)
+            for name, comp in ebs_data.get("components", {}).items():
+                metrics[f"post_run/ebs_{name}"] = comp.get("score", 0.0)
+                for sub_name, sub_val in comp.get("sub_scores", {}).items():
+                    metrics[f"post_run/ebs_{name}/{sub_name}"] = sub_val
+                for detail_name, detail_val in comp.get("detail", {}).items():
+                    metrics[f"post_run/ebs_{name}/detail/{detail_name}"] = detail_val
             wandb.log(metrics)
         except Exception as exc:
             logger.warning("W&B post-run EBS log failed: %s", exc)
