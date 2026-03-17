@@ -101,7 +101,7 @@ class TestGenerateStructured:
     def test_decision_schema_caps_reason_length(self):
         schema = AgentDecisionResponse.model_json_schema()
 
-        assert schema["properties"]["reason"]["maxLength"] == 160
+        assert schema["properties"]["reason"]["maxLength"] == 240
 
     def test_decision_schema_requires_fields_conditionally_by_action(self):
         schema = AgentDecisionResponse.model_json_schema()
