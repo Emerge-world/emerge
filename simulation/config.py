@@ -213,6 +213,9 @@ BASE_ACTIONS = INITIAL_ACTIONS + list(AGE_UNLOCKED_ACTIONS)
 # --- Inventory ---
 AGENT_INVENTORY_CAPACITY = 10   # maximum total items an agent can carry
 
+# Items that can be eaten. Must stay in sync with Oracle._ITEM_EAT_DEFAULTS.
+EDIBLE_ITEMS: frozenset[str] = frozenset({"fruit", "mushroom", "water"})
+
 # --- EBS ---
 EBS_LONGEVITY_REFERENCE_AGENT_TICKS = 1500  # λ: ~3 agents × 500 ticks baseline
 
