@@ -114,9 +114,18 @@ class WandbLogger:
         )
 
         # --- World ---
-        metrics["world/total_resources"] = sum(
-            res["quantity"] for res in world.resources.values()
-        )
+        resource_totals: dict[str, int | float] = {}
+        for resource in world.resources.values():
+            if not isinstance(resource, dict):
+                continue
+            resource_type = resource.get("type")
+            quantity = resource.get("quantity", 0)
+            if not resource_type or not isinstance(quantity, (int, float)):
+                continue
+            resource_totals[resource_type] = resource_totals.get(resource_type, 0) + quantity
+
+        for resource_type, quantity in sorted(resource_totals.items()):
+            metrics[f"world/resources/{resource_type}"] = quantity
 
         # --- Oracle ---
         metrics["oracle/precedent_count"] = len(oracle.precedents)

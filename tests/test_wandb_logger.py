@@ -179,6 +179,7 @@ class TestWandbLoggerLogTick:
         logger = WandbLogger("test", None, run_config, prompts_dir)
         world = self._make_world(resources={
             (0, 0): {"type": "fruit", "quantity": 3},
+            (0, 1): {"type": "fruit", "quantity": 1},
             (1, 1): {"type": "stone", "quantity": 2},
         })
         oracle = self._make_oracle(precedent_count=7)
@@ -186,7 +187,9 @@ class TestWandbLoggerLogTick:
                      "deaths": 0, "births": 0, "innovations": 0, "is_daytime": True}
         logger.log_tick(2, [self._make_agent()], world, oracle, tick_data)
         m = mock_wandb.log.call_args[0][0]
-        assert m["world/total_resources"] == 5  # 3 + 2
+        assert m["world/resources/fruit"] == 4
+        assert m["world/resources/stone"] == 2
+        assert "world/total_resources" not in m
         assert m["oracle/precedent_count"] == 7
         assert m["sim/is_daytime"] == 1
 
