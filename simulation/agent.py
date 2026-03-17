@@ -467,10 +467,6 @@ class Agent:
             # Drop optional fields that the LLM did not set so downstream
             # action resolvers only see real parameters, not explicit None values.
             result = typed.model_dump(exclude_none=True)
-            # Guard: innovate without naming a new action is a no-op → fallback to rest
-            if result.get("action") == "innovate" and not result.get("new_action_name", "").strip():
-                logger.debug(f"[{self.name}] LLM chose innovate without new_action_name; defaulting to rest")
-                result["action"] = "rest"
             logger.debug(f"[{self.name}] LLM decided: {result}")
             result["_llm_trace"] = llm_trace
             result["_planning_trace"] = planning_trace

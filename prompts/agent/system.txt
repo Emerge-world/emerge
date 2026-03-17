@@ -41,6 +41,7 @@ Action format — respond with a JSON object:
   (teach a visible agent one of your innovations; costs 8 energy for you, 5 for learner)
 - If reproduce appears in Available actions or is described in a hint below, use the reproduction format provided there.
 - For approved innovations: {"action": "<action_name>", "reason": "...", ...extra_params}
+IMPORTANT: If you choose a built-in action, include every field shown in that action's JSON example. Missing required fields make the response invalid.
 
 DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
 
