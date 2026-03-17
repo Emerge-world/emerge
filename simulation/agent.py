@@ -13,7 +13,7 @@ from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP, ENERGY_COST_DROP,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
-    INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS,
+    INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS, BASE_ACTIONS,
     AGENT_VISION_RADIUS, AGENT_INVENTORY_CAPACITY,
     GIVE_ITEM_ENERGY_COST, TEACH_ENERGY_COST_TEACHER,
     REPRODUCE_MIN_LIFE, REPRODUCE_MAX_HUNGER, REPRODUCE_MIN_ENERGY,
@@ -89,6 +89,8 @@ class Agent:
 
         # Available actions (starts with initial actions, can unlock or innovate more)
         self.actions: list[str] = list(INITIAL_ACTIONS)
+        # Descriptions for custom (innovated) actions — populated when oracle approves
+        self.action_descriptions: dict[str, str] = {}
 
         # Generational tracking (Phase 4)
         self.generation: int = 0
@@ -336,6 +338,9 @@ class Agent:
             f"Inventory: {self.inventory.to_prompt() or 'empty'}",
             f"Nearby agents: {', '.join(nearby_names) if nearby_names else 'none'}",
         ]
+        innovations = [a for a in self.actions if a not in BASE_ACTIONS]
+        if innovations:
+            parts.append(f"Custom actions: {', '.join(innovations)}")
         if time_description:
             parts.insert(0, time_description.strip())
         return "\n".join(parts)
@@ -434,6 +439,10 @@ class Agent:
             # Drop optional fields that the LLM did not set so downstream
             # action resolvers only see real parameters, not explicit None values.
             result = typed.model_dump(exclude_none=True)
+            # Guard: innovate without naming a new action is a no-op → fallback to rest
+            if result.get("action") == "innovate" and not result.get("new_action_name", "").strip():
+                logger.debug(f"[{self.name}] LLM chose innovate without new_action_name; defaulting to rest")
+                result["action"] = "rest"
             logger.debug(f"[{self.name}] LLM decided: {result}")
             result["_llm_trace"] = llm_trace
             result["_planning_trace"] = planning_trace
@@ -494,11 +503,18 @@ class Agent:
         return "\n".join(hints)
 
     def _build_system_prompt(self) -> str:
+        custom_actions_section = ""
+        if self.action_descriptions:
+            lines = ["", "YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):"]
+            for name, desc in self.action_descriptions.items():
+                lines.append(f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}')
+            custom_actions_section = "\n".join(lines)
         return prompt_loader.render(
             "agent/system",
             name=self.name,
             actions=", ".join(self.actions),
             personality_description=self.personality.to_prompt(),
+            custom_actions_section=custom_actions_section,
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,

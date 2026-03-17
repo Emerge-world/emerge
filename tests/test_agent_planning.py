@@ -120,7 +120,10 @@ def test_successful_replan_includes_planner_llm_trace(monkeypatch):
 def test_decide_action_omits_none_fields_before_oracle_eat_resolution():
     llm = MagicMock()
     llm.last_call = {}
-    llm.generate_structured.return_value = AgentDecisionResponse(action="eat", reason="hungry")
+    decision = AgentDecisionResponse(action="eat", reason="hungry")
+    llm.generate_structured.side_effect = lambda prompt, schema, **kw: (
+        decision if schema is AgentDecisionResponse else None
+    )
 
     world = World(width=5, height=5, seed=42)
     agent = Agent(name="Ada", x=2, y=2, llm=llm)

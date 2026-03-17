@@ -361,7 +361,10 @@ class EBSBuilder:
         n_custom_success = sum(1 for c in custom_action_log if c["success"])
 
         # Novelty
-        approval_rate = n_approved / n_attempts if n_attempts else 0.0
+        # Use per-agent approval count (innovation_approved) for the rate so that
+        # multiple agents independently discovering the same innovation are each
+        # credited — convergent discovery is realistic emergent behaviour, not waste.
+        approval_rate = innovation_approved / n_attempts if n_attempts else 0.0
         categories = {info["category"] for info in approved.values() if info.get("category")}
         category_diversity = len(categories) / 4
         non_base = sum(1 for info in approved.values() if info.get("structural_novelty") != "base_extension")

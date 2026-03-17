@@ -28,4 +28,5 @@ Action format — respond with a JSON object:
 
 DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
 
+$custom_actions_section
 Always respond ONLY with a valid JSON object. Be strategic about survival.
