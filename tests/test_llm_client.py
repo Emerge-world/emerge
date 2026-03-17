@@ -103,6 +103,17 @@ class TestGenerateStructured:
 
         assert schema["properties"]["reason"]["maxLength"] == 160
 
+    def test_decision_schema_requires_fields_conditionally_by_action(self):
+        schema = AgentDecisionResponse.model_json_schema()
+
+        assert {
+            "if": {
+                "properties": {"action": {"const": "move"}},
+                "required": ["action"],
+            },
+            "then": {"required": ["action", "reason", "direction"]},
+        } in schema["allOf"]
+
     def test_plan_schema_caps_goal_and_rationale_length(self):
         schema = AgentPlanResponse.model_json_schema()
 
@@ -120,3 +131,39 @@ class TestGenerateStructured:
         result = client.generate_structured("prompt", AgentDecisionResponse)
         assert result is None
         assert client.last_call["raw_response"] == '{"action": "rest", "reason": "ok"'
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"action": "move", "reason": "need food"}',
+            '{"action": "communicate", "target": "Bruno", "intent": "warn", "reason": "danger"}',
+            '{"action": "give_item", "target": "Bruno", "item": "fruit", "reason": "sharing"}',
+            '{"action": "teach", "target": "Bruno", "reason": "sharing"}',
+            '{"action": "innovate", "description": "make fire from stones", "reason": "survival"}',
+            '{"action": "reproduce", "reason": "grow family"}',
+        ],
+    )
+    def test_returns_none_when_built_in_action_is_missing_required_fields(self, payload):
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert result is None
+
+    def test_custom_action_with_reason_still_validates(self):
+        payload = '{"action": "gather_wood", "reason": "need materials", "tool": "stone_axe"}'
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert result is not None
+        assert result.action == "gather_wood"
+        assert result.model_dump()["tool"] == "stone_axe"
+
+    def test_built_in_action_does_not_fall_back_to_custom_variant(self):
+        payload = '{"action": "move", "reason": "need food"}'
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert result is None

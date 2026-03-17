@@ -6,7 +6,7 @@ These are used with vllm's guided_json constrained decoding.
 from enum import Enum
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 IdentifierText = Annotated[str, Field(max_length=64)]
@@ -64,7 +64,20 @@ class InnovationRequires(BaseModel):
     items: Optional[dict[str, int]] = None
 
 
+_ACTION_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
+    "move": ("direction",),
+    "drop_item": ("item", "quantity"),
+    "innovate": ("new_action_name", "description"),
+    "communicate": ("target", "message", "intent"),
+    "give_item": ("target", "item", "quantity"),
+    "teach": ("target", "skill"),
+    "reproduce": ("target",),
+}
+
+
 class AgentDecisionResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     action: IdentifierText
     reason: ReasonText
     direction: Optional[DirectionText] = None       # move
@@ -78,6 +91,50 @@ class AgentDecisionResponse(BaseModel):
     item: Optional[IdentifierText] = None            # give_item / eat (inventory) / drop_item
     quantity: Optional[int] = None        # give_item / drop_item
     skill: Optional[IdentifierText] = None           # teach
+
+    @staticmethod
+    def _missing(value: object) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return not value.strip()
+        return False
+
+    @model_validator(mode="after")
+    def validate_action_required_fields(self):
+        required_fields = _ACTION_REQUIRED_FIELDS.get(self.action, ())
+        missing_fields = [
+            field_name
+            for field_name in required_fields
+            if self._missing(getattr(self, field_name))
+        ]
+        if missing_fields:
+            missing = ", ".join(missing_fields)
+            raise ValueError(
+                f"Action '{self.action}' requires fields: {missing}"
+            )
+        return self
+
+    @classmethod
+    def model_json_schema(cls, *args, **kwargs):
+        schema = super().model_json_schema(*args, **kwargs)
+        existing_conditionals = [
+            conditional
+            for conditional in schema.get("allOf", [])
+            if conditional.get("if", {}).get("properties", {}).get("action", {}).get("const")
+            not in _ACTION_REQUIRED_FIELDS
+        ]
+        schema["allOf"] = existing_conditionals + [
+            {
+                "if": {
+                    "properties": {"action": {"const": action}},
+                    "required": ["action"],
+                },
+                "then": {"required": ["action", "reason", *required_fields]},
+            }
+            for action, required_fields in _ACTION_REQUIRED_FIELDS.items()
+        ]
+        return schema
 
 
 class PlanSubgoalResponse(BaseModel):
