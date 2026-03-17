@@ -131,6 +131,11 @@ class LLMClient:
         original_length = len(data.get("reason", ""))
         data["reason"] = data["reason"][:240]
 
+        try:
+            repaired = response_model.model_validate(data)
+        except ValidationError:
+            return None
+
         logger.warning(
             f"Repaired overlong reason in {response_model.__name__} "
             f"(original_length={original_length})"
@@ -139,10 +144,7 @@ class LLMClient:
         self.last_call["repaired_fields"] = ["reason"]
         self.last_call["original_reason_length"] = original_length
 
-        try:
-            return response_model.model_validate(data)
-        except ValidationError:
-            return None
+        return repaired
 
     def is_available(self) -> bool:
         """Check if vllm is available."""

@@ -219,8 +219,7 @@ class TestGenerateStructured:
 
     def test_malformed_json_returns_none(self):
         """A response that is not valid JSON returns None."""
-        # Malformed JSON triggers a json_invalid ValidationError, which enters the repair path.
-        # The repair's json.loads guard catches it and returns None, which then re-raises into the outer handler.
+        # Malformed JSON is not a repairable failure; returns None.
         client = self._client_with_response("{not valid json")
 
         result = client.generate_structured("prompt", AgentDecisionResponse)

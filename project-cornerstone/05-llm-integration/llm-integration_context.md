@@ -9,7 +9,7 @@
 - Agent decision structured output now uses conditional JSON Schema rules (`if`/`then`) so built-in actions require their action-specific fields while custom approved innovations remain schema-compatible.
 - Callers can override `max_tokens`, and high-frequency decision/planner/oracle calls use smaller per-call budgets than the global default.
 - Fallback behavior is present when parsing/LLM calls fail.
-- When `generate_structured()` is called with `AgentDecisionResponse` and Pydantic validation fails solely because `reason` exceeds 240 characters, the client truncates `reason` deterministically and re-validates. The repaired decision is returned normally (`parse_ok=True`). Successful repairs emit a `WARNING` log and write `repaired_reason_too_long`, `repaired_fields`, and `original_reason_length` into `last_call`. All other validation failures, malformed JSON, and truncated responses continue to return `None`.
+- When `generate_structured()` is called with `AgentDecisionResponse` and Pydantic validation fails solely because `reason` exceeds 240 characters, the client truncates `reason` deterministically and re-validates. The repaired decision is returned normally. Successful repairs emit a `WARNING` log and write `repaired_reason_too_long`, `repaired_fields`, and `original_reason_length` into `last_call`. All other validation failures, malformed JSON, and truncated responses continue to return `None`.
 
 ## Prompt system
 
