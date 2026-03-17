@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=None, help="World seed")
     parser.add_argument("--no-llm", action="store_true", help="Disable LLM, use fallback")
-    parser.add_argument("--port", type=int, default=8001, help="HTTP port")
+    parser.add_argument("--port", type=int, default=8002, help="HTTP port")
     parser.add_argument(
         "--tick-delay",
         type=float,
