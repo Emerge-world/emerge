@@ -83,6 +83,60 @@ class TestCurrentTileInfo:
             assert f"[Tile: {tile_type}]" in prompt
 
 
+class TestResourceVisibilityPrompt:
+    def setup_method(self):
+        Agent._id_counter = 0
+        self.agent = Agent(name="Test", x=5, y=5)
+
+    def test_decision_prompt_splits_current_tile_and_nearby_resources(self):
+        nearby = [
+            {
+                "x": 5,
+                "y": 5,
+                "tile": "tree",
+                "distance": 0,
+                "resource": {"type": "fruit", "quantity": 2},
+            },
+            {
+                "x": 4,
+                "y": 5,
+                "tile": "tree",
+                "distance": 1,
+                "resource": {"type": "fruit", "quantity": 1},
+            },
+        ]
+
+        prompt = self.agent._build_decision_prompt(nearby, tick=1)
+
+        assert "RESOURCES ON YOUR TILE:" in prompt
+        assert "- fruit HERE (qty: 2)" in prompt
+        assert "NEARBY RESOURCES (MOVE FIRST):" in prompt
+        assert "- fruit 1 tile WEST (qty: 1)" in prompt
+
+    def test_observation_text_splits_current_tile_and_nearby_resources(self):
+        nearby = [
+            {
+                "x": 5,
+                "y": 5,
+                "tile": "tree",
+                "distance": 0,
+                "resource": {"type": "fruit", "quantity": 2},
+            },
+            {
+                "x": 6,
+                "y": 5,
+                "tile": "forest",
+                "distance": 1,
+                "resource": {"type": "mushroom", "quantity": 1},
+            },
+        ]
+
+        observation = self.agent._build_observation_text(nearby, time_description="")
+
+        assert "Resources on current tile: fruit" in observation
+        assert "Nearby resources: mushroom" in observation
+
+
 class TestPersonalityInAgent:
     def setup_method(self):
         Agent._id_counter = 0
@@ -120,6 +174,13 @@ class TestPersonalityInAgent:
 
         assert '{"action": "drop_item"' in prompt
         assert '"item": "<item_name>"' in prompt
+
+    def test_system_prompt_requires_move_before_pickup_from_nearby_tile(self):
+        agent = Agent(name="Ada", x=5, y=5)
+
+        prompt = agent._build_system_prompt()
+
+        assert "move first" in prompt.lower()
 
 
 class TestNearbyAgentsInDecisionPrompt:

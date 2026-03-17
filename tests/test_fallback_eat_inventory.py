@@ -19,6 +19,10 @@ def fruit_tile_nearby() -> dict:
     return {"x": 5, "y": 4, "distance": 1, "resource": {"type": "fruit", "quantity": 1}}
 
 
+def fruit_tile_here() -> dict:
+    return {"x": 5, "y": 5, "distance": 0, "resource": {"type": "fruit", "quantity": 1}}
+
+
 def stone_tile_nearby() -> dict:
     return {"x": 5, "y": 4, "distance": 1, "resource": {"type": "stone", "quantity": 3}}
 
@@ -95,3 +99,11 @@ def test_moves_toward_edible_not_stone():
     assert result["action"] == "move"
     # Should be heading west (toward x=3 from x=5), not toward stone
     assert result["direction"] == "west"
+
+
+def test_picks_up_resource_on_current_tile_when_not_hungry():
+    agent = make_agent(hunger=20, energy=50)
+
+    result = agent._fallback_decision([fruit_tile_here()])
+
+    assert result["action"] == "pickup"

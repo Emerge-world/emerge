@@ -8,8 +8,11 @@ $inventory_info
 YOUR VISION (7x7 grid, you are @):
 $ascii_grid
 
-NEARBY RESOURCES:
-$resource_hints
+RESOURCES ON YOUR TILE:
+$pickup_ready_resources
+
+NEARBY RESOURCES (MOVE FIRST):
+$nearby_resource_hints
 $nearby_agents
 $incoming_messages
 $relationships
