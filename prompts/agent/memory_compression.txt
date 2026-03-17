@@ -11,7 +11,11 @@ Based on the recent events above, extract 0-4 reusable lessons. Focus on:
 - Spatial knowledge (e.g. "the north area has many fruit trees")
 - Survival strategies (e.g. "rest before energy drops below 20")
 - Failures to avoid (e.g. "moving into water fails")
+- Blocked opportunities (e.g. "water nearby but I need a way to drink it")
+- Cooperation, teaching, or lineage-relevant insights when clearly supported by events
 
+Good lessons are specific, reusable, and grounded in what actually happened.
+Do NOT turn a single guess into a general rule.
 Do NOT repeat anything already in your EXISTING KNOWLEDGE.
 Keep each lesson concise (one sentence).
 

@@ -34,4 +34,11 @@ $memory_text
 
 $reproduction_hint
 
+Before choosing, briefly reflect:
+- What is the most urgent threat or opportunity right now?
+- Am I making progress, or repeating actions without improving my situation?
+- Is there a useful visible opportunity that current actions do not exploit yet?
+- If I am stable, would cooperation, teaching, repositioning, or reproduction create better long-term prospects?
+- Would preserving energy or knowledge now create more options soon?
+
 Respond with a JSON object.
