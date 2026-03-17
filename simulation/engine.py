@@ -18,6 +18,7 @@ from simulation.config import (
     BONDING_TRUST_THRESHOLD, BASE_ACTIONS,
 )
 from simulation.world import World
+from simulation.world_schema import WorldSchema
 from simulation.agent import Agent
 from simulation.oracle import Oracle
 from simulation.llm_client import LLMClient
@@ -52,11 +53,13 @@ class SimulationEngine:
         wandb_logger: Optional["WandbLogger"] = None,
         ollama_model: Optional[str] = None,
         run_digest: bool = True,
+        world_schema: Optional[WorldSchema] = None,
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
         self.use_llm = use_llm
         self._world_seed = world_seed
+        self._world_schema = world_schema
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
 
@@ -70,18 +73,22 @@ class SimulationEngine:
                 self.llm = None
                 self.use_llm = False
 
-        # Day/night cycle
-        self.day_cycle = DayCycle(start_hour=start_hour)
+        # Day/night cycle — schema overrides start_hour if provided
+        self.day_cycle = DayCycle(start_hour=start_hour, world_schema=world_schema)
+
+        # Effective dimensions (schema may override constructor args)
+        _width = world_schema.world["width"] if world_schema is not None else world_width
+        _height = world_schema.world["height"] if world_schema is not None else world_height
 
         # Create world
-        self.world = World(width=world_width, height=world_height, seed=world_seed)
+        self.world = World(width=_width, height=_height, seed=world_seed, world_schema=world_schema)
 
         # Create simulation logger
         self.sim_logger = SimLogger()
 
         # Create oracle
         self.oracle = Oracle(self.world, llm=self.llm, sim_logger=self.sim_logger,
-                             day_cycle=self.day_cycle)
+                             day_cycle=self.day_cycle, world_schema=world_schema)
 
         # Auto-load precedents from previous runs
         self.oracle.load_precedents(self._precedents_path)
@@ -118,8 +125,8 @@ class SimulationEngine:
         self.event_emitter = EventEmitter(
             run_id=self.run_id,
             seed=world_seed,
-            world_width=world_width,
-            world_height=world_height,
+            world_width=self.world.width,
+            world_height=self.world.height,
             max_ticks=max_ticks,
             agent_count=len(self.agents),
             agent_names=[a.name for a in self.agents],

@@ -16,6 +16,7 @@ import sys
 
 from simulation.engine import SimulationEngine
 from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
+from simulation.world_schema import WorldSchema
 from pathlib import Path
 from simulation.wandb_logger import WandbLogger
 from simulation import config as sim_config
@@ -62,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help=f"vllm model to use (default: {sim_config.VLLM_MODEL})")
     parser.add_argument("--no-digest", action="store_true",
                         help="Skip LLM digest generation after run")
+    parser.add_argument("--schema", default=None,
+                        help="Path to a WorldSchema YAML file (overrides --width/--height)")
     return parser
 
 
@@ -71,6 +74,11 @@ def main():
     setup_logging(args.verbose)
 
     print("🧬 Starting autonomous agent life simulation...\n")
+
+    # Load optional world schema
+    world_schema = None
+    if args.schema:
+        world_schema = WorldSchema.load(args.schema)
 
     engine = SimulationEngine(
         num_agents=args.agents,
@@ -82,6 +90,7 @@ def main():
         world_height=args.height,
         ollama_model=args.model,
         run_digest=not args.no_digest,
+        world_schema=world_schema,
     )
 
     if args.wandb:

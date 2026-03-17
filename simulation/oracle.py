@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from typing import TYPE_CHECKING
+
 from simulation.config import (
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE,
     ENERGY_RECOVERY_REST, INNOVATION_EFFECT_BOUNDS,
@@ -27,6 +29,9 @@ from simulation.llm_client import LLMClient
 from simulation.world import World
 from simulation.agent import Agent
 from simulation import prompt_loader
+
+if TYPE_CHECKING:
+    from simulation.world_schema import WorldSchema
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +58,12 @@ class Oracle:
     """
 
     def __init__(self, world: World, llm: Optional[LLMClient] = None, sim_logger=None,
-                 day_cycle=None):
+                 day_cycle=None, world_schema: Optional["WorldSchema"] = None):
         self.world = world
         self.llm = llm
         self.sim_logger = sim_logger
         self.day_cycle = day_cycle  # Optional DayCycle for time-based energy costs
+        self._schema = world_schema
 
         # Oracle memory: stores precedents for determinism
         # Key: descriptive string of the situation -> result
@@ -74,6 +80,20 @@ class Oracle:
         self.last_llm_trace: Optional[dict] = None
         self.last_llm_context: Optional[str] = None
         self.last_cache_hit: bool = True
+
+        # Build schema-driven eat defaults (overrides _ITEM_EAT_DEFAULTS when schema given)
+        if world_schema is not None:
+            self._schema_eat_defaults: dict = {
+                rname: {
+                    "possible": rcfg.get("edible", False),
+                    "hunger_reduction": rcfg.get("hunger_reduction", 0),
+                    "life_change": rcfg.get("life_change", 0),
+                }
+                for rname, rcfg in world_schema.resources.items()
+                if isinstance(rcfg, dict)
+            }
+        else:
+            self._schema_eat_defaults = {}
 
     def load_precedents(self, filepath: str) -> None:
         """Load precedents from a JSON file and merge into self.precedents.
@@ -127,7 +147,14 @@ class Oracle:
     def _clamp_innovation_effects(self, effects: dict) -> dict:
         """Clamp custom-action stat deltas to the configured safe bounds."""
         clamped = dict(effects)
-        for stat, (lo, hi) in INNOVATION_EFFECT_BOUNDS.items():
+        if self._schema is not None:
+            bounds_map = {
+                stat: tuple(bounds)
+                for stat, bounds in self._schema.innovation["effect_bounds"].items()
+            }
+        else:
+            bounds_map = INNOVATION_EFFECT_BOUNDS
+        for stat, (lo, hi) in bounds_map.items():
             if stat in clamped:
                 clamped[stat] = max(lo, min(hi, int(clamped[stat])))
         return clamped
@@ -272,8 +299,12 @@ class Oracle:
             agent.modify_life(-actual_damage)
             msg += f" Took {actual_damage} damage crossing {tile_type}!"
 
-        # Apply hardcoded extra energy cost for exhausting terrain
-        risk = TILE_RISKS.get(tile_type, {})
+        # Apply extra energy cost for exhausting terrain (schema-aware)
+        risk = (
+            self._schema.get_tile_risk(tile_type)
+            if self._schema is not None
+            else TILE_RISKS.get(tile_type, {})
+        )
         extra_energy = risk.get("energy_cost_add", 0)
         if extra_energy > 0:
             agent.modify_energy(-extra_energy)
@@ -410,7 +441,10 @@ class Oracle:
 
         # Rest is always possible (precedent establishes this)
         tile = self.world.get_tile(agent.x, agent.y)
-        bonus = TILE_REST_BONUS.get(tile, {}).get("energy_add", 0)
+        if self._schema is not None:
+            bonus = self._schema.get_tile_rest_bonus(tile).get("energy_add", 0)
+        else:
+            bonus = TILE_REST_BONUS.get(tile, {}).get("energy_add", 0)
         total_recovery = ENERGY_RECOVERY_REST + bonus
         agent.modify_energy(total_recovery)
         if bonus > 0:
@@ -1207,7 +1241,9 @@ Respond with JSON:
         if key in self.precedents:
             return self.precedents[key]
 
-        default = self._ITEM_EAT_DEFAULTS.get(
+        # Schema-driven defaults take priority over the static _ITEM_EAT_DEFAULTS dict
+        _combined_defaults = {**self._ITEM_EAT_DEFAULTS, **self._schema_eat_defaults}
+        default = _combined_defaults.get(
             item_type,
             {"possible": False, "hunger_reduction": 0, "life_change": 0},
         )
