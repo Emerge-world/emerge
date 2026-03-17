@@ -8,6 +8,7 @@ import logging
 import threading
 import uuid
 from dataclasses import asdict
+from datetime import datetime
 from typing import Optional, Callable
 
 from simulation.config import (
@@ -108,7 +109,10 @@ class SimulationEngine:
         self._tick_events: list[dict] = []
 
         # Always-on canonical event emitter (data/runs/<run_id>/)
-        self.run_id = str(uuid.uuid4())
+        _ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        _seed_part = f"s{world_seed}" if world_seed is not None else "unseeded"
+        _short_uuid = uuid.uuid4().hex[:8]
+        self.run_id = f"{_ts}_{_seed_part}_a{len(self.agents)}_{_short_uuid}"
         _agent_model_id = self.llm.model if self.llm else "none"
         _oracle_model_id = self.oracle.llm.model if self.oracle.llm else "none"
         self.event_emitter = EventEmitter(
