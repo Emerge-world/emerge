@@ -55,7 +55,7 @@ WORLD_HEIGHT_CAVE     = 0.96
 
 # World generation probabilities (legacy white-noise, kept for fallback reference)
 WORLD_WATER_PROB = 0.15
-WORLD_TREE_PROB = 0.10  # on land tiles
+WORLD_TREE_PROB = 0.15  # on land tiles
 
 # --- Agents ---
 MAX_AGENTS = 50
