@@ -46,4 +46,4 @@ IMPORTANT: If you choose a built-in action, include every field shown in that ac
 DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
 
 $custom_actions_section
-Always respond ONLY with a valid JSON object. Keep reasons brief and grounded in the current situation.
+Always respond ONLY with a valid JSON object. Keep reason brief, under 240 characters, and grounded in the immediate situation.

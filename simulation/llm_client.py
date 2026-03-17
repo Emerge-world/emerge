@@ -3,11 +3,12 @@ Client for communicating with vllm (OpenAI-compatible API).
 Uses outlines structured_outputs for constrained token generation.
 """
 
+import json
 import logging
 from typing import TypeVar, Type
 
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from simulation.config import (
     VLLM_BASE_URL,
@@ -16,6 +17,7 @@ from simulation.config import (
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
 )
+from simulation.schemas import AgentDecisionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +87,64 @@ class LLMClient:
             end = sanitized.rfind("}") + 1
             if start != -1 and end > start:
                 sanitized = sanitized[start:end]
-            return response_model.model_validate_json(sanitized)
+            try:
+                return response_model.model_validate_json(sanitized)
+            except ValidationError as ve:
+                repaired = self._repair_decision_reason(response_model, sanitized, ve)
+                if repaired is not None:
+                    return repaired
+                raise
         except Exception as e:
             logger.error(f"Error calling vllm: {e}")
             return None
+
+    def _repair_decision_reason(
+        self,
+        response_model: Type[T],
+        sanitized: str,
+        ve: ValidationError,
+    ) -> T | None:
+        """
+        Attempt to repair an AgentDecisionResponse where reason is the sole overlong field.
+
+        Returns a repaired typed model if the only validation failure is reason being
+        string_too_long. Returns None in all other cases — the caller must handle
+        the original ValidationError.
+        """
+        if response_model is not AgentDecisionResponse:
+            return None
+
+        # Repair requires parseable JSON
+        try:
+            data = json.loads(sanitized)
+        except json.JSONDecodeError:
+            return None
+
+        errors = ve.errors()
+        if not (
+            len(errors) == 1
+            and errors[0]["type"] == "string_too_long"
+            and errors[0]["loc"] == ("reason",)
+        ):
+            return None
+
+        original_length = len(data.get("reason", ""))
+        data["reason"] = data["reason"][:240]
+
+        try:
+            repaired = response_model.model_validate(data)
+        except ValidationError:
+            return None
+
+        logger.warning(
+            f"Repaired overlong reason in {response_model.__name__} "
+            f"(original_length={original_length})"
+        )
+        self.last_call["repaired_reason_too_long"] = True
+        self.last_call["repaired_fields"] = ["reason"]
+        self.last_call["original_reason_length"] = original_length
+
+        return repaired
 
     def is_available(self) -> bool:
         """Check if vllm is available."""

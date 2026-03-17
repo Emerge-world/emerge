@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 IdentifierText = Annotated[str, Field(max_length=64)]
 DirectionText = Annotated[str, Field(max_length=16)]
 ReasonText = Annotated[str, Field(max_length=160)]
+DecisionReasonText = Annotated[str, Field(max_length=240)]
 MediumText = Annotated[str, Field(max_length=240)]
 LongText = Annotated[str, Field(max_length=280)]
 SignalText = Annotated[str, Field(max_length=120)]
@@ -79,7 +80,7 @@ class AgentDecisionResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     action: IdentifierText
-    reason: ReasonText
+    reason: DecisionReasonText
     direction: Optional[DirectionText] = None       # move
     new_action_name: Optional[IdentifierText] = None  # innovate
     description: Optional[LongText] = None     # innovate
