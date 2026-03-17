@@ -18,6 +18,7 @@ class TestGenerateStructured:
         client = LLMClient()
         mock_response = MagicMock()
         mock_response.choices[0].message.content = content
+        mock_response.choices[0].finish_reason = "stop"
         client._client = MagicMock()
         client._client.chat.completions.create.return_value = mock_response
         return client
@@ -163,6 +164,64 @@ class TestGenerateStructured:
     def test_built_in_action_does_not_fall_back_to_custom_variant(self):
         payload = '{"action": "move", "reason": "need food"}'
         client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert result is None
+
+    def test_salvages_decision_with_overlong_reason(self):
+        """Valid decision JSON with a reason that exceeds 240 chars is repaired and returned."""
+        long_reason = "x" * 241
+        payload = json.dumps({"action": "move", "reason": long_reason, "direction": "north"})
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert isinstance(result, AgentDecisionResponse)
+        assert result.action == "move"
+        assert result.direction == "north"
+        assert len(result.reason) == 240
+        assert result.reason == "x" * 240
+
+    def test_repair_writes_metadata_to_last_call(self):
+        """When a decision reason is salvaged, repair metadata is written to last_call."""
+        long_reason = "y" * 250
+        payload = json.dumps({"action": "rest", "reason": long_reason})
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert isinstance(result, AgentDecisionResponse)
+        assert result.action == "rest"
+        assert client.last_call.get("repaired_reason_too_long") is True
+        assert client.last_call.get("repaired_fields") == ["reason"]
+        assert client.last_call.get("original_reason_length") == 250
+
+    def test_repair_not_applied_for_missing_required_action_fields(self):
+        """Repair is attempted but re-validation fails: move with no direction still returns None even after reason truncation."""
+        long_reason = "z" * 241
+        payload = json.dumps({"action": "move", "reason": long_reason})  # no direction
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", AgentDecisionResponse)
+
+        assert result is None
+
+    def test_repair_not_applied_to_non_decision_models(self):
+        """Overlong reason in PhysicalReflectionResponse is not repaired; returns None."""
+        long_reason = "a" * 170  # exceeds ReasonText limit of 160
+        payload = json.dumps({"possible": True, "reason": long_reason, "life_damage": 0})
+        client = self._client_with_response(payload)
+
+        result = client.generate_structured("prompt", PhysicalReflectionResponse)
+
+        assert result is None
+
+    def test_malformed_json_returns_none(self):
+        """A response that is not valid JSON returns None."""
+        # Malformed JSON triggers a json_invalid ValidationError, which enters the repair path.
+        # The repair's json.loads guard catches it and returns None, which then re-raises into the outer handler.
+        client = self._client_with_response("{not valid json")
 
         result = client.generate_structured("prompt", AgentDecisionResponse)
 
