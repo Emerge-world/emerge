@@ -69,6 +69,6 @@ When explicit planning is enabled, agent cognition follows:
 - `simulation/retrieval.py`: deterministic memory relevance scoring.
 - `simulation/planner.py`: structured planner call and plan parsing.
 - `simulation/metrics_builder.py`: derives summary + timeseries from event streams, including personality-to-survival correlation metrics.
-- `simulation/wandb_logger.py`: optional observer metrics to W&B.
+- `simulation/wandb_logger.py`: optional observer metrics to W&B, including world resource quantities grouped by type.
 - `run_batch.py`: YAML-configured subprocess sweep runner.
 - `server/event_bus.py`: async fan-out from simulation thread to WebSocket clients.

@@ -88,13 +88,14 @@ def test_communicate_costs_energy():
     assert sender.energy == 17  # 20 - 3
 
 
-def test_communicate_invalid_intent():
+def test_communicate_invalid_intent_defaults_to_share_info():
     sender, target = make_two_agents()
     oracle = make_oracle(sender, target)
     action = {"action": "communicate", "target": "Bruno", "message": "Attack!", "intent": "attack"}
     result = oracle.resolve_action(sender, action, tick=1)
-    assert result["success"] is False
-    assert len(target.incoming_messages) == 0
+    assert result["success"] is True
+    assert len(target.incoming_messages) == 1
+    assert target.incoming_messages[0].intent == "share_info"
 
 
 def test_communicate_target_not_found():

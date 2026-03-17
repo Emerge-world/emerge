@@ -6,7 +6,7 @@ from simulation.planner import Planner
 from simulation.planning_state import PlanningState
 
 
-def test_planner_prompt_includes_reflection_questions():
+def test_planner_prompt_includes_updated_reflection_questions():
     prompt = prompt_loader.render(
         "agent/planner",
         tick=5,
@@ -15,9 +15,11 @@ def test_planner_prompt_includes_reflection_questions():
         current_plan="stabilize food",
     )
 
-    assert "What is my long-term goal?" in prompt
-    assert "Am I getting closer to that goal?" in prompt
-    assert "Could I do this more efficiently?" in prompt
+    assert "What most needs attention over the next few ticks?" in prompt
+    assert "Am I getting closer to a better position, capability, or relationship?" in prompt
+    assert "Am I repeating actions without progress?" in prompt
+    assert "Is there a blocked opportunity that suggests innovation or a different approach?" in prompt
+    assert "If survival is stable, should I prepare for cooperation, teaching, or reproduction?" in prompt
     assert "Do I need to change my goal?" in prompt
 
 

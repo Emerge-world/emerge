@@ -274,7 +274,7 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 ### DEC-028: Weights & Biases integration as optional observer
 - **Date**: 2026-03-09
 - **Context**: Experiment tracking was manual — comparing simulation runs required reading markdown logs by hand. No way to visualize metric trends across ticks or compare configurations systematically.
-- **Decision**: Added `WandbLogger` passive observer class (modeled after `AuditRecorder`) wired into `SimulationEngine.__init__`. Activated via `--wandb` CLI flag. Logs per-tick aggregate metrics (agent life/hunger/energy stats, action type breakdown, deaths/births, oracle precedent growth, world resource totals, day/night state). Prompt templates uploaded as versioned W&B Artifacts with SHA-256 hashes in run config for prompt change tracking.
+- **Decision**: Added `WandbLogger` passive observer class (modeled after `AuditRecorder`) wired into `SimulationEngine.__init__`. Activated via `--wandb` CLI flag. Logs per-tick aggregate metrics (agent life/hunger/energy stats, action type breakdown, deaths/births, oracle precedent growth, world resource quantities grouped by type, day/night state). Prompt templates uploaded as versioned W&B Artifacts with SHA-256 hashes in run config for prompt change tracking.
 - **Rejected alternatives**: Custom dashboard (high effort, limited comparison features), TensorBoard (not designed for simulation metrics), CSV export (no built-in comparison or visualization).
 - **Consequences**: Zero performance impact when `--wandb` is not set (`wandb_logger=None`, all calls skipped). Requires `wandb` package (~50MB). W&B free tier sufficient for project needs. Two additional CLI flags: `--wandb-project` (default: "emerge"), `--wandb-entity`.
 
