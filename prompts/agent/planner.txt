@@ -10,9 +10,11 @@ RELEVANT MEMORY:
 $planner_context
 
 PLANNING QUESTIONS:
-- What is my long-term goal?
-- Am I getting closer to that goal?
-- Could I do this more efficiently?
+- What most needs attention over the next few ticks?
+- Am I getting closer to a better position, capability, or relationship?
+- Am I repeating actions without progress?
+- Is there a blocked opportunity that suggests innovation or a different approach?
+- If survival is stable, should I prepare for cooperation, teaching, or reproduction?
 - Do I need to change my goal?
 
 Consider these questions silently, then return a compact structured plan.
