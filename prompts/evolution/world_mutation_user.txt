@@ -1,0 +1,19 @@
+## Current World Schema (generation {generation}, parent: {parent_name})
+
+```yaml
+{current_schema_yaml}
+```
+
+## Run Statistics
+
+{run_statistics}
+
+## Mutation Request
+
+Based on the run statistics above, propose mutations to improve the EBS.
+Pay special attention to the weakest EBS components.
+
+Remember: return ONLY the complete mutated YAML schema, with:
+- metadata.generation set to {next_generation}
+- metadata.parent set to "{current_schema_name}"
+- metadata.mutations_applied listing all changes made

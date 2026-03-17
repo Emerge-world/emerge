@@ -146,6 +146,40 @@ class LLMClient:
 
         return repaired
 
+    def generate_text(
+        self,
+        user: str,
+        system: str = "",
+        temperature: float = LLM_TEMPERATURE,
+        max_tokens: int = LLM_MAX_TOKENS,
+    ) -> str | None:
+        """
+        Generate free-form text (no structured output constraint).
+
+        Used by the WorldEvolver to produce YAML schema mutations.
+        Returns the raw text response or None on error.
+        """
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": user})
+
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_body={
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
+            )
+            choice = response.choices[0]
+            return choice.message.content or ""
+        except Exception as exc:
+            logger.error("generate_text failed: %s", exc)
+            return None
+
     def is_available(self) -> bool:
         """Check if vllm is available."""
         try:
