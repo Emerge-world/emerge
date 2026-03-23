@@ -166,3 +166,13 @@ class FruitEffectResponse(BaseModel):
 
 class MemoryCompressionResponse(BaseModel):
     learnings: list[MediumText]
+
+
+class ItemAffordanceCandidate(BaseModel):
+    action_name: IdentifierText
+    description: LongText
+    tile: Optional[IdentifierText] = None
+
+
+class ItemAffordanceDiscoveryResponse(BaseModel):
+    candidates: list[ItemAffordanceCandidate] = Field(default_factory=list, max_length=3)

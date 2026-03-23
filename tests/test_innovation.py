@@ -688,3 +688,143 @@ class TestCraftingExecution:
 
         assert agent.inventory.items.get("stone", 0) == stone_before - 2
         assert agent.inventory.items.get("knife", 0) == knife_before + 1
+
+
+# ---------------------------------------------------------------------------
+# Affordance discovery
+# ---------------------------------------------------------------------------
+
+class TestAffordanceDiscovery:
+    """Tests for Oracle._discover_item_affordances()."""
+
+    def test_discover_item_affordances_adds_tool_requirement(self):
+        """Discovered action must auto-attach requires.items = {<origin_item>: 1}."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=2, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        assert discovered[0]["attempt"]["requires"] == {
+            "items": {"stone_knife": 1},
+            "tile": "tree",
+        }
+
+    def test_discover_item_affordances_dedupes_known_actions(self):
+        """Actions already known to the agent must be skipped."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "stab", "description": "attack with the knife"},
+                    {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
+                ]
+            }),
+            # Only one validation call expected (stab is skipped)
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+        agent.actions.append("stab")  # pre-known
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=2, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        names = [entry["result"]["name"] for entry in discovered]
+        assert "stab" not in names
+        assert "cut_branches" in names
+
+    def test_discover_item_affordances_no_llm_returns_empty(self):
+        """When no LLM is attached, discovery returns an empty list."""
+        oracle = _make_oracle(_make_world())  # no LLM
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert discovered == []
+
+    def test_discover_item_affordances_payload_shape(self):
+        """Each returned entry has the expected engine-ready payload shape."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=3, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        entry = discovered[0]
+        assert entry["origin_item"] == "stone_knife"
+        assert entry["discovery_mode"] == "auto"
+        assert entry["trigger_action"] == "make_knife"
+        assert entry["attempt"]["action"] == "innovate"
+        assert entry["attempt"]["new_action_name"] == "whittle_stake"
+        assert "result" in entry
+
+    def test_discover_item_affordances_no_tile_in_candidate(self):
+        """When candidate has no tile, requires must not include a tile key."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "sharpen_stick", "description": "sharpen a stick into a point"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        requires = discovered[0]["attempt"]["requires"]
+        assert "tile" not in requires
+        assert requires == {"items": {"stone_knife": 1}}
+
+    def test_discover_item_affordances_dedupes_within_batch(self):
+        """Duplicate names within a single response batch must be collapsed to one."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "cut_rope", "description": "cut rope"},
+                    {"action_name": "cut_rope", "description": "cut rope again"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        names = [entry["result"]["name"] for entry in discovered]
+        assert names.count("cut_rope") == 1

@@ -1076,6 +1076,146 @@ Otherwise omit both fields."""
             return typed.model_dump()
         return {"approved": True, "reason": "Oracle could not decide, defaulting to approved.", "category": "SURVIVAL"}
 
+    def _discover_item_affordances(
+        self,
+        agent: Agent,
+        *,
+        item_name: str,
+        tick: int,
+        discovery_mode: str,
+        trigger_action: str,
+        charge_energy: bool = False,
+    ) -> list[dict]:
+        """Discover new actions an agent might learn from possessing an item.
+
+        Asks the LLM for up to 3 candidate actions enabled by *item_name*,
+        validates each through the normal innovation path, and returns a list
+        of engine-ready payload entries.
+
+        Each entry has the shape::
+
+            {
+                "attempt":  {action dict sent to _resolve_innovate},
+                "result":   {innovation validation result},
+                "origin_item":    <item_name>,
+                "discovery_mode": <discovery_mode>,
+                "trigger_action": <trigger_action>,
+            }
+
+        Returns an empty list if no LLM is configured or no candidates survive
+        deduplication / validation.
+        """
+        if not self.llm:
+            return []
+
+        from simulation.schemas import ItemAffordanceDiscoveryResponse
+
+        existing_actions = ", ".join(f'"{a}"' for a in agent.actions)
+        prompt = (
+            f'Agent "{agent.name}" just used or crafted item "{item_name}".\n'
+            f"Current tile: {self.world.get_tile(agent.x, agent.y)}. "
+            f"Stats: Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energy}.\n"
+            f"The agent already knows these actions: {existing_actions}.\n\n"
+            f"Suggest up to 3 new concrete actions that \"{item_name}\" now makes possible."
+        )
+        system = prompt_loader.load("oracle/item_affordance_system")
+
+        try:
+            typed = self.llm.generate_structured(
+                prompt,
+                ItemAffordanceDiscoveryResponse,
+                system_prompt=system,
+                temperature=0.4,
+                max_tokens=ORACLE_RESPONSE_MAX_TOKENS,
+            )
+        except Exception as exc:
+            logger.warning("_discover_item_affordances: LLM call failed: %s", exc)
+            return []
+
+        if typed is None:
+            return []
+
+        try:
+            parsed = ItemAffordanceDiscoveryResponse.model_validate(typed.model_dump())
+        except Exception as exc:
+            logger.warning("_discover_item_affordances: failed to parse LLM response: %s", exc)
+            return []
+
+        seen_names: set[str] = set()
+        entries: list[dict] = []
+
+        for candidate in (parsed.candidates or [])[:3]:
+            try:
+                name = candidate.action_name.strip().lower()
+            except Exception:
+                continue
+
+            if not name:
+                continue
+            if name in agent.actions:
+                continue
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+
+            # Build the innovation requires: always attach the origin item
+            requires: dict = {"items": {item_name: 1}}
+            if candidate.tile:
+                requires["tile"] = candidate.tile
+
+            attempt = {
+                "action": "innovate",
+                "new_action_name": name,
+                "description": candidate.description,
+                "requires": requires,
+            }
+
+            # Validate via the LLM innovation validator (no energy charge for discovery)
+            validation = self._validate_innovation(
+                agent, name, candidate.description, tick=tick,
+            )
+            approved = validation.get("approved", True)
+            category = validation.get("category", "SURVIVAL")
+
+            if approved:
+                # Register the action (no energy cost unless charge_energy is requested)
+                if name not in agent.actions:
+                    agent.actions.append(name)
+                    agent.action_descriptions[name] = candidate.description
+                    if charge_energy:
+                        agent.modify_energy(-ENERGY_COST_INNOVATE)
+
+                    precedent_data: dict = {
+                        "creator": agent.name,
+                        "description": candidate.description,
+                        "tick_created": tick,
+                        "category": category,
+                        "requires": requires,
+                    }
+                    self.precedents[f"innovation:{name}"] = precedent_data
+                    logger.info(
+                        "Affordance discovery: %s learned '%s' from item '%s'",
+                        agent.name, name, item_name,
+                    )
+
+            result = {
+                "success": approved,
+                "name": name,
+                "category": category,
+                "reason": validation.get("reason", ""),
+                "reason_code": "INNOVATION_APPROVED" if approved else "INNOVATION_REJECTED",
+            }
+
+            entries.append({
+                "attempt": attempt,
+                "result": result,
+                "origin_item": item_name,
+                "discovery_mode": discovery_mode,
+                "trigger_action": trigger_action,
+            })
+
+        return entries
+
     def _oracle_judge_custom_action(self, agent: Agent, action: dict, description: str, tick: int = 0) -> Optional[dict]:
         """Use the LLM to determine the outcome of a custom action."""
         action_type = action.get("action")
