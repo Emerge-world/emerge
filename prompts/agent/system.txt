@@ -39,6 +39,8 @@ Action format — respond with a JSON object:
   (give an item from your inventory to an adjacent agent; costs 2 energy)
 - teach: {"action": "teach", "target": "<name>", "skill": "<innovation_name>", "reason": "..."}
   (teach a visible agent one of your innovations; costs 8 energy for you, 5 for learner)
+- reflect_item_uses: {"action": "reflect_item_uses", "item": "<item_name>", "reason": "..."}
+  (reflect on a held item to discover potential new uses; costs 5 energy; item must be in your inventory)
 - If reproduce appears in Available actions or is described in a hint below, use the reproduction format provided there.
 - For approved innovations: {"action": "<action_name>", "reason": "...", ...extra_params}
 IMPORTANT: If you choose a built-in action, include every field shown in that action's JSON example. Missing required fields make the response invalid.

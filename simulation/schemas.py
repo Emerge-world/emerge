@@ -73,6 +73,7 @@ _ACTION_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "give_item": ("target", "item", "quantity"),
     "teach": ("target", "skill"),
     "reproduce": ("target",),
+    "reflect_item_uses": ("item",),
 }
 
 

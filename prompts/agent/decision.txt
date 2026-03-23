@@ -40,5 +40,6 @@ Before choosing, briefly reflect:
 - Is there a useful visible opportunity that current actions do not exploit yet?
 - If I am stable, would cooperation, teaching, repositioning, or reproduction create better long-term prospects?
 - Would preserving energy or knowledge now create more options soon?
+- If I am carrying an item whose full potential is unclear, reflecting on it (reflect_item_uses) may unlock new ways to use it.
 
 Respond with a JSON object.

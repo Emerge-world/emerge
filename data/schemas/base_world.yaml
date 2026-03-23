@@ -1,0 +1,15 @@
+# Base world schema: canonical constants that mirror simulation/config.py.
+# Used to cross-check that config values are consistent and documented.
+
+agents:
+  costs:
+    move: 3
+    eat: 2
+    rest: 0
+    pickup: 0
+    drop_item: 0
+    innovate: 10
+    communicate: 3
+    give_item: 2
+    teach: 8
+    reflect_item_uses: 5
