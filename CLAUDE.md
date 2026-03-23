@@ -4,11 +4,11 @@
 
 ### What is this?
 
-A simulation where human-like agents controlled by LLMs (Qwen 2.5-3B via Ollama) try to survive in a 2D world. Agents eat, rest, move, and can innovate entirely new actions. An Oracle validates everything and maintains world consistency through precedents.
+A simulation where human-like agents controlled by LLMs (via vLLM) try to survive in a 2D world. Agents eat, rest, move, and can innovate entirely new actions. An Oracle validates everything and maintains world consistency through precedents.
 
 ### Knowledge Base
 
-**READ BEFORE CODING.** The `project-cornerstone/` directory contains everything you need:
+**READ BEFORE CODING.** The `project-cornerstone/` directory contains everything you need. Start with `MASTER_PLAN.md` for current phase status and priorities.
 
 ```
 project-cornerstone/
@@ -21,25 +21,13 @@ project-cornerstone/
 ├── 04-oracle/oracle_context.md                 ← Validation, precedents, determinism rules.
 ├── 05-llm-integration/llm-integration_context.md ← Ollama, prompts, optimization, model upgrade path.
 ├── 06-innovation-system/innovation-system_context.md ← How agents invent new actions, crafting plans.
-├── 07-interaction/interaction_context.md       ← Social features (Phase 3, don't implement yet).
-├── 08-evolution/evolution_context.md           ← Reproduction, generations (Phase 4, don't implement yet).
-├── 09-visualization/visualization_context.md   ← Dashboard plans (Phase 5, don't implement yet).
+├── 07-interaction/interaction_context.md       ← Social features.
+├── 08-evolution/evolution_context.md           ← Reproduction, generations.
+├── 09-visualization/visualization_context.md   ← Dashboard and replay plans.
 ├── 10-testing/testing_context.md               ← Testing strategy, MockLLM, layers.
 ├── 11-devops/devops_context.md                 ← CI/CD, logging, environment setup.
 └── 12-tooling/tooling_context.md               ← When to use Claude Code vs Project, automations.
 ```
-
-### Current Phase: Phase 1 — Intelligence
-
-**Focus areas (in order):**
-1. Dual memory system (episodic + semantic)
-2. Personality traits for agents
-3. Prompt optimization (compact grid, few-shot examples)
-4. Structured logging (structlog, JSON lines)
-5. Unit + integration tests with MockLLM
-6. Precedent persistence (save/load JSON)
-
-**DO NOT implement:** social interaction, evolution, visualization, weather — these are future phases.
 
 ### Quick Commands
 
@@ -51,7 +39,7 @@ uv run main.py --no-llm --ticks 5 --agents 1
 uv run main.py --agents 3 --ticks 30 --seed 42
 
 # Run tests
-pytest -m "not slow"
+uv run pytest -m "not slow"
 
 # Run with verbose logging
 uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
@@ -63,13 +51,12 @@ uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
 
 ### Hard Rules
 
-1. **Tests pass before commit.** Always run `pytest -m "not slow"`.
+1. **Tests pass before commit.** Always run `uv run pytest -m "not slow"`.
 2. **LLM never crashes the system.** Every LLM call has a fallback. Every JSON parse has try/except.
 3. **Stats are always clamped.** Life, hunger, energy: always between 0 and max.
 4. **Dead agents never act.** Check `agent.alive` before every operation.
 5. **Oracle is deterministic.** Same input → same output. Use precedents.
-6. **Prompts in English.** Qwen 3.5-35B performs significantly better in English.
-7. **One feature per PR.** Atomic changes, never massive refactors.
-8. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md and update the context of the modified pieces.
-9. **Alway develop in worktrees.** Keep `main` clean and stable. Use `git worktree` for feature branches.
-10. **Keep the metrics updated.** If you add a new feature or change an existing one, update or add relevant metrics in the code and the MASTER_PLAN.md.
+6. **Prompts in English.** The LLM performs significantly better in English.
+7. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md and update the context of the modified pieces.
+8. **Always develop in worktrees.** Keep `main` clean and stable. Use `git worktree` for feature branches.
+9. **Keep the metrics updated.** If you add a new feature or change an existing one, update or add relevant metrics in the code and the MASTER_PLAN.md.
