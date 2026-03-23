@@ -106,3 +106,65 @@ class TestEngineInnovationEventWiring:
         assert "approved" in p
         assert "name" in p
         assert "reason_code" in p
+
+    def test_auto_discovered_innovations_emit_attempt_and_validated_events(
+        self, tmp_path, monkeypatch
+    ):
+        """When oracle returns derived_innovations, attempt + validated events are emitted for each."""
+        monkeypatch.chdir(tmp_path)
+        engine = SimulationEngine(num_agents=1, use_llm=False, max_ticks=1, world_seed=42)
+
+        # A crafting action that will return derived_innovations in the oracle result
+        craft_action = {
+            "action": "make_knife",
+            "requires": {"items": {"stone": 1}},
+        }
+
+        derived_result = {
+            "success": True,
+            "message": "Crafted knife",
+            "effects": {"energy": -5, "hunger": 0, "life": 0},
+            "derived_innovations": [
+                {
+                    "attempt": {
+                        "new_action_name": "cut_branches",
+                        "description": "cut branches from a tree",
+                        "requires": {"items": {"stone_knife": 1}},
+                        "produces": {"branches": 2},
+                    },
+                    "result": {
+                        "success": True,
+                        "name": "cut_branches",
+                        "category": "CRAFTING",
+                        "reason_code": "INNOVATION_APPROVED",
+                    },
+                    "origin_item": "stone_knife",
+                    "discovery_mode": "auto",
+                    "trigger_action": "make_knife",
+                }
+            ],
+        }
+
+        with (
+            patch.object(engine.agents[0], "decide_action", return_value=craft_action),
+            patch.object(engine.oracle, "resolve_action", return_value=derived_result),
+        ):
+            engine.run()
+
+        events = _read_events(engine.event_emitter.run_dir)
+        attempts = [
+            e for e in events
+            if e["event_type"] == "innovation_attempt"
+            and e["payload"].get("name") == "cut_branches"
+        ]
+        validated = [
+            e for e in events
+            if e["event_type"] == "innovation_validated"
+            and e["payload"].get("name") == "cut_branches"
+        ]
+        assert len(attempts) == 1
+        assert len(validated) == 1
+        # Check origin metadata is present in validated event
+        assert validated[0]["payload"]["origin_item"] == "stone_knife"
+        assert validated[0]["payload"]["discovery_mode"] == "auto"
+        assert validated[0]["payload"]["trigger_action"] == "make_knife"

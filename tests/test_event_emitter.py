@@ -698,3 +698,34 @@ class TestInnovationEvents:
         em = _make_emitter(tmp_path, monkeypatch)
         em.close()
         assert em.run_dir.resolve() == (tmp_path / "data" / "runs" / "test-run-1234").resolve()
+
+    def test_emit_innovation_validated_includes_origin_metadata(self, tmp_path, monkeypatch):
+        """emit_innovation_validated should include optional origin metadata fields in payload."""
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_validated(
+            3, "Ada", {"success": True, "name": "cut_branches", "category": "CRAFTING"},
+            requires={"items": {"stone_knife": 1}},
+            description="cut branches from a tree",
+            origin_item="stone_knife",
+            discovery_mode="auto",
+            trigger_action="make_knife",
+        )
+        em.close()
+        payload = _read_events(tmp_path)[0]["payload"]
+        assert payload["origin_item"] == "stone_knife"
+        assert payload["discovery_mode"] == "auto"
+        assert payload["trigger_action"] == "make_knife"
+        assert payload["description"] == "cut branches from a tree"
+
+    def test_emit_innovation_validated_origin_metadata_defaults_to_none(self, tmp_path, monkeypatch):
+        """When no origin metadata provided, fields should not appear or be None."""
+        em = _make_emitter(tmp_path, monkeypatch)
+        em.emit_innovation_validated(
+            3, "Ada", {"success": True, "name": "gather_wood", "category": "CRAFTING"},
+        )
+        em.close()
+        payload = _read_events(tmp_path)[0]["payload"]
+        # Fields should either be absent or None — not break existing behaviour
+        assert payload.get("origin_item") is None
+        assert payload.get("discovery_mode") is None
+        assert payload.get("trigger_action") is None

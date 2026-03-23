@@ -182,6 +182,12 @@ class TestPersonalityInAgent:
 
         assert "move first" in prompt.lower()
 
+    def test_system_prompt_documents_reflect_item_uses(self):
+        agent = Agent(name="Ada", x=5, y=5)
+        prompt = agent._build_system_prompt()
+        assert '{"action": "reflect_item_uses"' in prompt
+        assert '"item": "<item_name>"' in prompt
+
 
 class TestNearbyAgentsInDecisionPrompt:
     def setup_method(self):

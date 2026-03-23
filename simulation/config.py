@@ -75,6 +75,7 @@ ENERGY_COST_EAT = 2
 ENERGY_COST_INNOVATE = 10
 ENERGY_COST_PICKUP = 0
 ENERGY_COST_DROP = 0
+ENERGY_COST_REFLECT_ITEM_USES = 5
 COMMUNICATE_ENERGY_COST = 3
 COMMUNICATE_TRUST_DELTA = 0.05
 GIVE_ITEM_ENERGY_COST = 2
@@ -200,6 +201,7 @@ INITIAL_ACTIONS = [
     "communicate",
     "give_item",
     "teach",
+    "reflect_item_uses",
 ]
 
 # Unlockable actions are built-in, but not available from birth.

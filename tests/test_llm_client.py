@@ -226,3 +226,21 @@ class TestGenerateStructured:
         result = client.generate_structured("prompt", AgentDecisionResponse)
 
         assert result is None
+
+
+class TestStructuredDecisionValidation:
+    """Validation tests for specific action field requirements."""
+
+    def _client_with_response(self, content: str) -> LLMClient:
+        client = LLMClient()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = content
+        mock_response.choices[0].finish_reason = "stop"
+        client._client = MagicMock()
+        client._client.chat.completions.create.return_value = mock_response
+        return client
+
+    def test_returns_none_when_reflect_item_uses_is_missing_item(self):
+        payload = '{"action": "reflect_item_uses", "reason": "find a new use"}'
+        client = self._client_with_response(payload)
+        assert client.generate_structured("prompt", AgentDecisionResponse) is None

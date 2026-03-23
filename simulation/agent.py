@@ -11,6 +11,7 @@ from simulation.config import (
     AGENT_START_LIFE, AGENT_START_HUNGER, AGENT_START_ENERGY,
     HUNGER_PER_TICK, HUNGER_DAMAGE_THRESHOLD, HUNGER_DAMAGE_PER_TICK,
     ENERGY_COST_MOVE, ENERGY_COST_EAT, ENERGY_COST_INNOVATE, ENERGY_COST_PICKUP, ENERGY_COST_DROP,
+    ENERGY_COST_REFLECT_ITEM_USES,
     ENERGY_RECOVERY_REST, ENERGY_LOW_THRESHOLD, ENERGY_DAMAGE_PER_TICK,
     HEAL_HUNGER_THRESHOLD, HEAL_ENERGY_THRESHOLD, HEAL_PER_TICK,
     INITIAL_ACTIONS, AGE_UNLOCKED_ACTIONS, BASE_ACTIONS,
@@ -92,6 +93,9 @@ class Agent:
         # Descriptions for custom (innovated) actions — populated when oracle approves
         self.action_descriptions: dict[str, str] = {}
 
+        # Set of item types for which the one-shot post-craft affordance discovery has run
+        self.auto_reflected_items: set[str] = set()
+
         # Generational tracking (Phase 4)
         self.generation: int = 0
         self.parent_ids: list[str] = []
@@ -164,6 +168,7 @@ class Agent:
             "innovate": ENERGY_COST_INNOVATE,
             "give_item": GIVE_ITEM_ENERGY_COST,
             "teach": TEACH_ENERGY_COST_TEACHER,
+            "reflect_item_uses": ENERGY_COST_REFLECT_ITEM_USES,
         }
         cost = costs.get(action, 5)  # innovated actions: default cost 5
         return self.energy >= cost
@@ -698,6 +703,7 @@ class Agent:
             "born_tick": self.born_tick,
             "children_names": self.children_names,
             "last_reproduce_tick": self.last_reproduce_tick,
+            "auto_reflected_items": sorted(self.auto_reflected_items),
         }
 
     def __repr__(self):

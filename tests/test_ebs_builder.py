@@ -228,6 +228,43 @@ class TestContradictionDetector:
 # EBSBuilder — no events / missing file
 # ------------------------------------------------------------------ #
 
+class TestEBSBuilder:
+    def test_item_derived_innovation_with_origin_metadata_still_counts(self, tmp_path):
+        """EBSBuilder should not break when innovation_validated has extra origin fields."""
+        # innovation_validated with extra origin metadata (as emitted by derived item innovations)
+        innovation_with_origin = {
+            "run_id": "test", "tick": 1, "event_type": "innovation_validated", "agent_id": "Ada",
+            "payload": {
+                "name": "cut_branches",
+                "approved": True,
+                "category": "CRAFTING",
+                "reason_code": "INNOVATION_APPROVED",
+                "requires": {"items": {"stone_knife": 1}},
+                "produces": {"branches": 2},
+                "description": "cut branches from a tree",
+                "origin_item": "stone_knife",
+                "discovery_mode": "auto",
+                "trigger_action": "make_knife",
+            },
+        }
+        attempt = {
+            "run_id": "test", "tick": 1, "event_type": "innovation_attempt", "agent_id": "Ada",
+            "payload": {
+                "name": "cut_branches",
+                "description": "cut branches from a tree",
+            },
+        }
+        events = [_run_start(), attempt, innovation_with_origin, _run_end()]
+        _write_events(tmp_path, events)
+        # Should not raise
+        EBSBuilder(tmp_path).build()
+        ebs_data = json.loads((tmp_path / "metrics" / "ebs.json").read_text())
+        # The approved innovation should be counted
+        assert len(ebs_data["innovations"]) == 1
+        assert ebs_data["innovations"][0]["name"] == "cut_branches"
+        assert ebs_data["components"]["novelty"]["sub_scores"]["approval_rate"] == 1.0
+
+
 class TestEBSBuilderEdgeCases:
     def test_no_events_file(self, tmp_path):
         """build() is a no-op when events.jsonl is missing."""

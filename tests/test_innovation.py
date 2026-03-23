@@ -21,9 +21,11 @@ from simulation.world import World
 from simulation.config import (
     INNOVATION_EFFECT_BOUNDS,
     ENERGY_COST_INNOVATE,
+    ENERGY_COST_REFLECT_ITEM_USES,
     BASE_ACTIONS,
     ORACLE_RESPONSE_MAX_TOKENS,
 )
+from simulation.schemas import ItemAffordanceDiscoveryResponse, ItemAffordanceCandidate
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +57,11 @@ def _typed(d: dict):
     m = MagicMock()
     m.model_dump.return_value = d
     return m
+
+
+def _typed_affordance(d: dict) -> ItemAffordanceDiscoveryResponse:
+    """Build a real ItemAffordanceDiscoveryResponse from a dict (for affordance tests)."""
+    return ItemAffordanceDiscoveryResponse.model_validate(d)
 
 
 def _mock_llm(response: dict):
@@ -688,3 +695,419 @@ class TestCraftingExecution:
 
         assert agent.inventory.items.get("stone", 0) == stone_before - 2
         assert agent.inventory.items.get("knife", 0) == knife_before + 1
+
+
+# ---------------------------------------------------------------------------
+# Affordance discovery
+# ---------------------------------------------------------------------------
+
+class TestAffordanceDiscovery:
+    """Tests for Oracle._discover_item_affordances()."""
+
+    def test_discover_item_affordances_adds_tool_requirement(self):
+        """Discovered action must auto-attach requires.items = {<origin_item>: 1}."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=2, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        assert discovered[0]["attempt"]["requires"] == {
+            "items": {"stone_knife": 1},
+            "tile": "tree",
+        }
+
+    def test_discover_item_affordances_dedupes_known_actions(self):
+        """Actions already known to the agent must be skipped."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "stab", "description": "attack with the knife"},
+                    {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
+                ]
+            }),
+            # Only one validation call expected (stab is skipped)
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+        agent.actions.append("stab")  # pre-known
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=2, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        names = [entry["result"]["name"] for entry in discovered]
+        assert "stab" not in names
+        assert "cut_branches" in names
+
+    def test_discover_item_affordances_no_llm_returns_empty(self):
+        """When no LLM is attached, discovery returns an empty list."""
+        oracle = _make_oracle(_make_world())  # no LLM
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert discovered == []
+
+    def test_discover_item_affordances_payload_shape(self):
+        """Each returned entry has the expected engine-ready payload shape."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=3, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        entry = discovered[0]
+        assert entry["origin_item"] == "stone_knife"
+        assert entry["discovery_mode"] == "auto"
+        assert entry["trigger_action"] == "make_knife"
+        assert entry["attempt"]["action"] == "innovate"
+        assert entry["attempt"]["new_action_name"] == "whittle_stake"
+        assert "result" in entry
+
+    def test_discover_item_affordances_no_tile_in_candidate(self):
+        """When candidate has no tile, requires must not include a tile key."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "sharpen_stick", "description": "sharpen a stick into a point"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        assert len(discovered) == 1
+        requires = discovered[0]["attempt"]["requires"]
+        assert "tile" not in requires
+        assert requires == {"items": {"stone_knife": 1}}
+
+    def test_discover_item_affordances_dedupes_within_batch(self):
+        """Duplicate names within a single response batch must be collapsed to one."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "cut_rope", "description": "cut rope"},
+                    {"action_name": "cut_rope", "description": "cut rope again"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+
+        discovered = oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto", trigger_action="make_knife"
+        )
+
+        names = [entry["result"]["name"] for entry in discovered]
+        assert names.count("cut_rope") == 1
+
+    def test_discover_item_affordances_charge_energy_decreases_agent_energy(self):
+        """When charge_energy=True, agent.energy decreases by ENERGY_COST_INNOVATE per approved action."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+        energy_before = agent.energy
+
+        oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto",
+            trigger_action="make_knife", charge_energy=True,
+        )
+
+        assert agent.energy == energy_before - ENERGY_COST_INNOVATE
+
+
+# ---------------------------------------------------------------------------
+# Crafted item affordance auto-trigger (Task 3)
+# ---------------------------------------------------------------------------
+
+class TestCraftedItemAffordances:
+    """First craft of a new item type triggers one-shot affordance discovery."""
+
+    def _setup_make_knife_then_affordance_flow(self):
+        """
+        Return (oracle, agent, llm) where:
+        - LLM call 1: approves 'make_knife' innovation (at tick=1)
+        - LLM call 2: judges custom action execution -> success
+        - LLM call 3: affordance discovery candidates response
+        - LLM call 4: validates 'cut_branches' affordance candidate -> approved
+        """
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_structured.side_effect = [
+            # Call 1: approve 'make_knife' innovation
+            _typed({"approved": True, "reason": "Makes sense.", "category": "CRAFTING"}),
+            # Call 2: judge the custom action execution
+            _typed({"success": True, "message": "You shaped the stones into a blade.", "effects": {"energy": -8, "hunger": 0, "life": 0}}),
+            # Call 3: affordance discovery candidates
+            _typed_affordance({
+                "candidates": [
+                    {"action_name": "cut_branches", "description": "use the knife to cut branches from a tree", "tile": None},
+                ]
+            }),
+            # Call 4: validate 'cut_branches'
+            _typed({"approved": True, "reason": "Makes sense.", "category": "CRAFTING"}),
+        ]
+
+        oracle = _make_oracle(world, llm=llm)
+        # Register make_knife: requires 2 stones, produces 1 stone_knife
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve two stones into a sharp blade",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"stone_knife": 1},
+            },
+            tick=1,
+        )
+        return oracle, agent, llm
+
+    def test_first_crafted_item_triggers_affordance_discovery_once(self):
+        oracle, agent, llm = self._setup_make_knife_then_affordance_flow()
+        result = oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert [d["result"]["name"] for d in result["derived_innovations"]] == ["cut_branches"]
+
+    def test_recrafting_same_item_does_not_retrigger_auto_discovery(self):
+        oracle, agent, llm = self._setup_make_knife_then_affordance_flow()
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        calls_after_first_craft = llm.generate_structured.call_count
+        agent.inventory.add("stone", 2)
+
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=3)
+
+        # No new LLM calls: action judge is cached via situation precedent and
+        # affordance discovery is skipped because stone_knife is already in auto_reflected_items.
+        assert llm.generate_structured.call_count == calls_after_first_craft
+
+    def test_auto_discovery_failure_does_not_break_crafting(self):
+        """When affordance LLM call fails/returns empty, crafting still succeeds."""
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("stone", 5)
+
+        llm = MagicMock()
+        llm.last_call = None
+        llm.generate_structured.side_effect = [
+            # Call 1: approve innovation
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+            # Call 2: judge execution
+            _typed({"success": True, "message": "Crafted knife.", "effects": {"energy": -8, "hunger": 0, "life": 0}}),
+            # Call 3: affordance discovery returns None (simulated failure)
+            None,
+        ]
+
+        oracle = _make_oracle(world, llm=llm)
+        oracle.resolve_action(
+            agent,
+            {
+                "action": "innovate",
+                "new_action_name": "make_knife",
+                "description": "carve two stones into a blade",
+                "requires": {"items": {"stone": 2}},
+                "produces": {"stone_knife": 1},
+            },
+            tick=1,
+        )
+        result = oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert result["success"] is True
+        assert agent.inventory.items.get("stone_knife", 0) == 1
+        assert result["derived_innovations"] == []
+
+    def test_first_craft_marks_auto_reflected_items(self):
+        oracle, agent, llm = self._setup_make_knife_then_affordance_flow()
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert "stone_knife" in agent.auto_reflected_items
+
+    def test_auto_reflected_items_in_get_status(self):
+        agent = _make_agent(_make_world())
+        agent.auto_reflected_items.add("stone_knife")
+        status = agent.get_status()
+        assert "auto_reflected_items" in status
+        assert status["auto_reflected_items"] == ["stone_knife"]
+
+
+# ---------------------------------------------------------------------------
+# Manual item reflection (Task 4)
+# ---------------------------------------------------------------------------
+
+def _setup_agent_with_stone_knife_and_prior_auto_discovery():
+    """
+    Return (oracle, agent, llm) where:
+    - The agent has a stone_knife in inventory.
+    - stone_knife is already in agent.auto_reflected_items (auto-discovery ran).
+    - The LLM is primed to return a single candidate "stab" for manual reflection,
+      plus an approval response for innovation validation.
+    """
+    world = _make_world()
+    agent = _make_agent(world)
+    agent.inventory.add("stone_knife", 1)
+    agent.auto_reflected_items.add("stone_knife")  # simulate prior auto-discovery
+
+    llm = MagicMock()
+    llm.last_call = {}
+    llm.generate_structured.side_effect = [
+        # Call 1: affordance discovery candidates
+        _typed_affordance({
+            "candidates": [
+                {"action_name": "stab", "description": "stab an enemy with the knife"},
+            ]
+        }),
+        # Call 2: validate 'stab'
+        _typed({"approved": True, "reason": "Makes sense.", "category": "COMBAT"}),
+    ]
+
+    oracle = _make_oracle(world, llm=llm)
+    return oracle, agent, llm
+
+
+# ---------------------------------------------------------------------------
+# Custom-action precedent key scoping by required items (Task 5)
+# ---------------------------------------------------------------------------
+
+def _setup_cut_branches_innovation():
+    """
+    Return (oracle, agent) where:
+    - Agent is on a tree tile (seed=1, position (0,1)).
+    - Agent has 1 stone_knife in inventory.
+    - 'cut_branches' is already innovated, requires {items: {stone_knife: 1}, tile: tree}.
+    - No LLM: uses the no-llm fallback path for resolve_action.
+    """
+    world = World(width=5, height=5, seed=1)
+    agent = Agent(name="Ada", x=0, y=1)  # tree tile in seed=1
+    assert world.get_tile(agent.x, agent.y) == "tree", "Test setup: expected tree tile at (0,1) in seed=1"
+
+    agent.inventory.add("stone_knife", 1)
+    oracle = _make_oracle(world)  # no LLM — uses fallback
+
+    # Inject the innovation precedent directly (simulates a prior innovate call)
+    agent.actions.append("cut_branches")
+    oracle.precedents["innovation:cut_branches"] = {
+        "creator": "Ada",
+        "description": "cut branches from a tree using a stone knife",
+        "tick_created": 1,
+        "category": "CRAFTING",
+        "requires": {"items": {"stone_knife": 1}, "tile": "tree"},
+    }
+    return oracle, agent
+
+
+class TestCustomActionPrecedentKeys:
+    """Precedent key for custom actions must include required-items signature when present."""
+
+    def test_custom_action_precedent_key_includes_required_items_signature(self):
+        oracle, agent = _setup_cut_branches_innovation()
+        oracle.resolve_action(agent, {"action": "cut_branches"}, tick=3)
+        assert "custom_action:cut_branches:tile:tree:tools:stone_knife:1" in oracle.precedents
+
+    def test_actions_without_required_items_keep_legacy_precedent_key(self):
+        # Set up a fish action with tile requirement but no item requirement
+        world = World(width=5, height=5, seed=1)
+        agent = Agent(name="Ada", x=3, y=0)  # water tile in seed=1
+        assert world.get_tile(agent.x, agent.y) == "water", "Test setup: expected water tile at (3,0) in seed=1"
+        oracle = _make_oracle(world)  # no LLM
+
+        # Inject the innovation precedent directly
+        agent.actions.append("fish")
+        oracle.precedents["innovation:fish"] = {
+            "creator": "Ada",
+            "description": "catch fish in water",
+            "tick_created": 1,
+            "category": "SURVIVAL",
+            "requires": {"tile": "water"},
+        }
+
+        oracle.resolve_action(agent, {"action": "fish"}, tick=2)
+        assert "custom_action:fish:tile:water" in oracle.precedents
+
+
+class TestManualItemReflection:
+    """Tests for the Oracle.reflect_item_uses built-in action path (Task 4)."""
+
+    def test_reflect_item_uses_requires_item_in_inventory(self):
+        oracle = _make_oracle(_make_world(), llm=MagicMock())
+        agent = _make_agent(oracle.world)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "find another use"},
+            tick=3,
+        )
+
+        assert result["success"] is False
+
+    def test_reflect_item_uses_can_add_new_action_after_auto_discovery(self):
+        oracle, agent, llm = _setup_agent_with_stone_knife_and_prior_auto_discovery()
+        energy_before = agent.energy
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "look for another use"},
+            tick=5,
+        )
+
+        assert result["success"] is True
+        assert "stab" in agent.actions
+        assert agent.energy == energy_before - ENERGY_COST_REFLECT_ITEM_USES
+
+    def test_reflect_item_uses_without_llm_fails_cleanly(self):
+        oracle = _make_oracle(_make_world(), llm=None)
+        agent = _make_agent(oracle.world)
+        agent.inventory.add("stone_knife", 1)
+        energy_before = agent.energy
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "think"},
+            tick=4,
+        )
+
+        assert result["success"] is False
+        assert agent.energy == energy_before

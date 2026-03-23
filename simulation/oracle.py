@@ -21,6 +21,7 @@ from simulation.config import (
     REPRODUCE_LIFE_COST, REPRODUCE_HUNGER_COST, REPRODUCE_ENERGY_COST,
     BONDING_TRUST_THRESHOLD, ORACLE_RESPONSE_MAX_TOKENS,
     ORACLE_EFFECT_RESPONSE_MAX_TOKENS,
+    ENERGY_COST_REFLECT_ITEM_USES,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -165,6 +166,8 @@ class Oracle:
             return self._resolve_teach(agent, action, tick)
         elif action_type == "reproduce":
             return self._resolve_reproduce(agent, action, tick)
+        elif action_type == "reflect_item_uses":
+            return self._resolve_reflect_item_uses(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -854,7 +857,58 @@ class Oracle:
             return (cx, cy)
         return None
 
+    # --- Manual item reflection ---
+
+    def _resolve_reflect_item_uses(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Resolve the built-in 'reflect_item_uses' action.
+
+        The agent manually reflects on what a held item can be used for,
+        potentially discovering new actions enabled by that item.
+
+        Contract:
+        - Returns success=False (no energy spent) if item is absent from inventory.
+        - Returns success=False (no energy spent) if no LLM is configured.
+        - Spends ENERGY_COST_REFLECT_ITEM_USES exactly once when the LLM path runs.
+        - A reflection that yields zero new actions is still success=True.
+        - Manual reflection is always allowed regardless of auto_reflected_items.
+        """
+        item_name = (action.get("item") or "").strip().lower()
+        if not item_name or not agent.inventory.has(item_name, 1):
+            return {
+                "success": False,
+                "message": f"You are not carrying '{item_name}' — cannot reflect on its uses.",
+                "effects": {},
+            }
+        if not self.llm:
+            return {
+                "success": False,
+                "message": "No oracle guidance available for item reflection.",
+                "effects": {},
+            }
+
+        agent.modify_energy(-ENERGY_COST_REFLECT_ITEM_USES)
+        derived = self._discover_item_affordances(
+            agent,
+            item_name=item_name,
+            tick=tick,
+            discovery_mode="manual",
+            trigger_action="reflect_item_uses",
+        )
+        return {
+            "success": True,
+            "message": f"You reflect on the uses of '{item_name}' and gain new insight.",
+            "effects": {"energy": -ENERGY_COST_REFLECT_ITEM_USES},
+            "derived_innovations": derived,
+        }
+
     # --- Innovated (custom) actions ---
+
+    def _custom_action_situation_key(self, action_type: str, tile: str, required_items: dict[str, int]) -> str:
+        """Build the precedent key for a custom action, optionally scoped by required items."""
+        if not required_items:
+            return f"custom_action:{action_type}:tile:{tile}"
+        parts = [f"{item}:{int(qty)}" for item, qty in sorted(required_items.items())]
+        return f"custom_action:{action_type}:tile:{tile}:tools:{','.join(parts)}"
 
     def _resolve_custom_action(self, agent: Agent, action: dict, tick: int) -> dict:
         action_type = action.get("action")
@@ -888,29 +942,45 @@ class Oracle:
                         f"I tried to '{action_type}' but I was missing materials. "
                         f"I need to gather more resources first."
                     )
-                    return {"success": False, "message": msg, "effects": {}}
+                    return {"success": False, "message": msg, "effects": {}, "derived_innovations": []}
 
         # Check if there's already a precedent result for this specific situation
-        situation_key = f"custom_action:{action_type}:tile:{self.world.get_tile(agent.x, agent.y)}"
+        situation_key = self._custom_action_situation_key(
+            action_type, self.world.get_tile(agent.x, agent.y), required_items
+        )
         existing_result = self.precedents.get(situation_key)
 
         if existing_result:
             result = self._apply_custom_result(agent, action_type, existing_result, tick)
             if result.get("success"):
-                result["crafting_event"] = self._apply_crafting_recipe(
+                crafting_event = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                result["crafting_event"] = crafting_event
                 self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+                result["derived_innovations"] = self._trigger_post_craft_affordances(
+                    agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                    tick=tick, trigger_action=action_type,
+                )
+            else:
+                result["derived_innovations"] = []
             return result
 
         if not self.llm:
-            result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
+            no_llm_outcome = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
+            self.precedents[situation_key] = no_llm_outcome
+            result = dict(no_llm_outcome)
             agent.modify_energy(-5)
             self._log(tick, result["message"])
-            result["crafting_event"] = self._apply_crafting_recipe(
+            crafting_event = self._apply_crafting_recipe(
                 agent, action_type, required_items, produces, tick
             )
+            result["crafting_event"] = crafting_event
             self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+            result["derived_innovations"] = self._trigger_post_craft_affordances(
+                agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                tick=tick, trigger_action=action_type,
+            )
             return result
 
         # Ask the oracle to determine the outcome
@@ -920,10 +990,17 @@ class Oracle:
             self.precedents[situation_key] = oracle_result
             result = self._apply_custom_result(agent, action_type, oracle_result, tick)
             if result.get("success"):
-                result["crafting_event"] = self._apply_crafting_recipe(
+                crafting_event = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                result["crafting_event"] = crafting_event
                 self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+                result["derived_innovations"] = self._trigger_post_craft_affordances(
+                    agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                    tick=tick, trigger_action=action_type,
+                )
+            else:
+                result["derived_innovations"] = []
             return result
 
         # Fallback
@@ -933,7 +1010,57 @@ class Oracle:
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
         crafting_event = self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
         self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
-        return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event}
+        derived = self._trigger_post_craft_affordances(
+            agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+            tick=tick, trigger_action=action_type,
+        )
+        return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event, "derived_innovations": derived}
+
+    def _trigger_post_craft_affordances(
+        self,
+        agent: Agent,
+        *,
+        produced_items: list[str],
+        tick: int,
+        trigger_action: str,
+    ) -> list[dict]:
+        """Run one-shot affordance discovery for each newly produced item type.
+
+        After a successful crafting action, the first time an agent produces a
+        given item type this method asks the Oracle to discover what new actions
+        that item enables.  Subsequent crafts of the same item type are silently
+        skipped (``agent.auto_reflected_items`` guards the gate).
+
+        The item type is marked as reflected even if zero candidates are approved,
+        so re-crafting cannot spam retries.
+
+        Returns a (possibly empty) list of affordance-discovery entries — the
+        same shape as ``_discover_item_affordances`` returns.
+        """
+        if not self.llm:
+            return []
+        derived: list[dict] = []
+        for item_name in produced_items:
+            if item_name in agent.auto_reflected_items:
+                continue
+            # Mark immediately so that any exception below cannot allow a retry
+            agent.auto_reflected_items.add(item_name)
+            try:
+                entries = self._discover_item_affordances(
+                    agent,
+                    item_name=item_name,
+                    tick=tick,
+                    discovery_mode="auto",
+                    trigger_action=trigger_action,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "_trigger_post_craft_affordances: discovery failed for '%s': %s",
+                    item_name, exc,
+                )
+                entries = []
+            derived.extend(entries)
+        return derived
 
     def _apply_aggressive_trust_damage(self, agent: Agent, action: dict, precedent_key: str, tick: int):
         """If the innovation is marked aggressive, apply trust damage to victim and attacker."""
@@ -1075,6 +1202,144 @@ Otherwise omit both fields."""
         if typed is not None:
             return typed.model_dump()
         return {"approved": True, "reason": "Oracle could not decide, defaulting to approved.", "category": "SURVIVAL"}
+
+    def _discover_item_affordances(
+        self,
+        agent: Agent,
+        *,
+        item_name: str,
+        tick: int,
+        discovery_mode: str,
+        trigger_action: str,
+        charge_energy: bool = False,
+    ) -> list[dict]:
+        """Discover new actions an agent might learn from possessing an item.
+
+        Asks the LLM for up to 3 candidate actions enabled by *item_name*,
+        validates each through the normal innovation path, and returns a list
+        of engine-ready payload entries.
+
+        Each entry has the shape::
+
+            {
+                "attempt":  {action dict sent to _resolve_innovate},
+                "result":   {innovation validation result},
+                "origin_item":    <item_name>,
+                "discovery_mode": <discovery_mode>,
+                "trigger_action": <trigger_action>,
+            }
+
+        Returns an empty list if no LLM is configured or no candidates survive
+        deduplication / validation.
+        """
+        if not self.llm:
+            return []
+
+        from simulation.schemas import ItemAffordanceDiscoveryResponse
+
+        existing_actions = ", ".join(f'"{a}"' for a in agent.actions)
+        prompt = (
+            f'Agent "{agent.name}" just used or crafted item "{item_name}".\n'
+            f"Current tile: {self.world.get_tile(agent.x, agent.y)}.\n"
+            f"The agent already knows these actions: {existing_actions}.\n\n"
+            f"Suggest up to 3 new concrete actions that \"{item_name}\" now makes possible."
+        )
+        system = prompt_loader.load("oracle/item_affordance_system")
+
+        try:
+            typed = self.llm.generate_structured(
+                prompt,
+                ItemAffordanceDiscoveryResponse,
+                system_prompt=system,
+                temperature=0.4,
+                max_tokens=ORACLE_RESPONSE_MAX_TOKENS,
+            )
+        except Exception as exc:
+            logger.warning("_discover_item_affordances: LLM call failed: %s", exc)
+            return []
+
+        if typed is None:
+            return []
+
+        seen_names: set[str] = set()
+        entries: list[dict] = []
+
+        for candidate in (typed.candidates or [])[:3]:
+            try:
+                name = candidate.action_name.strip().lower()
+            except Exception:
+                continue
+
+            if not name:
+                continue
+            if name in agent.actions:
+                continue
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+
+            # Build the innovation requires: always attach the origin item
+            requires: dict = {"items": {item_name: 1}}
+            if candidate.tile:
+                requires["tile"] = candidate.tile
+
+            attempt = {
+                "action": "innovate",
+                "new_action_name": name,
+                "description": candidate.description,
+                "requires": requires,
+            }
+
+            # Validate via the LLM innovation validator (no energy charge for discovery)
+            try:
+                validation = self._validate_innovation(
+                    agent, name, candidate.description, tick=tick,
+                )
+            except Exception as exc:
+                logger.warning("_discover_item_affordances: validation call failed for '%s': %s", name, exc)
+                continue
+            approved = validation.get("approved", True)
+            category = validation.get("category", "SURVIVAL")
+
+            if approved:
+                # Register the action (no energy cost unless charge_energy is requested)
+                agent.actions.append(name)
+                agent.action_descriptions[name] = candidate.description
+                if charge_energy:
+                    agent.modify_energy(-ENERGY_COST_INNOVATE)
+
+                precedent_data: dict = {
+                    "creator": agent.name,
+                    "description": candidate.description,
+                    "tick_created": tick,
+                    "category": category,
+                    "requires": requires,
+                    "origin_item": item_name,
+                    "discovery_mode": discovery_mode,
+                }
+                self.precedents[f"innovation:{name}"] = precedent_data
+                logger.info(
+                    "Affordance discovery: %s learned '%s' from item '%s'",
+                    agent.name, name, item_name,
+                )
+
+                result = {
+                    "success": approved,
+                    "name": name,
+                    "category": category,
+                    "reason": validation.get("reason", ""),
+                    "reason_code": "INNOVATION_APPROVED" if approved else "INNOVATION_REJECTED",
+                }
+
+                entries.append({
+                    "attempt": attempt,
+                    "result": result,
+                    "origin_item": item_name,
+                    "discovery_mode": discovery_mode,
+                    "trigger_action": trigger_action,
+                })
+
+        return entries
 
     def _oracle_judge_custom_action(self, agent: Agent, action: dict, description: str, tick: int = 0) -> Optional[dict]:
         """Use the LLM to determine the outcome of a custom action."""

@@ -73,6 +73,7 @@ _ACTION_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "give_item": ("target", "item", "quantity"),
     "teach": ("target", "skill"),
     "reproduce": ("target",),
+    "reflect_item_uses": ("item",),
 }
 
 
@@ -165,3 +166,13 @@ class FruitEffectResponse(BaseModel):
 
 class MemoryCompressionResponse(BaseModel):
     learnings: list[MediumText]
+
+
+class ItemAffordanceCandidate(BaseModel):
+    action_name: IdentifierText
+    description: LongText
+    tile: Optional[IdentifierText] = None
+
+
+class ItemAffordanceDiscoveryResponse(BaseModel):
+    candidates: list[ItemAffordanceCandidate] = Field(default_factory=list, max_length=3)

@@ -86,6 +86,7 @@ Applied after every `_oracle_judge_custom_action()` call, before the result is c
 1. **No `nearby_resource` prerequisite**: `requires` supports `tile`, `min_energy`, and `items`. ~~Item prerequisites deferred to Phase 2 (inventory system required).~~ ✅ Resolved — `requires.items` implemented (DEC-017).
 2. ~~**No material cost**: Crafting (item consumption) is deferred to the next Phase 2 PR.~~ ✅ Resolved — crafting fully implemented (DEC-018). Items are consumed from inventory at execution time; `produces` items are added.
 3. **No precedent persistence**: ~~Innovation precedents are lost between runs.~~ ✅ Resolved — JSON save/load implemented (DEC-013).
+4. ~~**Crafted items don't unlock follow-on actions**: produced inventory items were passive state with no path to new verbs.~~ ✅ Resolved — item affordance discovery implemented (DEC-045); see section below.
 
 ## Phase 2 — Crafting & Prerequisites
 
@@ -143,9 +144,44 @@ At innovation approval time (`_resolve_innovate`), both `requires` and `produces
 
 `_validate_innovation` passes `produces` to the LLM prompt so it can check physical plausibility of the recipe (e.g. "does carving stone produce a knife?" is reasonable; "does eating fruit produce gold?" is not).
 
+## Item Affordance Discovery — Craft → Discover → Use Loop *(implemented — see DEC-045)*
+
+Crafting a new item type for the first time now triggers automatic affordance discovery, closing the gap between crafted tools and concrete new verbs.
+
+### Flow
+
+```
+Agent executes a CRAFTING innovation (e.g. make_knife)
+  └── _apply_crafting_recipe succeeds, produces stone_knife
+      └── _trigger_post_craft_affordances fires (first craft of stone_knife for this agent)
+          └── _discover_item_affordances(agent, "stone_knife")
+              ├── LLM suggests candidate verbs: ["stab", "cut_branches"]
+              ├── _validate_innovation("stab", ...) → approved
+              │   └── stab added to agent.actions with requires.items: {stone_knife: 1}
+              ├── _validate_innovation("cut_branches", ...) → approved
+              │   └── cut_branches added to agent.actions with requires.items: {stone_knife: 1}
+              └── agent.auto_reflected_items.add("stone_knife")
+```
+
+### Key properties
+
+- **Idempotent**: auto-trigger fires only once per agent per item type (tracked in `agent.auto_reflected_items`).
+- **Non-blocking**: if discovery fails (LLM error, all candidates rejected), crafting still succeeds.
+- **Verb-shaped**: candidates must be concrete verbs, not `use_<item>` wrappers.
+- **Tool-gated execution**: every discovered action stores `requires.items: {item: 1}` so it fails deterministically without the tool.
+- **No extra energy cost for auto-discovery**: the crafting action itself represents the effort.
+- **Manual re-reflection**: `reflect_item_uses` (5 energy) lets agents deliberately discover additional uses for any held item after the initial automatic pass.
+- **Standard analytics**: derived innovations emit normal `innovation_attempt` / `innovation_validated` events with extra fields: `origin_item`, `discovery_mode` (`"auto"` / `"manual"`), `trigger_action`.
+
+### Prompt
+
+`prompts/oracle/item_affordances.txt` — focused prompt asking the LLM for a short list (2–4) of concrete physical verb actions for a specific item. Kept brief to limit LLM tokens and avoid generic wrappers.
+
 ## Considerations for Claude Code
 
 - Innovation is the hardest feature to test because it depends on the LLM. Create tests with LLM mocks.
 - Maintain a list of "expected" innovations in tests: if an agent invents "fly" and the oracle approves it, the test fails.
 - Balance is critical: if innovating is too easy, agents invent everything in 10 ticks. If it's too hard, they never innovate.
 - Special logging for innovations: each new innovation should be a highlighted event in the logs.
+- Item affordance discovery reuses the existing innovation event pipeline — no separate counters needed.
+- Tool-aware precedent keys (`custom_action:{action}:tile:{tile}:tools:{item}:{qty}`) must be used for all actions derived from items to prevent outcome collisions with tool-free variants.
