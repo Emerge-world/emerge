@@ -55,7 +55,7 @@ def render_tree(tree_data: dict) -> Optional[object]:
             edge_y += [py, cy, None]
 
     # Build node traces — colored by EBS (green=high, red=low)
-    node_x, node_y, node_text, node_colors, node_sizes = [], [], [], [], []
+    node_x, node_y, node_text, node_colors, node_sizes, node_ids = [], [], [], [], [], []
     max_ebs = max((n.get("mean_ebs", 0) for n in nodes.values()), default=1) or 1
 
     for nid, node in nodes.items():
@@ -66,6 +66,7 @@ def render_tree(tree_data: dict) -> Optional[object]:
 
         node_x.append(x)
         node_y.append(y)
+        node_ids.append(nid)
         node_text.append(
             f"{nid}<br>EBS: {ebs:.1f}<br>std: {node.get('std_ebs', 0):.1f}<br>runs: {n_runs}"
             + ("<br>★ SELECTED" if selected else "")
@@ -102,6 +103,7 @@ def render_tree(tree_data: dict) -> Optional[object]:
         textposition="top center",
         hovertext=node_text,
         hoverinfo="text",
+        customdata=node_ids,
         name="variants",
     ))
 

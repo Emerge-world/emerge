@@ -43,13 +43,18 @@ class EvolutionNode:
     mean_ebs: float = 0.0
     std_ebs: float = 0.0
     selected: bool = False             # True if this node survives to next gen
+    agent_prompts_path: Optional[str] = None   # relative to tree_dir, JSON
+    oracle_prompts_path: Optional[str] = None  # relative to tree_dir, JSON
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "EvolutionNode":
-        return cls(**d)
+        # Backward-compatible: ignore unknown keys, fill missing optional fields
+        known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        filtered = {k: v for k, v in d.items() if k in known}
+        return cls(**filtered)
 
 
 class EvolutionTree:
@@ -115,8 +120,10 @@ class EvolutionTree:
 
     @classmethod
     def resume(cls, tree_json_path: Path | str) -> "EvolutionTree":
-        """Load an existing evolution tree from a tree.json path."""
+        """Load an existing evolution tree from a tree.json path or its parent directory."""
         path = Path(tree_json_path)
+        if path.is_dir():
+            path = path / "tree.json"
         tree = cls(path.parent, config={})
         tree.load()
         return tree
@@ -131,6 +138,8 @@ class EvolutionTree:
         generation: int,
         parent: Optional[str],
         schema_path: str,
+        agent_prompts_path: Optional[str] = None,
+        oracle_prompts_path: Optional[str] = None,
     ) -> EvolutionNode:
         """Register a new variant node (before runs are complete)."""
         node = EvolutionNode(
@@ -138,6 +147,8 @@ class EvolutionTree:
             generation=generation,
             parent=parent,
             schema_path=schema_path,
+            agent_prompts_path=agent_prompts_path,
+            oracle_prompts_path=oracle_prompts_path,
         )
         self.nodes[node_id] = node
         return node
@@ -208,3 +219,11 @@ class EvolutionTree:
     def mutations_path_for(self, generation: int, variant_name: str) -> Path:
         """Build the canonical mutations YAML path for a variant."""
         return self.tree_dir / f"gen_{generation}" / variant_name / "mutations.yaml"
+
+    def agent_prompts_path_for(self, generation: int, variant_name: str) -> Path:
+        """Build the canonical agent prompts JSON path for a variant."""
+        return self.tree_dir / f"gen_{generation}" / variant_name / "agent_prompts.json"
+
+    def oracle_prompts_path_for(self, generation: int, variant_name: str) -> Path:
+        """Build the canonical oracle prompts JSON path for a variant."""
+        return self.tree_dir / f"gen_{generation}" / variant_name / "oracle_prompts.json"

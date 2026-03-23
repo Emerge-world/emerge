@@ -1,0 +1,19 @@
+Scope: {scope} prompts
+
+## Current prompts (JSON):
+```json
+{prompts_json}
+```
+
+## Run statistics from recent simulations:
+{run_statistics}
+
+## Task:
+Propose ONE mutated variant of the above {scope} prompts that could improve agent survival and behavior.
+
+Remember:
+- Return ONLY the JSON object with all original keys present.
+- Preserve every $variable exactly as-is.
+- Make meaningful but conservative changes guided by the run statistics above.
+
+```json

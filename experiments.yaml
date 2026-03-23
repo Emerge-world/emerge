@@ -3,24 +3,10 @@
 # Dry-run:   uv run run_batch.py --dry-run
 
 experiments:
-  - name: baseline_seed42
-    seed: 42
-    agents: 3
-    ticks: 100
-    model: qwen2.5:3b
-    runs: 1
+  - name: 10agents_promptsv2
+    seed: 1703261
+    agents: 10
+    height: 15
+    width: 15
+    runs: 3
     wandb: true
-
-  - name: large_agents_seed7
-    seed: 7
-    agents: 5
-    ticks: 100
-    model: qwen2.5:3b
-    wandb: true
-
-  - name: no_llm_smoke
-    seed: 1
-    agents: 2
-    ticks: 50
-    no_llm: true
-    wandb: false
