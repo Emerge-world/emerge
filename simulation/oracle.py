@@ -1113,8 +1113,7 @@ Otherwise omit both fields."""
         existing_actions = ", ".join(f'"{a}"' for a in agent.actions)
         prompt = (
             f'Agent "{agent.name}" just used or crafted item "{item_name}".\n'
-            f"Current tile: {self.world.get_tile(agent.x, agent.y)}. "
-            f"Stats: Life={agent.life}, Hunger={agent.hunger}, Energy={agent.energy}.\n"
+            f"Current tile: {self.world.get_tile(agent.x, agent.y)}.\n"
             f"The agent already knows these actions: {existing_actions}.\n\n"
             f"Suggest up to 3 new concrete actions that \"{item_name}\" now makes possible."
         )
@@ -1171,48 +1170,51 @@ Otherwise omit both fields."""
             }
 
             # Validate via the LLM innovation validator (no energy charge for discovery)
-            validation = self._validate_innovation(
-                agent, name, candidate.description, tick=tick,
-            )
+            try:
+                validation = self._validate_innovation(
+                    agent, name, candidate.description, tick=tick,
+                )
+            except Exception as exc:
+                logger.warning("_discover_item_affordances: validation call failed for '%s': %s", name, exc)
+                continue
             approved = validation.get("approved", True)
             category = validation.get("category", "SURVIVAL")
 
             if approved:
                 # Register the action (no energy cost unless charge_energy is requested)
-                if name not in agent.actions:
-                    agent.actions.append(name)
-                    agent.action_descriptions[name] = candidate.description
-                    if charge_energy:
-                        agent.modify_energy(-ENERGY_COST_INNOVATE)
+                agent.actions.append(name)
+                agent.action_descriptions[name] = candidate.description
+                if charge_energy:
+                    agent.modify_energy(-ENERGY_COST_INNOVATE)
 
-                    precedent_data: dict = {
-                        "creator": agent.name,
-                        "description": candidate.description,
-                        "tick_created": tick,
-                        "category": category,
-                        "requires": requires,
-                    }
-                    self.precedents[f"innovation:{name}"] = precedent_data
-                    logger.info(
-                        "Affordance discovery: %s learned '%s' from item '%s'",
-                        agent.name, name, item_name,
-                    )
+                precedent_data: dict = {
+                    "creator": agent.name,
+                    "description": candidate.description,
+                    "tick_created": tick,
+                    "category": category,
+                    "requires": requires,
+                }
+                self.precedents[f"innovation:{name}"] = precedent_data
+                logger.info(
+                    "Affordance discovery: %s learned '%s' from item '%s'",
+                    agent.name, name, item_name,
+                )
 
-            result = {
-                "success": approved,
-                "name": name,
-                "category": category,
-                "reason": validation.get("reason", ""),
-                "reason_code": "INNOVATION_APPROVED" if approved else "INNOVATION_REJECTED",
-            }
+                result = {
+                    "success": approved,
+                    "name": name,
+                    "category": category,
+                    "reason": validation.get("reason", ""),
+                    "reason_code": "INNOVATION_APPROVED" if approved else "INNOVATION_REJECTED",
+                }
 
-            entries.append({
-                "attempt": attempt,
-                "result": result,
-                "origin_item": item_name,
-                "discovery_mode": discovery_mode,
-                "trigger_action": trigger_action,
-            })
+                entries.append({
+                    "attempt": attempt,
+                    "result": result,
+                    "origin_item": item_name,
+                    "discovery_mode": discovery_mode,
+                    "trigger_action": trigger_action,
+                })
 
         return entries
 

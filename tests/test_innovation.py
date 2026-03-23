@@ -828,3 +828,25 @@ class TestAffordanceDiscovery:
 
         names = [entry["result"]["name"] for entry in discovered]
         assert names.count("cut_rope") == 1
+
+    def test_discover_item_affordances_charge_energy_decreases_agent_energy(self):
+        """When charge_energy=True, agent.energy decreases by ENERGY_COST_INNOVATE per approved action."""
+        llm = MagicMock()
+        llm.generate_structured.side_effect = [
+            _typed({
+                "candidates": [
+                    {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
+                ]
+            }),
+            _typed({"approved": True, "reason": "ok", "category": "CRAFTING"}),
+        ]
+        oracle = _make_oracle(_make_world(), llm=llm)
+        agent = _make_agent(oracle.world)
+        energy_before = agent.energy
+
+        oracle._discover_item_affordances(
+            agent, item_name="stone_knife", tick=1, discovery_mode="auto",
+            trigger_action="make_knife", charge_energy=True,
+        )
+
+        assert agent.energy == energy_before - ENERGY_COST_INNOVATE
