@@ -93,6 +93,9 @@ class Agent:
         # Descriptions for custom (innovated) actions — populated when oracle approves
         self.action_descriptions: dict[str, str] = {}
 
+        # Set of item types for which the one-shot post-craft affordance discovery has run
+        self.auto_reflected_items: set[str] = set()
+
         # Generational tracking (Phase 4)
         self.generation: int = 0
         self.parent_ids: list[str] = []
@@ -700,6 +703,7 @@ class Agent:
             "born_tick": self.born_tick,
             "children_names": self.children_names,
             "last_reproduce_tick": self.last_reproduce_tick,
+            "auto_reflected_items": sorted(self.auto_reflected_items),
         }
 
     def __repr__(self):

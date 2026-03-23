@@ -897,20 +897,32 @@ class Oracle:
         if existing_result:
             result = self._apply_custom_result(agent, action_type, existing_result, tick)
             if result.get("success"):
-                result["crafting_event"] = self._apply_crafting_recipe(
+                crafting_event = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                result["crafting_event"] = crafting_event
                 self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+                result["derived_innovations"] = self._trigger_post_craft_affordances(
+                    agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                    tick=tick, trigger_action=action_type,
+                )
+            else:
+                result["derived_innovations"] = []
             return result
 
         if not self.llm:
             result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
             agent.modify_energy(-5)
             self._log(tick, result["message"])
-            result["crafting_event"] = self._apply_crafting_recipe(
+            crafting_event = self._apply_crafting_recipe(
                 agent, action_type, required_items, produces, tick
             )
+            result["crafting_event"] = crafting_event
             self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+            result["derived_innovations"] = self._trigger_post_craft_affordances(
+                agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                tick=tick, trigger_action=action_type,
+            )
             return result
 
         # Ask the oracle to determine the outcome
@@ -920,10 +932,17 @@ class Oracle:
             self.precedents[situation_key] = oracle_result
             result = self._apply_custom_result(agent, action_type, oracle_result, tick)
             if result.get("success"):
-                result["crafting_event"] = self._apply_crafting_recipe(
+                crafting_event = self._apply_crafting_recipe(
                     agent, action_type, required_items, produces, tick
                 )
+                result["crafting_event"] = crafting_event
                 self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
+                result["derived_innovations"] = self._trigger_post_craft_affordances(
+                    agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+                    tick=tick, trigger_action=action_type,
+                )
+            else:
+                result["derived_innovations"] = []
             return result
 
         # Fallback
@@ -933,7 +952,55 @@ class Oracle:
         agent.add_memory(f"I performed '{action_type}' but I'm not sure of the outcome.")
         crafting_event = self._apply_crafting_recipe(agent, action_type, required_items, produces, tick)
         self._apply_aggressive_trust_damage(agent, action, precedent_key, tick)
-        return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event}
+        derived = self._trigger_post_craft_affordances(
+            agent, produced_items=list(crafting_event.get("produced", {}).keys()),
+            tick=tick, trigger_action=action_type,
+        )
+        return {"success": True, "message": msg, "effects": {"energy": -5}, "crafting_event": crafting_event, "derived_innovations": derived}
+
+    def _trigger_post_craft_affordances(
+        self,
+        agent: Agent,
+        *,
+        produced_items: list[str],
+        tick: int,
+        trigger_action: str,
+    ) -> list[dict]:
+        """Run one-shot affordance discovery for each newly produced item type.
+
+        After a successful crafting action, the first time an agent produces a
+        given item type this method asks the Oracle to discover what new actions
+        that item enables.  Subsequent crafts of the same item type are silently
+        skipped (``agent.auto_reflected_items`` guards the gate).
+
+        The item type is marked as reflected even if zero candidates are approved,
+        so re-crafting cannot spam retries.
+
+        Returns a (possibly empty) list of affordance-discovery entries — the
+        same shape as ``_discover_item_affordances`` returns.
+        """
+        derived: list[dict] = []
+        for item_name in produced_items:
+            if item_name in agent.auto_reflected_items:
+                continue
+            # Mark immediately so that any exception below cannot allow a retry
+            agent.auto_reflected_items.add(item_name)
+            try:
+                entries = self._discover_item_affordances(
+                    agent,
+                    item_name=item_name,
+                    tick=tick,
+                    discovery_mode="auto",
+                    trigger_action=trigger_action,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "_trigger_post_craft_affordances: discovery failed for '%s': %s",
+                    item_name, exc,
+                )
+                entries = []
+            derived.extend(entries)
+        return derived
 
     def _apply_aggressive_trust_damage(self, agent: Agent, action: dict, precedent_key: str, tick: int):
         """If the innovation is marked aggressive, apply trust damage to victim and attacker."""
