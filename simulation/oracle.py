@@ -888,7 +888,7 @@ class Oracle:
                         f"I tried to '{action_type}' but I was missing materials. "
                         f"I need to gather more resources first."
                     )
-                    return {"success": False, "message": msg, "effects": {}}
+                    return {"success": False, "message": msg, "effects": {}, "derived_innovations": []}
 
         # Check if there's already a precedent result for this specific situation
         situation_key = f"custom_action:{action_type}:tile:{self.world.get_tile(agent.x, agent.y)}"
@@ -1260,6 +1260,8 @@ Otherwise omit both fields."""
                     "tick_created": tick,
                     "category": category,
                     "requires": requires,
+                    "origin_item": item_name,
+                    "discovery_mode": discovery_mode,
                 }
                 self.precedents[f"innovation:{name}"] = precedent_data
                 logger.info(
