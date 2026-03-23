@@ -314,9 +314,26 @@ class EventEmitter:
         }, agent_id=agent_name)
 
     def emit_innovation_validated(
-        self, tick: int, agent_name: str, result: dict, *, requires=None, produces=None
+        self,
+        tick: int,
+        agent_name: str,
+        result: dict,
+        *,
+        requires=None,
+        produces=None,
+        description=None,
+        origin_item=None,
+        discovery_mode=None,
+        trigger_action=None,
     ):
-        """Emit after oracle approves or rejects an innovate action."""
+        """Emit after oracle approves or rejects an innovate action.
+
+        Optional keyword arguments extend the payload for item-derived innovations:
+          description    — human-readable description of the innovation
+          origin_item    — the item that triggered affordance discovery
+          discovery_mode — how the innovation was discovered (e.g. "auto")
+          trigger_action — the action that produced the item and triggered discovery
+        """
         self._emit("innovation_validated", tick, {
             "name": result.get("name", ""),
             "approved": result["success"],
@@ -324,6 +341,10 @@ class EventEmitter:
             "reason_code": result.get("reason_code", "INNOVATION_APPROVED" if result["success"] else "INNOVATION_REJECTED"),
             "requires": requires,
             "produces": produces,
+            "description": description,
+            "origin_item": origin_item,
+            "discovery_mode": discovery_mode,
+            "trigger_action": trigger_action,
         }, agent_id=agent_name)
 
     def emit_custom_action_executed(self, tick: int, agent_name: str, action: dict, result: dict):

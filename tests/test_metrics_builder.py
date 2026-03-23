@@ -542,3 +542,61 @@ class TestTimeseriesJsonl:
                     "innovations_attempted", "innovations_approved"}
         for row in rows:
             assert required.issubset(row.keys()), f"Missing fields in tick {row['tick']}: {required - row.keys()}"
+
+
+# ------------------------------------------------------------------ #
+# Tests: item-derived innovation events
+# ------------------------------------------------------------------ #
+
+class TestMetricsBuilder:
+    def test_metrics_builder_counts_item_derived_innovation_events(self, tmp_path):
+        """innovation_validated events with extra origin_item field should be counted normally."""
+        run_dir = tmp_path / "test-derived-run"
+        events = [
+            {
+                "run_id": "test-derived-run", "seed": 1, "tick": 0, "sim_time": None,
+                "event_type": "run_start", "agent_id": None,
+                "payload": {
+                    "config": {"width": 15, "height": 15, "max_ticks": 2,
+                               "agent_count": 1, "agent_names": ["Ada"]},
+                    "model_id": "test-model", "world_seed": 1,
+                },
+            },
+            # innovation_attempt for derived innovation
+            {
+                "run_id": "test-derived-run", "tick": 1, "sim_time": {"day": 1, "hour": 6},
+                "event_type": "innovation_attempt", "agent_id": "Ada",
+                "payload": {
+                    "name": "cut_branches",
+                    "description": "cut branches from a tree",
+                    "requires": {"items": {"stone_knife": 1}},
+                    "produces": {"branches": 2},
+                },
+            },
+            # innovation_validated with origin metadata
+            {
+                "run_id": "test-derived-run", "tick": 1, "sim_time": {"day": 1, "hour": 6},
+                "event_type": "innovation_validated", "agent_id": "Ada",
+                "payload": {
+                    "name": "cut_branches",
+                    "approved": True,
+                    "category": "CRAFTING",
+                    "reason_code": "INNOVATION_APPROVED",
+                    "requires": {"items": {"stone_knife": 1}},
+                    "produces": {"branches": 2},
+                    "description": "cut branches from a tree",
+                    "origin_item": "stone_knife",
+                    "discovery_mode": "auto",
+                    "trigger_action": "make_knife",
+                },
+            },
+            {
+                "run_id": "test-derived-run", "tick": 2, "sim_time": {"day": 1, "hour": 7},
+                "event_type": "run_end", "agent_id": None,
+                "payload": {"survivors": ["Ada"], "total_ticks": 2},
+            },
+        ]
+        _write_events(run_dir, events)
+        MetricsBuilder(run_dir).build()
+        summary = json.loads((run_dir / "metrics" / "summary.json").read_text())
+        assert summary["innovations"]["approved"] == 1

@@ -337,6 +337,21 @@ class SimulationEngine:
             elif action_str not in _BASE_ACTIONS:
                 self.event_emitter.emit_custom_action_executed(tick, agent.name, action, result)
 
+            # Emit innovation events for item-derived (auto-discovered) innovations
+            for derived in result.get("derived_innovations", []):
+                attempt = derived.get("attempt", {})
+                validation = derived.get("result", {})
+                self.event_emitter.emit_innovation_attempt(tick, agent.name, attempt)
+                self.event_emitter.emit_innovation_validated(
+                    tick, agent.name, validation,
+                    requires=attempt.get("requires"),
+                    produces=attempt.get("produces"),
+                    description=attempt.get("description"),
+                    origin_item=derived.get("origin_item"),
+                    discovery_mode=derived.get("discovery_mode"),
+                    trigger_action=derived.get("trigger_action"),
+                )
+
             # 4c. Evaluate active subgoal progress after oracle resolution
             _subgoal = agent.current_subgoal()
             if _subgoal is not None:
