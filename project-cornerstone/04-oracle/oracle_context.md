@@ -11,6 +11,10 @@ The following oracle methods are live:
 - **8-direction movement**: Move action supports N, NE, E, SE, S, SW, W, NW.
 - **Precedents**: Currently plain string-keyed dicts in memory (not `PrecedentKey`/`PrecedentValue` dataclasses).
 - **Persistence**: Implemented. Precedents are saved to `data/precedents_{seed}.json` at the end of every run and auto-loaded on engine init. Unseeded runs use `data/precedents_unseeded.json`. `save_precedents` never raises — it catches `OSError`/`TypeError`/`ValueError` so a disk error in a `finally` block cannot mask a simulation exception.
+- **`_discover_item_affordances(agent, item_name)`**: Calls the LLM (via `prompts/oracle/item_affordances.txt`) to generate a short list of concrete verb actions enabled by `item_name`. Each candidate is run through `_validate_innovation` + `_oracle_judge_custom_action`. Approved candidates are registered as normal innovations with `requires.items` set to gate on the enabling tool.
+- **`_trigger_post_craft_affordances(agent, produced_items, crafting_action_name)`**: Called after a successful crafting execution. For each produced item type not yet in `agent.auto_reflected_items`, calls `_discover_item_affordances` and marks the item as discovered. Discovery failure is silent and non-blocking — crafting always succeeds regardless.
+- **`_resolve_reflect_item_uses(agent, action_dict)`**: Resolves the built-in `reflect_item_uses` action. Deducts 5 energy, validates that the agent holds the requested item, then calls `_discover_item_affordances`. Returns success=False (with no energy cost) if the inventory is empty.
+- **Tool-aware custom-action precedent keys**: item-derived actions use the extended key format `custom_action:{action}:tile:{tile}:tools:{item}:{qty}` so that outcomes with and without a tool remain distinct precedent entries (addresses the generic-key known issue).
 
 **Pending for Phase 1:**
 - `PrecedentKey`/`PrecedentValue` dataclasses (planned structured keys, currently plain strings — deferred as YAGNI)
@@ -43,7 +47,7 @@ Agent decides action → Oracle.resolve_action()
 
 ### Known issues
 
-1. **Precedents too generic**: `"custom_action:fish:tile:water"` doesn't distinguish if the agent has tools or not.
+1. ~~**Precedents too generic**: `"custom_action:fish:tile:water"` doesn't distinguish if the agent has tools or not.~~ ✅ Resolved — item-derived actions now use tool-aware keys: `custom_action:{action}:tile:{tile}:tools:{item}:{qty}` (DEC-045).
 2. **Persistence**: Implemented — precedents are saved to `data/precedents_{seed}.json` and reloaded on next run with the same seed. Cross-run consistency is now maintained without redundant LLM calls.
 3. **Fragile keys**: Manual strings, easy for two "equal" situations to have different keys.
 4. **No versioning**: If we adjust an effect, old precedents become inconsistent.

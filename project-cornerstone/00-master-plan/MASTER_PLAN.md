@@ -33,6 +33,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 - Expanded biome tiles and resource model
 - Inventory + pickup/drop_item + crafting via innovations
 - Passive healing, tile-specific risks/rest bonuses
+- Item affordance discovery: crafted tools unlock concrete verb actions via the normal innovation pipeline (auto on first craft; manual via `reflect_item_uses`)
 
 ### Phase 3 — Social ✅
 - Personality traits and nearby-agent perception

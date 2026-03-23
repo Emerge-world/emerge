@@ -1,7 +1,7 @@
 # Item Affordance Discovery Design
 
 - **Date:** 2026-03-18
-- **Status:** Approved
+- **Status:** Implemented (2026-03-23) — see DEC-045 in DECISION_LOG.md
 - **Audience:** Emerge maintainers working on innovation, oracle action resolution, prompts, and tests
 - **Primary goal:** Let crafted items unlock concrete new actions without introducing a separate item-use action system
 - **Focus:** Preserve the existing innovation architecture while adding a deterministic bridge from crafted tools to newly available verb actions

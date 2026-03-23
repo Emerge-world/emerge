@@ -24,8 +24,9 @@ Each agent has:
 - **Position**: `(x, y)` in the grid
 - **Memory**: `Memory` class with episodic, semantic, and task memory stores
 - **Planning state**: `PlanningState` with goal, subgoals, status, confidence, and blocker tracking
-- **Initial actions**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach"]`
+- **Initial actions**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach", "reflect_item_uses"]`
   - `reproduce` is built-in but NOT available at birth; it unlocks once `current_tick - born_tick >= 100`
+  - `reflect_item_uses`: costs 5 energy; requires at least one item in inventory; asks the Oracle to suggest new verb actions enabled by a chosen held item; runs the normal innovation validation path for each candidate (see DEC-045)
 - **LLM**: vLLM/OpenAI-compatible structured outputs via `simulation/llm_client.py`
 - **Planner**: optional `Planner` wrapper reusing the same LLM client with structured planner output
 - **Personality**: courage, curiosity, patience, sociability
@@ -159,6 +160,16 @@ agent.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)  # default 10
 - **`give_item` base action** *(Phase 3c)*: transfer any inventory item to an adjacent agent (manhattan dist ≤ 1); costs 2 energy; builds +0.15 trust on receiver toward giver; both get episodic memory
 - **`teach` base action** *(Phase 3c)*: deterministically copy an owned innovation to a visible agent (dist ≤ AGENT_VISION_RADIUS); costs 8 energy (teacher) + 5 energy (learner); both gain +0.20 trust; no LLM call (DEC-024)
 - **Source**: `simulation/inventory.py` — `Inventory` class
+
+### Item affordance tracking field *(implemented — see DEC-045)*
+
+```python
+self.auto_reflected_items: set[str] = set()
+# Tracks item types for which automatic affordance discovery has already run.
+# Prevents re-triggering the auto-discovery path when the same item is crafted again.
+```
+
+Included in `get_status()` as `"auto_reflected_items": list`.
 
 ### Generational tracking fields *(Phase 3c — Phase 4 groundwork)*
 

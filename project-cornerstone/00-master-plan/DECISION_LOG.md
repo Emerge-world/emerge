@@ -407,3 +407,31 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - **Decision**: Widen the decision-only reason cap from 160 to 240 characters via a new `DecisionReasonText` alias. Add a deterministic repair path in `LLMClient.generate_structured()` that fires only for `AgentDecisionResponse` when the sole validation failure is `reason` being `string_too_long`. Repair truncates the field to 240 chars and re-validates. All other failures return `None` unchanged.
 - **Rejected alternatives**: Raise the shared `ReasonText` limit globally (silently widens oracle/planner envelopes); retry the LLM call with a tighter prompt (non-deterministic, adds latency); silently drop the `reason` field (loses observability).
 - **Consequences**: One new private method in `LLMClient`. Repair emits a `WARNING` log and writes `repaired_reason_too_long`, `repaired_fields`, and `original_reason_length` to `last_call`. No new event types, no fallback-parse accounting. `DECISION_RESPONSE_MAX_TOKENS` unchanged.
+
+### DEC-045: Item Affordance Discovery — craft-to-use bridge via normal innovation pipeline
+
+**Date:** 2026-03-23
+**Status:** Implemented
+
+**Context:** Crafting actions could produce inventory items but those items did not expand what the agent could do next. A crafted `stone_knife` sat passively in inventory without unlocking concrete verbs like `stab` or `cut_branches`.
+
+**Decision:**
+- **Auto-discovery on first craft**: when an agent successfully executes a CRAFTING-category action that produces a new item type for the first time, the Oracle immediately runs `_trigger_post_craft_affordances()`. This calls `_discover_item_affordances()` which asks the LLM (via `prompts/oracle/item_affordances.txt`) for a short list of concrete verb actions enabled by the new item. Each candidate is routed through the normal innovation validation path (`_validate_innovation` + `_oracle_judge_custom_action`). Approved candidates are registered exactly like any other innovation.
+- **One-shot per item type per agent**: tracked in `agent.auto_reflected_items: set[str]`. Recrafting the same item type never auto-triggers again.
+- **Manual re-reflection**: `reflect_item_uses` is added to the initial action set. It costs 5 energy, requires at least one item in inventory, and runs the same `_discover_item_affordances` path for agent-chosen items. Resolved by `Oracle._resolve_reflect_item_uses()`.
+- **Auto-derived innovations skip ENERGY_COST_INNOVATE**: the auto-path does not charge the innovation energy cost — crafting itself already represents the effort. Manual `reflect_item_uses` costs 5 energy from the action itself.
+- **Tool-aware custom-action precedent keys**: actions derived from items use the extended key format `custom_action:{action}:tile:{tile}:tools:{item}:{qty}` so that outcomes with and without a tool remain distinct precedent entries.
+- **Standard event reuse**: derived innovations emit normal `innovation_attempt` / `innovation_validated` events with three new optional fields: `origin_item` (name of the enabling item), `discovery_mode` (`"auto"` or `"manual"`), `trigger_action` (crafting action name or `"reflect_item_uses"`).
+
+**Rejected alternatives:**
+- Auto-create `use_<item>` actions (too vague, creates awkward action names, duplicates not extends the model).
+- Hardcoded affordance registry e.g. `stone_knife → [stab, cut_branches]` (anti-emergent, becomes a growing manual table).
+- Prompt-only hint to the agent to innovate after crafting (unguided, noisy, depends on model tone without deterministic trigger).
+
+**Consequences:**
+- `agent.auto_reflected_items` field added to `Agent.__init__()` and `get_status()`.
+- `reflect_item_uses` added to `INITIAL_ACTIONS` in `config.py`.
+- Oracle gains three new private helpers: `_discover_item_affordances`, `_trigger_post_craft_affordances`, `_resolve_reflect_item_uses`.
+- `prompts/oracle/item_affordances.txt` added for the affordance reflection prompt.
+- Crafting failure still succeeds (affordance discovery failure is silent and non-blocking).
+- Teaching works unchanged: discovered actions propagate via `teach` normally.
