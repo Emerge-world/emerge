@@ -979,6 +979,8 @@ class Oracle:
         Returns a (possibly empty) list of affordance-discovery entries — the
         same shape as ``_discover_item_affordances`` returns.
         """
+        if not self.llm:
+            return []
         derived: list[dict] = []
         for item_name in produced_items:
             if item_name in agent.auto_reflected_items:

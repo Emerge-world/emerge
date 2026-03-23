@@ -953,3 +953,15 @@ class TestCraftedItemAffordances:
         assert result["success"] is True
         assert agent.inventory.items.get("stone_knife", 0) == 1
         assert result["derived_innovations"] == []
+
+    def test_first_craft_marks_auto_reflected_items(self):
+        oracle, agent, llm = self._setup_make_knife_then_affordance_flow()
+        oracle.resolve_action(agent, {"action": "make_knife"}, tick=2)
+        assert "stone_knife" in agent.auto_reflected_items
+
+    def test_auto_reflected_items_in_get_status(self):
+        agent = _make_agent(_make_world())
+        agent.auto_reflected_items.add("stone_knife")
+        status = agent.get_status()
+        assert "auto_reflected_items" in status
+        assert status["auto_reflected_items"] == ["stone_knife"]
