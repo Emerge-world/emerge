@@ -175,4 +175,4 @@ class ItemAffordanceCandidate(BaseModel):
 
 
 class ItemAffordanceDiscoveryResponse(BaseModel):
-    candidates: list[ItemAffordanceCandidate] = Field(default_factory=list)
+    candidates: list[ItemAffordanceCandidate] = Field(default_factory=list, max_length=3)

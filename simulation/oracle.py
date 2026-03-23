@@ -1250,16 +1250,10 @@ Otherwise omit both fields."""
         if typed is None:
             return []
 
-        try:
-            parsed = ItemAffordanceDiscoveryResponse.model_validate(typed.model_dump())
-        except Exception as exc:
-            logger.warning("_discover_item_affordances: failed to parse LLM response: %s", exc)
-            return []
-
         seen_names: set[str] = set()
         entries: list[dict] = []
 
-        for candidate in (parsed.candidates or [])[:3]:
+        for candidate in (typed.candidates or [])[:3]:
             try:
                 name = candidate.action_name.strip().lower()
             except Exception:

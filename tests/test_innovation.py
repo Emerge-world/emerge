@@ -25,6 +25,7 @@ from simulation.config import (
     BASE_ACTIONS,
     ORACLE_RESPONSE_MAX_TOKENS,
 )
+from simulation.schemas import ItemAffordanceDiscoveryResponse, ItemAffordanceCandidate
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +57,11 @@ def _typed(d: dict):
     m = MagicMock()
     m.model_dump.return_value = d
     return m
+
+
+def _typed_affordance(d: dict) -> ItemAffordanceDiscoveryResponse:
+    """Build a real ItemAffordanceDiscoveryResponse from a dict (for affordance tests)."""
+    return ItemAffordanceDiscoveryResponse.model_validate(d)
 
 
 def _mock_llm(response: dict):
@@ -702,7 +708,7 @@ class TestAffordanceDiscovery:
         """Discovered action must auto-attach requires.items = {<origin_item>: 1}."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
                 ]
@@ -726,7 +732,7 @@ class TestAffordanceDiscovery:
         """Actions already known to the agent must be skipped."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "stab", "description": "attack with the knife"},
                     {"action_name": "cut_branches", "description": "cut branches from a tree", "tile": "tree"},
@@ -762,7 +768,7 @@ class TestAffordanceDiscovery:
         """Each returned entry has the expected engine-ready payload shape."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
                 ]
@@ -789,7 +795,7 @@ class TestAffordanceDiscovery:
         """When candidate has no tile, requires must not include a tile key."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "sharpen_stick", "description": "sharpen a stick into a point"},
                 ]
@@ -812,7 +818,7 @@ class TestAffordanceDiscovery:
         """Duplicate names within a single response batch must be collapsed to one."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "cut_rope", "description": "cut rope"},
                     {"action_name": "cut_rope", "description": "cut rope again"},
@@ -834,7 +840,7 @@ class TestAffordanceDiscovery:
         """When charge_energy=True, agent.energy decreases by ENERGY_COST_INNOVATE per approved action."""
         llm = MagicMock()
         llm.generate_structured.side_effect = [
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "whittle_stake", "description": "whittle wood into a stake"},
                 ]
@@ -880,7 +886,7 @@ class TestCraftedItemAffordances:
             # Call 2: judge the custom action execution
             _typed({"success": True, "message": "You shaped the stones into a blade.", "effects": {"energy": -8, "hunger": 0, "life": 0}}),
             # Call 3: affordance discovery candidates
-            _typed({
+            _typed_affordance({
                 "candidates": [
                     {"action_name": "cut_branches", "description": "use the knife to cut branches from a tree", "tile": None},
                 ]
@@ -989,7 +995,7 @@ def _setup_agent_with_stone_knife_and_prior_auto_discovery():
     llm.last_call = {}
     llm.generate_structured.side_effect = [
         # Call 1: affordance discovery candidates
-        _typed({
+        _typed_affordance({
             "candidates": [
                 {"action_name": "stab", "description": "stab an enemy with the knife"},
             ]
