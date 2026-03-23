@@ -21,6 +21,7 @@ from simulation.config import (
     REPRODUCE_LIFE_COST, REPRODUCE_HUNGER_COST, REPRODUCE_ENERGY_COST,
     BONDING_TRUST_THRESHOLD, ORACLE_RESPONSE_MAX_TOKENS,
     ORACLE_EFFECT_RESPONSE_MAX_TOKENS,
+    ENERGY_COST_REFLECT_ITEM_USES,
 )
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
@@ -165,6 +166,8 @@ class Oracle:
             return self._resolve_teach(agent, action, tick)
         elif action_type == "reproduce":
             return self._resolve_reproduce(agent, action, tick)
+        elif action_type == "reflect_item_uses":
+            return self._resolve_reflect_item_uses(agent, action, tick)
         elif action_type in agent.actions:
             # Previously innovated action
             return self._resolve_custom_action(agent, action, tick)
@@ -853,6 +856,50 @@ class Oracle:
             _, cx, cy = candidates[0]
             return (cx, cy)
         return None
+
+    # --- Manual item reflection ---
+
+    def _resolve_reflect_item_uses(self, agent: Agent, action: dict, tick: int) -> dict:
+        """Resolve the built-in 'reflect_item_uses' action.
+
+        The agent manually reflects on what a held item can be used for,
+        potentially discovering new actions enabled by that item.
+
+        Contract:
+        - Returns success=False (no energy spent) if item is absent from inventory.
+        - Returns success=False (no energy spent) if no LLM is configured.
+        - Spends ENERGY_COST_REFLECT_ITEM_USES exactly once when the LLM path runs.
+        - A reflection that yields zero new actions is still success=True.
+        - Manual reflection is always allowed regardless of auto_reflected_items.
+        """
+        item_name = (action.get("item") or "").strip().lower()
+        if not item_name or not agent.inventory.has(item_name, 1):
+            return {
+                "success": False,
+                "message": f"You are not carrying '{item_name}' — cannot reflect on its uses.",
+                "effects": {},
+            }
+        if not self.llm:
+            return {
+                "success": False,
+                "message": "No oracle guidance available for item reflection.",
+                "effects": {},
+            }
+
+        agent.modify_energy(-ENERGY_COST_REFLECT_ITEM_USES)
+        derived = self._discover_item_affordances(
+            agent,
+            item_name=item_name,
+            tick=tick,
+            discovery_mode="manual",
+            trigger_action="reflect_item_uses",
+        )
+        return {
+            "success": True,
+            "message": f"You reflect on the uses of '{item_name}' and gain new insight.",
+            "effects": {"energy": -ENERGY_COST_REFLECT_ITEM_USES},
+            "derived_innovations": derived,
+        }
 
     # --- Innovated (custom) actions ---
 

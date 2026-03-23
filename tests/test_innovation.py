@@ -21,6 +21,7 @@ from simulation.world import World
 from simulation.config import (
     INNOVATION_EFFECT_BOUNDS,
     ENERGY_COST_INNOVATE,
+    ENERGY_COST_REFLECT_ITEM_USES,
     BASE_ACTIONS,
     ORACLE_RESPONSE_MAX_TOKENS,
 )
@@ -965,3 +966,82 @@ class TestCraftedItemAffordances:
         status = agent.get_status()
         assert "auto_reflected_items" in status
         assert status["auto_reflected_items"] == ["stone_knife"]
+
+
+# ---------------------------------------------------------------------------
+# Manual item reflection (Task 4)
+# ---------------------------------------------------------------------------
+
+def _setup_agent_with_stone_knife_and_prior_auto_discovery():
+    """
+    Return (oracle, agent, llm) where:
+    - The agent has a stone_knife in inventory.
+    - stone_knife is already in agent.auto_reflected_items (auto-discovery ran).
+    - The LLM is primed to return a single candidate "stab" for manual reflection,
+      plus an approval response for innovation validation.
+    """
+    world = _make_world()
+    agent = _make_agent(world)
+    agent.inventory.add("stone_knife", 1)
+    agent.auto_reflected_items.add("stone_knife")  # simulate prior auto-discovery
+
+    llm = MagicMock()
+    llm.last_call = {}
+    llm.generate_structured.side_effect = [
+        # Call 1: affordance discovery candidates
+        _typed({
+            "candidates": [
+                {"action_name": "stab", "description": "stab an enemy with the knife"},
+            ]
+        }),
+        # Call 2: validate 'stab'
+        _typed({"approved": True, "reason": "Makes sense.", "category": "COMBAT"}),
+    ]
+
+    oracle = _make_oracle(world, llm=llm)
+    return oracle, agent, llm
+
+
+class TestManualItemReflection:
+    """Tests for the Oracle.reflect_item_uses built-in action path (Task 4)."""
+
+    def test_reflect_item_uses_requires_item_in_inventory(self):
+        oracle = _make_oracle(_make_world(), llm=MagicMock())
+        agent = _make_agent(oracle.world)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "find another use"},
+            tick=3,
+        )
+
+        assert result["success"] is False
+
+    def test_reflect_item_uses_can_add_new_action_after_auto_discovery(self):
+        oracle, agent, llm = _setup_agent_with_stone_knife_and_prior_auto_discovery()
+        energy_before = agent.energy
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "look for another use"},
+            tick=5,
+        )
+
+        assert result["success"] is True
+        assert "stab" in agent.actions
+        assert agent.energy == energy_before - ENERGY_COST_REFLECT_ITEM_USES
+
+    def test_reflect_item_uses_without_llm_fails_cleanly(self):
+        oracle = _make_oracle(_make_world(), llm=None)
+        agent = _make_agent(oracle.world)
+        agent.inventory.add("stone_knife", 1)
+        energy_before = agent.energy
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "reflect_item_uses", "item": "stone_knife", "reason": "think"},
+            tick=4,
+        )
+
+        assert result["success"] is False
+        assert agent.energy == energy_before
