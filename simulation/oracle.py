@@ -903,6 +903,13 @@ class Oracle:
 
     # --- Innovated (custom) actions ---
 
+    def _custom_action_situation_key(self, action_type: str, tile: str, required_items: dict[str, int]) -> str:
+        """Build the precedent key for a custom action, optionally scoped by required items."""
+        if not required_items:
+            return f"custom_action:{action_type}:tile:{tile}"
+        parts = [f"{item}:{int(qty)}" for item, qty in sorted(required_items.items())]
+        return f"custom_action:{action_type}:tile:{tile}:tools:{','.join(parts)}"
+
     def _resolve_custom_action(self, agent: Agent, action: dict, tick: int) -> dict:
         action_type = action.get("action")
         precedent_key = f"innovation:{action_type}"
@@ -938,7 +945,9 @@ class Oracle:
                     return {"success": False, "message": msg, "effects": {}, "derived_innovations": []}
 
         # Check if there's already a precedent result for this specific situation
-        situation_key = f"custom_action:{action_type}:tile:{self.world.get_tile(agent.x, agent.y)}"
+        situation_key = self._custom_action_situation_key(
+            action_type, self.world.get_tile(agent.x, agent.y), required_items
+        )
         existing_result = self.precedents.get(situation_key)
 
         if existing_result:
@@ -958,7 +967,9 @@ class Oracle:
             return result
 
         if not self.llm:
-            result = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
+            no_llm_outcome = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
+            self.precedents[situation_key] = no_llm_outcome
+            result = dict(no_llm_outcome)
             agent.modify_energy(-5)
             self._log(tick, result["message"])
             crafting_event = self._apply_crafting_recipe(

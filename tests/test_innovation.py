@@ -1008,6 +1008,66 @@ def _setup_agent_with_stone_knife_and_prior_auto_discovery():
     return oracle, agent, llm
 
 
+# ---------------------------------------------------------------------------
+# Custom-action precedent key scoping by required items (Task 5)
+# ---------------------------------------------------------------------------
+
+def _setup_cut_branches_innovation():
+    """
+    Return (oracle, agent) where:
+    - Agent is on a tree tile (seed=1, position (0,1)).
+    - Agent has 1 stone_knife in inventory.
+    - 'cut_branches' is already innovated, requires {items: {stone_knife: 1}, tile: tree}.
+    - No LLM: uses the no-llm fallback path for resolve_action.
+    """
+    world = World(width=5, height=5, seed=1)
+    agent = Agent(name="Ada", x=0, y=1)  # tree tile in seed=1
+    assert world.get_tile(agent.x, agent.y) == "tree", "Test setup: expected tree tile at (0,1) in seed=1"
+
+    agent.inventory.add("stone_knife", 1)
+    oracle = _make_oracle(world)  # no LLM — uses fallback
+
+    # Inject the innovation precedent directly (simulates a prior innovate call)
+    agent.actions.append("cut_branches")
+    oracle.precedents["innovation:cut_branches"] = {
+        "creator": "Ada",
+        "description": "cut branches from a tree using a stone knife",
+        "tick_created": 1,
+        "category": "CRAFTING",
+        "requires": {"items": {"stone_knife": 1}, "tile": "tree"},
+    }
+    return oracle, agent
+
+
+class TestCustomActionPrecedentKeys:
+    """Precedent key for custom actions must include required-items signature when present."""
+
+    def test_custom_action_precedent_key_includes_required_items_signature(self):
+        oracle, agent = _setup_cut_branches_innovation()
+        oracle.resolve_action(agent, {"action": "cut_branches"}, tick=3)
+        assert "custom_action:cut_branches:tile:tree:tools:stone_knife:1" in oracle.precedents
+
+    def test_actions_without_required_items_keep_legacy_precedent_key(self):
+        # Set up a fish action with tile requirement but no item requirement
+        world = World(width=5, height=5, seed=1)
+        agent = Agent(name="Ada", x=3, y=0)  # water tile in seed=1
+        assert world.get_tile(agent.x, agent.y) == "water", "Test setup: expected water tile at (3,0) in seed=1"
+        oracle = _make_oracle(world)  # no LLM
+
+        # Inject the innovation precedent directly
+        agent.actions.append("fish")
+        oracle.precedents["innovation:fish"] = {
+            "creator": "Ada",
+            "description": "catch fish in water",
+            "tick_created": 1,
+            "category": "SURVIVAL",
+            "requires": {"tile": "water"},
+        }
+
+        oracle.resolve_action(agent, {"action": "fish"}, tick=2)
+        assert "custom_action:fish:tile:water" in oracle.precedents
+
+
 class TestManualItemReflection:
     """Tests for the Oracle.reflect_item_uses built-in action path (Task 4)."""
 
