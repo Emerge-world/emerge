@@ -4,7 +4,7 @@
 
 The following agent cognition features are live:
 
-- **Compact 7×7 ASCII grid**: Nearby tiles are rendered as a compact ASCII grid (`@`=agent, `F`=fruit, `t`=tree, `W`=water, `.`=land, `#`=obstacle) instead of a JSON list.
+- **Compact 7×7 ASCII grid**: Nearby tiles are rendered as a compact ASCII grid (`@`=you, `.`=land, `S`=sand, `~`=river, `W`=water, `F`=fruit-tree, `t`=empty-tree, `f`=forest, `M`=mountain, `C`=cave, `#`=outside observed bounds) instead of a JSON list.
 - **Split resource visibility**: The decision prompt separates `Resources on your tile` from `Nearby resources (move first)` so pickup-ready items are distinct from merely visible ones.
 - **Few-shot examples**: `prompts/agent/system.txt` contains 2–3 worked examples of good decisions baked into the system prompt.
 - **Template prompt system**: Prompts are stored as `prompts/agent/system.txt` and `prompts/agent/decision.txt`, loaded and cached by `simulation/prompt_loader.py` using `string.Template`. See DEC-005.
@@ -33,7 +33,7 @@ Each agent has:
 
 ### Known Issues
 
-1. **Explicit planning is feature-flagged off by default**: `ENABLE_EXPLICIT_PLANNING = False` keeps the old reactive loop as the baseline until more tuning lands.
+1. **Explicit planning is enabled by default**: `ENABLE_EXPLICIT_PLANNING = True` is now the live baseline; replanning cadence and prompt-budget tuning still need ongoing attention.
 2. **Token budget remains tight**: planner and executor prompts add new context, so prompt-size discipline still matters.
 3. **Fallback remains simple**: the no-LLM mode still follows hand-written heuristics rather than durable plans.
 
@@ -216,7 +216,7 @@ The following improvements have been applied. Details for reference:
    Good decision: {"action":"eat","reason":"hunger is high and food is adjacent"}
    ```
 
-3. **Prompt caching**: Ollama supports keep_alive. The agent's system prompt changes little between ticks, so leverage context caching.
+3. **Prompt caching**: Prompt templates are cached in-process by `simulation/prompt_loader.py`. Transport-level prompt caching depends on the chosen OpenAI-compatible backend and is not a hard runtime assumption.
 
 ### Expanded stats (Phase 2)
 
@@ -233,6 +233,6 @@ The following improvements have been applied. Details for reference:
 - Agent tests must verify: stats never out of bounds, dead agents never act, memory/task-memory caps work.
 - Planning changes must preserve fallback behavior when planner calls fail or structured output is invalid.
 - Planning events should remain small and deterministic; they feed `events.jsonl` and `EBSBuilder`.
-- Prompts ALWAYS in English (Qwen 2.5-3B performs much better).
+- Prompts ALWAYS in English; the current prompt set, schemas, and evaluations assume English responses.
 - If the LLM returns invalid JSON, the fallback MUST work. Never crash due to a bad response.
 - Each prompt change → evaluate with 10 runs of 30 ticks and measure % of coherent decisions.

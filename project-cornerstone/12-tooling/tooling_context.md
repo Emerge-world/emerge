@@ -141,7 +141,7 @@ SEED_BASE = 100
 results = []
 for i in range(RUNS):
     seed = SEED_BASE + i
-    cmd = f"python main.py --agents {AGENTS} --ticks {TICKS} --seed {seed} --save-state --no-llm"
+    cmd = f"uv run main.py --agents {AGENTS} --ticks {TICKS} --seed {seed} --save-state --no-llm"
     subprocess.run(cmd, shell=True)
     
     with open("world_state.json") as f:
@@ -195,13 +195,13 @@ Monthly workflow:
 
 | Risk                            | Mitigation                                          |
 |---------------------------------|-----------------------------------------------------|
-| Ollama down                     | Automatic fallback to simple rules                  |
-| Invalid JSON                    | 5 parsing layers (see 05-llm-integration/llm-integration_context.md)|
+| LLM endpoint unavailable at startup | Engine falls back to no-LLM mode after availability check |
+| Invalid JSON / schema mismatch  | Structured-output validation + safe fallback to rule-based agent policy |
 | Non-existent action             | Oracle rejects, agent receives feedback             |
 | Absurd action approved          | Effect bounds on innovations, behavioral tests      |
 | Prompt too long                 | Token counting, truncate memory if necessary        |
 | Model hallucinating             | Low temperature for oracle, post-LLM validation     |
-| Model very slow                 | 120s timeout, retry once, then fallback             |
+| Overlong decision `reason`      | Deterministic repair truncates `reason` to schema limit when that is the only validation error |
 
 ### Against simulation bugs
 
@@ -218,10 +218,10 @@ Monthly workflow:
 
 | Risk                            | Mitigation                                          |
 |---------------------------------|-----------------------------------------------------|
-| Crash mid-simulation            | Auto-save state every 10 ticks                      |
-| Lost precedents                 | Save to disk after each new precedent               |
-| Deleted logs                    | Log rotation, save last 100 simulations             |
-| Corrupt world                   | Validation when loading JSON, regenerate if invalid |
+| Crash mid-simulation            | `meta.json` is written at run start and `events.jsonl` is line-buffered; final metrics/digest may be incomplete |
+| Lost precedents                 | Saved in engine `finally` blocks at end of `run()` / `run_with_callback()` |
+| Deleted logs                    | Canonical analytics artifacts live under `data/runs/<run_id>/`; no built-in retention policy yet |
+| Corrupt world snapshot          | No general world-state loader yet; start a fresh seeded run or inspect the export manually |
 
 ---
 
@@ -252,7 +252,7 @@ Monthly workflow:
 | **Weights & Biases** | Tracking simulation metrics                 | Phase 1         |
 | **DVC**              | Simulation data versioning                  | Phase 2         |
 | **Grafana + Loki**   | Real-time log dashboards                    | Phase 5         |
-| **Ollama Modelfile** | Custom system prompt baked into model       | Phase 1         |
+| **Model-server config** | Backend-specific vLLM / OpenAI-compatible serving setup | Phase 1         |
 | **LiteLLM**         | Unified multi-provider LLM proxy            | Phase 2         |
 
 ### Claude Code CLAUDE.md (poner en raíz del repo)
@@ -264,10 +264,10 @@ Monthly workflow:
 
 ### Quick Reference
 - Read `project-cornerstone/00-master-plan/MASTER_PLAN.md` for full context
-- Current phase: Phase 1 (Intelligence)
-- Run tests: `pytest -m "not slow"`
-- Run simulation: `python main.py --no-llm --ticks 5` (smoke test)
-- Run with LLM: `python main.py --agents 3 --ticks 30`
+- Current product state: beyond the original Phase 1 scope; see `MASTER_PLAN.md`
+- Run tests: `uv run pytest -m "not slow"`
+- Run simulation: `uv run main.py --no-llm --ticks 5` (smoke test)
+- Run with LLM: `uv run main.py --agents 3 --ticks 30`
 
 ### Architecture
 - Entry: `main.py`
@@ -283,9 +283,9 @@ Monthly workflow:
 5. Prompts are in English (better for small models)
 
 ### Current Priorities
-1. Dual memory system (episodic + semantic)
-2. Personality traits
-3. Structured logging
-4. Unit + integration tests
-5. Prompt optimization for Qwen 2.5-3B
+1. Metrics maturity and contract stability
+2. Replayability from persisted run events
+3. Culture / coordination experiments
+4. World pressure systems (weather, scarcity)
+5. Determinism hardening and auditability
 ```

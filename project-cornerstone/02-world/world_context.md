@@ -2,7 +2,7 @@
 
 ## Current State (Phase 2)
 
-The world is a configurable 2D tile matrix (default 10×10, overridable via `--width`/`--height` CLI flags) generated with Perlin noise via the `opensimplex` library. Eight tile types are implemented:
+The world is a configurable 2D tile matrix (default 15×15, overridable via `--width`/`--height` CLI flags) generated with Perlin noise via the `opensimplex` library. Eight tile types are implemented:
 
 | Tile     | Walkable | Resources          | Passive effect                                        |
 |----------|----------|--------------------|-------------------------------------------------------|
@@ -39,8 +39,8 @@ else                              → mountain peak (TILE_MOUNTAIN)
 
 ### Known Issues
 
-1. **Resources don't persist**: The world regenerates every execution.
-2. **No persistence**: The world state is not saved between runs.
+1. **Fresh runs regenerate from seed**: Starting a new simulation rebuilds the world from config + seed rather than loading a prior `world_state.json` snapshot.
+2. **Snapshots are export-only**: `SimulationEngine.save_world_state()` can write `world_state.json`, but there is no first-class loader that restores a run back into `World`.
 
 ## Phase 1 — Quick wins
 
@@ -57,10 +57,10 @@ RESOURCE_REGEN_AMOUNT_MIN = 1
 RESOURCE_REGEN_AMOUNT_MAX = 3
 ```
 
-### World persistence
-- Save the world as JSON when generating it.
-- Ability to load a world from JSON to reproduce simulations.
-- Format: `data/worlds/world_{seed}_{timestamp}.json`
+### World snapshots and replay gap
+- `uv run main.py --save-state ...` writes a `world_state.json` snapshot at the end of the run.
+- That snapshot is currently an export artifact for inspection, not the canonical replay source.
+- Canonical run reconstruction is intended to come from `data/runs/<run_id>/events.jsonl`; a world-state loader is not implemented yet.
 
 ## Implemented in Phase 1/2 (Day/Night Cycle)
 
@@ -143,6 +143,6 @@ WEATHER_TYPES = ["clear", "rain", "drought", "storm"]
 
 ## Considerations for Claude Code
 
-- The current `World` class is monolithic. Before Phase 2, split it into `Grid`, `ResourceManager`, `WeatherSystem`.
+- The current `World` class is still monolithic. If world logic keeps growing, split it into `Grid`, `ResourceManager`, and `WeatherSystem`.
 - World tests must verify: deterministic generation with seed, walkability, resource consumption, regeneration.
 - The world JSON must be backwards compatible: new fields are optional.

@@ -24,7 +24,8 @@ PlanningState + Retrieval
 ### Engine (`simulation/engine.py`)
 - Owns world, agents, oracle, day cycle, lineage tracker, event emitter.
 - Runs per-tick lifecycle and emits callback messages for web clients.
-- Persists precedents/lineage/world state on shutdown paths.
+- Persists precedents and lineage on shutdown paths.
+- Exposes an explicit `save_world_state()` snapshot export; world-state persistence is not automatic.
 
 ### Agent (`simulation/agent.py`)
 - Maintains stats, dual memory, task memory, personality, inventory, relationships, and optional planning state.
@@ -42,7 +43,8 @@ PlanningState + Retrieval
 - Always-on canonical telemetry per run.
 - Includes lifecycle events needed for post-run reconstruction, including agent births and personality snapshots for initial and born agents.
 - Stores prompt and raw LLM blobs deduplicated by hash.
-- Emits planning lifecycle events (`plan_created`, `plan_updated`, `plan_abandoned`, `subgoal_completed`, `subgoal_failed`) in addition to decision and oracle events.
+- Supports planning lifecycle events in addition to decision/oracle events; see the canonical schema doc for the current emitted set and payloads.
+- Canonical schema: `project-cornerstone/01-architecture/events_schema.md`.
 
 ## Planning Loop
 

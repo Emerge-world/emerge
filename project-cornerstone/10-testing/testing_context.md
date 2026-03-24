@@ -22,6 +22,7 @@ See `tests/` for concrete files (e.g., `test_reproduction.py`, `test_event_emitt
 ## Recommended additions
 
 - Deterministic replay test: rebuild state from events and compare final snapshot.
+- Contract tests for `events.jsonl` event schemas so producer and analytics payloads stay aligned.
 - Contract tests for websocket payload schemas (`init`, `tick`, `control`).
 - Golden-run regression fixtures for selected seeds and configs.
 - Golden-decision regression fixtures for experiment gating and prioritization artifacts.
@@ -29,7 +30,7 @@ See `tests/` for concrete files (e.g., `test_reproduction.py`, `test_event_emitt
 
 ## Item affordance discovery coverage expectations *(DEC-045)*
 
-Tests added in `tests/test_item_affordance_discovery.py`:
+Coverage currently lives in `tests/test_innovation.py`:
 
 | Area | What to verify |
 |---|---|

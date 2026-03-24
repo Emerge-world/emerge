@@ -416,7 +416,7 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 **Context:** Crafting actions could produce inventory items but those items did not expand what the agent could do next. A crafted `stone_knife` sat passively in inventory without unlocking concrete verbs like `stab` or `cut_branches`.
 
 **Decision:**
-- **Auto-discovery on first craft**: when an agent successfully executes a CRAFTING-category action that produces a new item type for the first time, the Oracle immediately runs `_trigger_post_craft_affordances()`. This calls `_discover_item_affordances()` which asks the LLM (via `prompts/oracle/item_affordances.txt`) for a short list of concrete verb actions enabled by the new item. Each candidate is routed through the normal innovation validation path (`_validate_innovation` + `_oracle_judge_custom_action`). Approved candidates are registered exactly like any other innovation.
+- **Auto-discovery on first craft**: when an agent successfully executes a CRAFTING-category action that produces a new item type for the first time, the Oracle immediately runs `_trigger_post_craft_affordances()`. This calls `_discover_item_affordances()` which asks the LLM (via `prompts/oracle/item_affordance_system.txt`) for a short list of concrete verb actions enabled by the new item. Each candidate is routed through the normal innovation validation path (`_validate_innovation` + `_oracle_judge_custom_action`). Approved candidates are registered exactly like any other innovation.
 - **One-shot per item type per agent**: tracked in `agent.auto_reflected_items: set[str]`. Recrafting the same item type never auto-triggers again.
 - **Manual re-reflection**: `reflect_item_uses` is added to the initial action set. It costs 5 energy, requires at least one item in inventory, and runs the same `_discover_item_affordances` path for agent-chosen items. Resolved by `Oracle._resolve_reflect_item_uses()`.
 - **Auto-derived innovations skip ENERGY_COST_INNOVATE**: the auto-path does not charge the innovation energy cost — crafting itself already represents the effort. Manual `reflect_item_uses` costs 5 energy from the action itself.
@@ -432,6 +432,6 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - `agent.auto_reflected_items` field added to `Agent.__init__()` and `get_status()`.
 - `reflect_item_uses` added to `INITIAL_ACTIONS` in `config.py`.
 - Oracle gains three new private helpers: `_discover_item_affordances`, `_trigger_post_craft_affordances`, `_resolve_reflect_item_uses`.
-- `prompts/oracle/item_affordances.txt` added for the affordance reflection prompt.
+- `prompts/oracle/item_affordance_system.txt` added for the affordance reflection prompt.
 - Crafting failure still succeeds (affordance discovery failure is silent and non-blocking).
 - Teaching works unchanged: discovered actions propagate via `teach` normally.

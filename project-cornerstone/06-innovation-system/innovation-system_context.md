@@ -175,7 +175,7 @@ Agent executes a CRAFTING innovation (e.g. make_knife)
 
 ### Prompt
 
-`prompts/oracle/item_affordances.txt` — focused prompt asking the LLM for a short list (2–4) of concrete physical verb actions for a specific item. Kept brief to limit LLM tokens and avoid generic wrappers.
+`prompts/oracle/item_affordance_system.txt` — focused prompt asking the LLM for a short list (0–3) of concrete physical verb actions for a specific item. Kept brief to limit LLM tokens and avoid generic wrappers.
 
 ## Considerations for Claude Code
 
