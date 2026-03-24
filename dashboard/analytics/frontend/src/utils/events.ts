@@ -19,7 +19,7 @@ export function filterEvents(
     if (filter === 'thoughts') return e.event_type === 'agent_decision'
     if (filter === 'deaths') {
       if (e.event_type !== 'agent_state') return false
-      const p = e.payload as AgentStatePayload
+      const p = e.payload as unknown as AgentStatePayload
       return p.alive === false
     }
     if (filter === 'social') {
@@ -66,12 +66,12 @@ export function deriveAgentStates(
 
     // Death tick: first agent_state where alive=false
     const deathEvent = stateEvents.find(
-      e => (e.payload as AgentStatePayload).alive === false
+      e => (e.payload as unknown as AgentStatePayload).alive === false
     )
     const deathTick = deathEvent ? deathEvent.tick : null
 
     if (lastState) {
-      const p = lastState.payload as AgentStatePayload
+      const p = lastState.payload as unknown as AgentStatePayload
       states.push({
         agent_id: agentId,
         life: p.life,
@@ -94,7 +94,7 @@ export function getDeathTicks(events: Event[]): number[] {
   for (const e of events) {
     if (e.event_type !== 'agent_state') continue
     if (!e.agent_id) continue
-    const p = e.payload as AgentStatePayload
+    const p = e.payload as unknown as AgentStatePayload
     if (p.alive === false && !seen.has(e.agent_id)) {
       seen.add(e.agent_id)
       ticks.push(e.tick)
