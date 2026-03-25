@@ -19,7 +19,7 @@ project-cornerstone/
 ├── 02-world/world_context.md                   ← Grid system, resources, weather/day-night plans.
 ├── 03-agents/agents_context.md                 ← Memory, personality, prompts, stats.
 ├── 04-oracle/oracle_context.md                 ← Validation, precedents, determinism rules.
-├── 05-llm-integration/llm-integration_context.md ← Ollama, prompts, optimization, model upgrade path.
+├── 05-llm-integration/llm-integration_context.md ← vLLM, prompts, optimization, model upgrade path.
 ├── 06-innovation-system/innovation-system_context.md ← How agents invent new actions, crafting plans.
 ├── 07-interaction/interaction_context.md       ← Social features.
 ├── 08-evolution/evolution_context.md           ← Reproduction, generations.
@@ -56,7 +56,6 @@ uv run main.py --agents 3 --ticks 10 --verbose --save-log --save-state
 3. **Stats are always clamped.** Life, hunger, energy: always between 0 and max.
 4. **Dead agents never act.** Check `agent.alive` before every operation.
 5. **Oracle is deterministic.** Same input → same output. Use precedents.
-6. **Prompts in English.** The LLM performs significantly better in English.
-7. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md and update the context of the modified pieces.
-8. **Always develop in worktrees.** Keep `main` clean and stable. Use `git worktree` for feature branches.
-9. **Keep the metrics updated.** If you add a new feature or change an existing one, update or add relevant metrics in the code and the MASTER_PLAN.md.
+6. **Update the cornerstone.** If you make a design decision, add it to DECISION_LOG.md and update the context files for any modified domain.
+7. **Always develop in worktrees.** Keep `main` clean and stable. Use `git worktree` for feature branches.
+8. **Keep the metrics updated.** If you add or change a feature, update relevant metrics in the code and MASTER_PLAN.md.
