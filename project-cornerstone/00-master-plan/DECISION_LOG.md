@@ -435,3 +435,10 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 - `prompts/oracle/item_affordance_system.txt` added for the affordance reflection prompt.
 - Crafting failure still succeeds (affordance discovery failure is silent and non-blocking).
 - Teaching works unchanged: discovered actions propagate via `teach` normally.
+
+### DEC-046: Analytics dashboard — standalone FastAPI + Vite+React service
+- **Date**: 2026-03-24
+- **Context**: We needed a way to replay and inspect simulation runs visually — browsing run history, scrubbing through ticks, viewing agent states, innovations, and EBS metrics. The existing tree visualizer (dashboard/components/tree_viz.py) is Python/Streamlit, not suitable for an interactive replay UI.
+- **Decision**: A standalone two-process service: FastAPI backend on :8001 reads existing JSONL/JSON run data from `data/`; Vite+React+TypeScript frontend on :5173 fetches all events for a run on load and filters client-side. Both started together via `make analytics`. Located in `dashboard/analytics/`.
+- **Rejected alternatives**: Extending the Streamlit dashboard (no good timeline scrubber, poor React interop); serving the frontend from FastAPI (adds build complexity, worse dev experience); WebSocket streaming (overkill — run data is static after completion).
+- **Consequences**: npm/Node.js required for frontend dev. Frontend fetches all events on load (acceptable for run sizes up to ~10k events; if runs grow larger, add server-side pagination to `/api/runs/{id}/events`). `make analytics` is the entry point. Backend reads data lazily — no in-memory cache, so cold reads on every request.
