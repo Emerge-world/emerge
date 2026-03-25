@@ -1,0 +1,88 @@
+benchmark:
+  id: survival_v1
+  version: "1.0"
+  description: >
+    Sanity benchmark for Emerge focused on comparative survival under three
+    simple scenario families. Designed to run against the current CLI without
+    patching the repository.
+defaults:
+  agents: 3
+  wandb: false
+  no_digest: false
+  clean_persistence: true
+  model: null
+  output_root: data/benchmarks/survival_v1
+  run_name_pattern: "{benchmark}__{scenario}__{arm}__s{seed}"
+
+seed_sets:
+  smoke: [11, 22]
+  dev: [101, 202, 303, 404, 505]
+  eval: [1101, 1202, 1303, 1404, 1505, 1606, 1707, 1808, 1909, 2010]
+
+scenarios:
+  default_day:
+    ticks: 300
+    width: 15
+    height: 15
+    start_hour: 8
+    notes: "Baseline survival in daytime on the current default map size."
+  night_start:
+    ticks: 300
+    width: 15
+    height: 15
+    start_hour: 20
+    notes: "Start near sunset/night to stress reduced vision and higher night costs."
+  large_map:
+    ticks: 500
+    width: 25
+    height: 25
+    start_hour: 8
+    notes: "Larger search space; probes exploration and resource-finding pressure."
+
+arms:
+  full:
+    no_llm: false
+    notes: "LLM-enabled path with repo-default planning/memory stack."
+  no_llm:
+    no_llm: true
+    notes: "Rule-based fallback baseline."
+
+metrics:
+  primary:
+    - summary.agents.survival_rate
+    - derived.alive_auc_ratio
+  secondary:
+    - summary.actions.oracle_success_rate
+    - summary.actions.parse_fail_rate
+    - derived.tail20_mean_hunger
+    - derived.tail20_mean_energy
+
+success_criteria:
+  - id: full_vs_no_llm_survival_rate
+    when_seed_set: eval
+    group_by: scenario
+    compare: "full - no_llm"
+    metric: survival_rate
+    threshold: 0.15
+    description: "Mean survival_rate delta per scenario should be at least +0.15."
+  - id: full_vs_no_llm_alive_auc_ratio
+    when_seed_set: eval
+    group_by: scenario
+    compare: "full - no_llm"
+    metric: alive_auc_ratio
+    threshold: 0.20
+    description: "Mean alive_auc_ratio delta per scenario should be at least +0.20."
+  - id: full_parse_fail_median
+    when_seed_set: eval
+    arm: full
+    metric: parse_fail_rate
+    op: "<="
+    threshold: 0.05
+    description: "Median parse_fail_rate for full should be <= 0.05."
+  - id: full_oracle_success_median
+    when_seed_set: eval
+    arm: full
+    metric: oracle_success_rate
+    op: ">="
+    threshold: 0.75
+    description: "Median oracle_success_rate for full should be >= 0.75."

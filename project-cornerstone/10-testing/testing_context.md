@@ -43,3 +43,19 @@ Coverage currently lives in `tests/test_innovation.py`:
 | Event emission | Derived innovations emit `innovation_attempt` / `innovation_validated` with `origin_item`, `discovery_mode`, `trigger_action` fields |
 | Discovery failure is non-blocking | LLM error or all-rejected candidates during auto-discovery does not affect crafting result |
 | Duplicate candidate handling | Candidate names already in `agent.actions` are silently skipped |
+
+## Canonical seed sets
+
+Use these fixed seeds to keep runs reproducible and comparable across branches.
+
+| Tier | Purpose | Seeds |
+|---|---|---|
+| **smoke** | Fast sanity check after any change — 2 runs, no LLM needed | `11, 22` |
+| **dev** | Regular dev validation — covers 5 world configurations | `101, 202, 303, 404, 505` |
+| **eval** | Full evaluation suite — 10 seeds for statistically meaningful results | `1101, 1202, 1303, 1404, 1505, 1606, 1707, 1808, 1909, 2010` |
+
+**When to use each tier:**
+
+- **smoke** — before every commit: `uv run main.py --no-llm --ticks 5 --seed 11` and `--seed 22`.
+- **dev** — when iterating on a feature branch; catches regressions across diverse worlds.
+- **eval** — before merging to `main` or publishing benchmark numbers; use with `run_batch.py`.

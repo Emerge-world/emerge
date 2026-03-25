@@ -52,6 +52,7 @@ class SimulationEngine:
         wandb_logger: Optional["WandbLogger"] = None,
         ollama_model: Optional[str] = None,
         run_digest: bool = True,
+        persistence: str = "full",
     ):
         self.max_ticks = max_ticks
         self.current_tick = 0
@@ -132,6 +133,7 @@ class SimulationEngine:
         # W&B logger (optional)
         self.wandb_logger: Optional[WandbLogger] = wandb_logger
         self.run_digest = run_digest
+        self.persistence = persistence
 
         logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
@@ -171,10 +173,12 @@ class SimulationEngine:
                 if TICK_DELAY_SECONDS > 0:
                     time.sleep(TICK_DELAY_SECONDS)
         finally:
-            self.oracle.save_precedents(
-                self._precedents_path, self.current_tick, self._world_seed
-            )
-            self.lineage.save(self._lineage_path)
+            if self.persistence in ("oracle", "full"):
+                self.oracle.save_precedents(
+                    self._precedents_path, self.current_tick, self._world_seed
+                )
+            if self.persistence in ("lineage", "full"):
+                self.lineage.save(self._lineage_path)
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
@@ -760,10 +764,12 @@ class SimulationEngine:
                 if TICK_DELAY_SECONDS > 0:
                     time.sleep(TICK_DELAY_SECONDS)
         finally:
-            self.oracle.save_precedents(
-                self._precedents_path, self.current_tick, self._world_seed
-            )
-            self.lineage.save(self._lineage_path)
+            if self.persistence in ("oracle", "full"):
+                self.oracle.save_precedents(
+                    self._precedents_path, self.current_tick, self._world_seed
+                )
+            if self.persistence in ("lineage", "full"):
+                self.lineage.save(self._lineage_path)
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()

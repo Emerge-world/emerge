@@ -45,7 +45,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-llm", action="store_true", help="Run without LLM (rule-based fallback mode)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed logging")
     parser.add_argument("--save-log", action="store_true", help="Save log on completion")
-    parser.add_argument("--save-state", action="store_true", help="Save world state on completion")
+    parser.add_argument(
+        "--persistence",
+        choices=["none", "oracle", "lineage", "full"],
+        default="none",
+        help="What to persist across runs: oracle precedents, lineage, both (full), or nothing (none). Default: full",
+    )
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
                         help=f"In-world hour the simulation starts at (0-23, default: {WORLD_START_HOUR})")
     parser.add_argument("--width",  type=int, default=WORLD_WIDTH,  help=f"World width in tiles (default: {WORLD_WIDTH})")
@@ -82,6 +87,7 @@ def main():
         world_height=args.height,
         ollama_model=args.model,
         run_digest=not args.no_digest,
+        persistence=args.persistence,
     )
 
     if args.wandb:
@@ -124,9 +130,6 @@ def main():
         engine.save_world_log()
         print("📝 Log saved to simulation_log.txt")
 
-    if args.save_state:
-        engine.save_world_state()
-        print("💾 State saved to world_state.json")
 
 
 if __name__ == "__main__":
