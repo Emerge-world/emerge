@@ -1,5 +1,7 @@
+import json
 from dataclasses import replace
 
+from simulation.config import MAX_AGENTS
 from simulation.engine import SimulationEngine
 from simulation.runtime_profiles import build_default_profile
 
@@ -81,6 +83,53 @@ def test_agent_count_is_reflected_after_legacy_clamping(tmp_path, monkeypatch):
     )
 
     assert engine.profile.runtime.agents == len(engine.agents)
+
+
+def test_profile_argument_is_not_mutated_in_place(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    profile = build_default_profile()
+    profile = replace(
+        profile,
+        runtime=replace(
+            profile.runtime,
+            agents=MAX_AGENTS + 3,
+            ticks=0,
+            seed=11,
+            use_llm=False,
+        ),
+        persistence=replace(profile.persistence, mode="none"),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+
+    assert profile.runtime.agents == MAX_AGENTS + 3
+    assert engine.profile.runtime.agents == MAX_AGENTS
+
+
+def test_normalized_profile_reaches_run_artifacts(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    profile = build_default_profile()
+    profile = replace(
+        profile,
+        runtime=replace(
+            profile.runtime,
+            agents=MAX_AGENTS + 3,
+            ticks=0,
+            seed=12,
+            use_llm=False,
+        ),
+        persistence=replace(profile.persistence, mode="none"),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+    meta_path = engine.event_emitter.run_dir / "meta.json"
+    meta = json.loads(meta_path.read_text())
+
+    assert meta["experiment_profile"]["runtime"]["agents"] == MAX_AGENTS
 
 
 def test_unavailable_llm_updates_effective_profile(tmp_path, monkeypatch):

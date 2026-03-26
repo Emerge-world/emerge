@@ -7,6 +7,7 @@ import json
 import logging
 import threading
 import uuid
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
 from typing import Optional, Callable
@@ -72,6 +73,8 @@ class SimulationEngine:
                 ollama_model=ollama_model,
                 persistence=persistence,
             )
+        else:
+            profile = deepcopy(profile)
 
         self.profile = profile
         self.current_tick = 0
