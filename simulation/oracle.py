@@ -27,6 +27,7 @@ from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.llm_client import LLMClient
 from simulation.world import World
 from simulation.agent import Agent
+from simulation.runtime_policy import OracleRuntimeSettings
 from simulation import prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -54,11 +55,18 @@ class Oracle:
     """
 
     def __init__(self, world: World, llm: Optional[LLMClient] = None, sim_logger=None,
-                 day_cycle=None):
+                 day_cycle=None, runtime_settings: OracleRuntimeSettings | None = None):
         self.world = world
         self.llm = llm
         self.sim_logger = sim_logger
         self.day_cycle = day_cycle  # Optional DayCycle for time-based energy costs
+        self.runtime_settings = runtime_settings or OracleRuntimeSettings(
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        )
 
         # Oracle memory: stores precedents for determinism
         # Key: descriptive string of the situation -> result
@@ -133,6 +141,19 @@ class Oracle:
                 clamped[stat] = max(lo, min(hi, int(clamped[stat])))
         return clamped
 
+    def _action_allowed(self, action_type: str) -> bool:
+        if action_type == "innovate":
+            return self.runtime_settings.innovation
+        if action_type == "reflect_item_uses":
+            return self.runtime_settings.item_reflection
+        if action_type in {"communicate", "give_item"}:
+            return self.runtime_settings.social
+        if action_type == "teach":
+            return self.runtime_settings.social and self.runtime_settings.teach
+        if action_type == "reproduce":
+            return self.runtime_settings.reproduction
+        return True
+
     def resolve_action(self, agent: Agent, action: dict, tick: int) -> dict:
         """
         Resolve an agent's action. Returns the result.
@@ -145,6 +166,13 @@ class Oracle:
         self.last_cache_hit = True
 
         action_type = action.get("action", "none")
+
+        if not self._action_allowed(action_type):
+            return {
+                "success": False,
+                "message": f"Unknown action: {action_type}",
+                "effects": {},
+            }
 
         if action_type == "move":
             return self._resolve_move(agent, action, tick)
@@ -1037,7 +1065,7 @@ class Oracle:
         Returns a (possibly empty) list of affordance-discovery entries — the
         same shape as ``_discover_item_affordances`` returns.
         """
-        if not self.llm:
+        if not self.runtime_settings.innovation or not self.llm:
             return []
         derived: list[dict] = []
         for item_name in produced_items:
@@ -1232,7 +1260,7 @@ Otherwise omit both fields."""
         Returns an empty list if no LLM is configured or no candidates survive
         deduplication / validation.
         """
-        if not self.llm:
+        if not self.runtime_settings.innovation or not self.llm:
             return []
 
         from simulation.schemas import ItemAffordanceDiscoveryResponse

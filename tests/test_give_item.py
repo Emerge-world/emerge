@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from simulation.agent import Agent
 from simulation.config import GIVE_ITEM_ENERGY_COST, GIVE_ITEM_TRUST_DELTA
 from simulation.oracle import Oracle
+from simulation.runtime_policy import OracleRuntimeSettings
 
 
 def make_two_agents():
@@ -17,6 +18,28 @@ def make_oracle(giver, target):
     oracle = Oracle(world=MagicMock(), llm=None)
     oracle.current_tick_agents = [giver, target]
     return oracle
+
+
+def test_give_item_blocked_when_social_is_disabled():
+    giver, target = make_two_agents()
+    oracle = Oracle(
+        world=MagicMock(),
+        llm=None,
+        runtime_settings=OracleRuntimeSettings(
+            innovation=True,
+            item_reflection=True,
+            social=False,
+            teach=True,
+            reproduction=True,
+        ),
+    )
+    oracle.current_tick_agents = [giver, target]
+    action = {"action": "give_item", "target": "Bruno", "item": "fruit", "quantity": 1, "reason": "test"}
+
+    result = oracle.resolve_action(giver, action, tick=1)
+
+    assert result["success"] is False
+    assert "Unknown action" in result["message"]
 
 
 # --- Happy path ---

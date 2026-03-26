@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from simulation.agent import Agent
 from simulation.message import IncomingMessage, VALID_INTENTS
 from simulation.oracle import Oracle
+from simulation.runtime_policy import OracleRuntimeSettings
 
 
 def test_incoming_message_fields():
@@ -67,6 +68,28 @@ def make_oracle(sender, target):
     oracle.current_tick_agents = [sender, target]
     oracle._communicated_this_tick = set()
     return oracle
+
+
+def test_communicate_blocked_when_social_is_disabled():
+    sender, target = make_two_agents()
+    oracle = Oracle(
+        world=MagicMock(),
+        llm=None,
+        runtime_settings=OracleRuntimeSettings(
+            innovation=True,
+            item_reflection=True,
+            social=False,
+            teach=True,
+            reproduction=True,
+        ),
+    )
+    oracle.current_tick_agents = [sender, target]
+    action = {"action": "communicate", "target": "Bruno", "message": "Fruit east!", "intent": "share_info"}
+
+    result = oracle.resolve_action(sender, action, tick=1)
+
+    assert result["success"] is False
+    assert "Unknown action" in result["message"]
 
 
 def test_communicate_queues_message():

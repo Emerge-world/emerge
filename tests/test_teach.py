@@ -6,6 +6,7 @@ from simulation.config import (
     TEACH_TRUST_DELTA, AGENT_VISION_RADIUS, BASE_ACTIONS,
 )
 from simulation.oracle import Oracle
+from simulation.runtime_policy import OracleRuntimeSettings
 
 
 def make_teacher_learner():
@@ -27,6 +28,52 @@ def make_oracle(teacher, learner):
         "effects": {"energy": 10},
     }
     return oracle
+
+
+def test_teach_blocked_when_social_is_disabled():
+    teacher, learner = make_teacher_learner()
+    oracle = Oracle(
+        world=MagicMock(),
+        llm=None,
+        runtime_settings=OracleRuntimeSettings(
+            innovation=True,
+            item_reflection=True,
+            social=False,
+            teach=True,
+            reproduction=True,
+        ),
+    )
+    oracle.current_tick_agents = [teacher, learner]
+    oracle.precedents["innovation:fire_making"] = {"description": "fire"}
+    action = {"action": "teach", "target": "Bruno", "skill": "fire_making", "reason": "test"}
+
+    result = oracle.resolve_action(teacher, action, tick=1)
+
+    assert result["success"] is False
+    assert "Unknown action" in result["message"]
+
+
+def test_teach_blocked_when_teach_is_disabled():
+    teacher, learner = make_teacher_learner()
+    oracle = Oracle(
+        world=MagicMock(),
+        llm=None,
+        runtime_settings=OracleRuntimeSettings(
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=False,
+            reproduction=True,
+        ),
+    )
+    oracle.current_tick_agents = [teacher, learner]
+    oracle.precedents["innovation:fire_making"] = {"description": "fire"}
+    action = {"action": "teach", "target": "Bruno", "skill": "fire_making", "reason": "test"}
+
+    result = oracle.resolve_action(teacher, action, tick=1)
+
+    assert result["success"] is False
+    assert "Unknown action" in result["message"]
 
 
 # --- Happy path ---

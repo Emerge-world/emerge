@@ -17,6 +17,7 @@ import pytest
 
 from simulation.agent import Agent
 from simulation.oracle import Oracle
+from simulation.runtime_policy import OracleRuntimeSettings
 from simulation.world import World
 from simulation.config import (
     INNOVATION_EFFECT_BOUNDS,
@@ -50,6 +51,17 @@ def _make_agent(world: World, name: str = "Ada") -> Agent:
 
 def _make_oracle(world: World, llm=None) -> Oracle:
     return Oracle(world=world, llm=llm)
+
+
+def _make_runtime_oracle(world: World, llm=None, **capabilities) -> Oracle:
+    settings = OracleRuntimeSettings(
+        innovation=capabilities.get("innovation", True),
+        item_reflection=capabilities.get("item_reflection", True),
+        social=capabilities.get("social", True),
+        teach=capabilities.get("teach", True),
+        reproduction=capabilities.get("reproduction", True),
+    )
+    return Oracle(world=world, llm=llm, runtime_settings=settings)
 
 
 def _typed(d: dict):
@@ -134,6 +146,23 @@ class TestInnovationNoLLM:
         assert result["success"] is True
         assert llm.generate_structured.call_args[1]["max_tokens"] == ORACLE_RESPONSE_MAX_TOKENS
 
+    def test_post_craft_affordance_discovery_is_blocked_when_innovation_is_disabled(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        agent.inventory.add("fruit", 1)
+        llm = MagicMock()
+        oracle = _make_runtime_oracle(world, llm=llm, innovation=False)
+
+        result = oracle._trigger_post_craft_affordances(
+            agent,
+            produced_items=["fruit"],
+            tick=1,
+            trigger_action="craft_spear",
+        )
+
+        assert result == []
+        llm.generate_structured.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Already-known action
@@ -170,6 +199,20 @@ class TestInnovationAlreadyKnown:
             tick=2,
         )
         assert result["success"] is False
+
+    def test_innovation_is_blocked_when_disabled(self):
+        world = _make_world()
+        agent = _make_agent(world)
+        oracle = _make_runtime_oracle(world, innovation=False)
+
+        result = oracle.resolve_action(
+            agent,
+            {"action": "innovate", "new_action_name": "fish", "description": "catch fish"},
+            tick=1,
+        )
+
+        assert result["success"] is False
+        assert "Unknown action" in result["message"]
 
 
 # ---------------------------------------------------------------------------
