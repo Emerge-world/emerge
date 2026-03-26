@@ -130,6 +130,53 @@ This also keeps the future path clean:
 
 without introducing any dependency on `run_batch.py` or `experiments.yaml`.
 
+### 2.1 Default Profile Contract
+
+`build_default_profile()` must return a fully materialized profile with explicit defaults for every field.
+
+Defaults that mirror the current base simulation:
+
+| Field | Default |
+|---|---|
+| `runtime.use_llm` | `True` |
+| `runtime.model` | `simulation.config.VLLM_MODEL` |
+| `runtime.agents` | `3` |
+| `runtime.ticks` | `simulation.config.MAX_TICKS` |
+| `runtime.seed` | `None` |
+| `runtime.width` | `simulation.config.WORLD_WIDTH` |
+| `runtime.height` | `simulation.config.WORLD_HEIGHT` |
+| `runtime.start_hour` | `simulation.config.WORLD_START_HOUR` |
+| `capabilities.explicit_planning` | `simulation.config.ENABLE_EXPLICIT_PLANNING` |
+| `capabilities.semantic_memory` | `True` |
+| `capabilities.innovation` | `True` |
+| `capabilities.item_reflection` | `True` |
+| `capabilities.social` | `True` |
+| `capabilities.teach` | `True` |
+| `capabilities.reproduction` | `True` |
+| `persistence.mode` | `"none"` |
+| `persistence.clean_before_run` | `False` |
+| `oracle.mode` | `"live"` |
+| `oracle.freeze_precedents_path` | `None` |
+| `benchmark.benchmark_id` | `"adhoc"` |
+| `benchmark.benchmark_version` | `"adhoc"` |
+| `benchmark.scenario_id` | `"default"` |
+| `benchmark.arm_id` | `"default"` |
+| `benchmark.seed_set` | `None` |
+| `benchmark.session_id` | `None` |
+| `benchmark.tags` | `[]` |
+| `world_overrides.initial_resource_scale` | `None` |
+| `world_overrides.regen_chance_scale` | `None` |
+| `world_overrides.regen_amount_scale` | `None` |
+| `world_overrides.world_fixture` | `None` |
+
+Notes:
+
+- `runtime.ticks = None` is a real runtime value meaning an unbounded run, matching current engine behavior for infinite/default runs.
+- `runtime.seed = None` is a real runtime value meaning unseeded world generation, matching current engine behavior.
+- `benchmark.*` defaults represent a direct ad hoc run outside the future benchmark-manifest flow.
+- `benchmark.tags` must use a safe empty-list default via dataclass field factory.
+- `persistence.clean_before_run = False` preserves current base behavior in this PR. Future benchmark manifests may override it to `True`.
+
 ### 3. Runtime Wiring
 
 Update `main.py` so the current CLI builds an `ExperimentProfile` and passes it to `SimulationEngine`.
@@ -143,6 +190,15 @@ The compatibility policy should be explicit:
 - if `profile` is passed, it is the canonical input
 - if `profile` is not passed, the engine constructs an equivalent profile from legacy kwargs
 - if both `profile` and legacy kwargs are passed, `profile` wins and legacy kwargs are not merged silently
+
+This precedence rule applies only to fields represented in `ExperimentProfile`.
+
+The following inputs remain outside the profile in PR 1 and keep their current explicit-engine semantics:
+
+- `wandb_logger`
+- `run_digest`
+
+They are operational runtime wrappers, not part of the typed experimental settings contract yet. If `profile` is supplied, these arguments still behave exactly as explicitly passed by the caller.
 
 This keeps the old call sites viable while making the new object the real boundary going forward.
 
@@ -203,6 +259,8 @@ Requirements:
 - invalid or missing optional benchmark metadata should not break the base simulation path when using defaults
 - profile construction from the current CLI should produce a fully usable profile for the existing runtime
 - legacy engine construction without `profile` must still work
+- `runtime.ticks=None` and `runtime.seed=None` must be treated as valid runtime values, not builder-only sentinels
+- `wandb_logger` and `run_digest` must preserve current behavior because they remain outside the profile boundary in this PR
 - default behavior should remain equivalent to the current base simulation
 
 No new benchmark-specific validation layer is needed in this PR. The goal is to establish the typed contract and wiring, not to enforce the full manifest schema yet.
@@ -214,12 +272,14 @@ Add basic unit coverage for the new profile layer.
 Required tests:
 
 - default profile values mirror the current baseline from `simulation/config.py`
+- default profile values for non-`config.py` fields match the explicit contract in this spec
 - CLI-derived overrides change only the expected runtime fields
 - nested dataclass defaults are independent and safe
 - benchmark metadata, oracle settings, persistence settings, and world overrides are present with stable defaults
 - `SimulationEngine(profile=...)` uses the profile path successfully
 - `SimulationEngine(...)` with legacy kwargs still works
 - if both `profile` and legacy kwargs are supplied, the profile path has explicit precedence
+- `wandb_logger` and `run_digest` remain explicit engine inputs when `profile` is supplied
 
 These tests should stay narrow. The purpose is to lock down the contract and transition behavior, not to validate future benchmark functionality.
 
