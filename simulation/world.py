@@ -21,6 +21,7 @@ from simulation.config import (
     WORLD_HEIGHT_WATER, WORLD_HEIGHT_SAND, WORLD_HEIGHT_LAND,
     WORLD_HEIGHT_TREE, WORLD_HEIGHT_FOREST, WORLD_HEIGHT_MOUNTAIN, WORLD_HEIGHT_CAVE,
 )
+from simulation.runtime_policy import WorldRuntimeSettings
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,20 @@ logger = logging.getLogger(__name__)
 class World:
     """2D world of NxM tiles."""
 
-    def __init__(self, width: int = WORLD_WIDTH, height: int = WORLD_HEIGHT, seed: Optional[int] = None):
+    def __init__(
+        self,
+        width: int = WORLD_WIDTH,
+        height: int = WORLD_HEIGHT,
+        seed: Optional[int] = None,
+        runtime_settings: WorldRuntimeSettings | None = None,
+    ):
         self.width = width
         self.height = height
+        self.runtime_settings = runtime_settings or WorldRuntimeSettings(
+            initial_resource_scale=None,
+            regen_chance_scale=None,
+            regen_amount_scale=None,
+        )
         self.grid: list[list[str]] = []
         self.resources: dict[tuple[int, int], dict] = {}  # (x,y) -> resource info
         self._rng = random.Random(seed)       # dedicated RNG for regeneration (deterministic)
@@ -38,6 +50,29 @@ class World:
         self._forest_positions: list[tuple[int, int]] = []  # cached at generation time
         self._resource_positions: dict[str, list[tuple[int, int]]] = {}
         self._generate(seed)
+
+    def _scale_quantity(self, qty: int) -> int:
+        scale = self.runtime_settings.initial_resource_scale
+        if scale is None:
+            return qty
+        return max(0, round(qty * scale))
+
+    def _regen_chance(self) -> float:
+        scale = self.runtime_settings.regen_chance_scale
+        base = RESOURCE_REGEN_CHANCE
+        if scale is None:
+            return base
+        return max(0.0, min(1.0, base * scale))
+
+    def _regen_amount_bounds(self) -> tuple[int, int]:
+        scale = self.runtime_settings.regen_amount_scale
+        min_qty = RESOURCE_REGEN_AMOUNT_MIN
+        max_qty = RESOURCE_REGEN_AMOUNT_MAX
+        if scale is None:
+            return min_qty, max_qty
+        scaled_min = max(0, round(min_qty * scale))
+        scaled_max = max(scaled_min, round(max_qty * scale))
+        return scaled_min, scaled_max
 
     def _generate(self, seed: Optional[int] = None):
         """Generate world using Perlin noise for geographic coherence."""
@@ -77,9 +112,10 @@ class World:
                 # Spawn resources for resource-bearing tiles
                 spawn = TILE_RESOURCE_SPAWN.get(tile)
                 if spawn:
-                    qty = self._rng.randint(spawn["min"], spawn["max"])
-                    self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
                     self._resource_positions.setdefault(tile, []).append((x, y))
+                    qty = self._scale_quantity(self._rng.randint(spawn["min"], spawn["max"]))
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
 
             self.grid.append(row)
 
@@ -150,20 +186,24 @@ class World:
             return []
 
         regenerated = []
+        regen_chance = self._regen_chance()
+        min_qty, max_qty = self._regen_amount_bounds()
         for (x, y) in self._tree_positions:
             if (x, y) not in self.resources:  # tree is depleted
-                if self._rng.random() < RESOURCE_REGEN_CHANCE:
-                    qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
-                    self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
-                    regenerated.append((x, y))
+                if self._rng.random() < regen_chance:
+                    qty = self._rng.randint(min_qty, max_qty)
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": "fruit", "quantity": qty}
+                        regenerated.append((x, y))
 
         # Mushroom regen for depleted forest tiles (same dawn trigger)
         for (x, y) in self._forest_positions:
             if (x, y) not in self.resources:
-                if self._rng.random() < RESOURCE_REGEN_CHANCE:
-                    qty = self._rng.randint(RESOURCE_REGEN_AMOUNT_MIN, RESOURCE_REGEN_AMOUNT_MAX)
-                    self.resources[(x, y)] = {"type": "mushroom", "quantity": qty}
-                    regenerated.append((x, y))
+                if self._rng.random() < regen_chance:
+                    qty = self._rng.randint(min_qty, max_qty)
+                    if qty > 0:
+                        self.resources[(x, y)] = {"type": "mushroom", "quantity": qty}
+                        regenerated.append((x, y))
 
         return regenerated
 

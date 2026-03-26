@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from simulation.runtime_policy import WorldRuntimeSettings
 from simulation.world import World
 from simulation.config import (
     DAY_LENGTH,
@@ -193,6 +194,69 @@ def test_different_seeds_run_without_error():
     # At least the test runs without error; outcomes may differ
     assert isinstance(result_a, list)
     assert isinstance(result_b, list)
+
+
+def test_initial_resource_scale_reduces_spawned_resource_quantity():
+    baseline = World(width=15, height=15, seed=7)
+    scaled = World(
+        width=15,
+        height=15,
+        seed=7,
+        runtime_settings=WorldRuntimeSettings(
+            initial_resource_scale=0.5,
+            regen_chance_scale=None,
+            regen_amount_scale=None,
+        ),
+    )
+
+    baseline_total = sum(res["quantity"] for res in baseline.resources.values())
+    scaled_total = sum(res["quantity"] for res in scaled.resources.values())
+
+    assert scaled_total < baseline_total
+
+
+def test_regen_scales_chance_and_amount():
+    baseline = World(width=15, height=15, seed=7)
+    zero_chance = World(
+        width=15,
+        height=15,
+        seed=7,
+        runtime_settings=WorldRuntimeSettings(
+            initial_resource_scale=None,
+            regen_chance_scale=0.0,
+            regen_amount_scale=None,
+        ),
+    )
+    boosted_amount = World(
+        width=15,
+        height=15,
+        seed=7,
+        runtime_settings=WorldRuntimeSettings(
+            initial_resource_scale=None,
+            regen_chance_scale=None,
+            regen_amount_scale=2.0,
+        ),
+    )
+
+    _deplete_all(baseline)
+    _deplete_all(zero_chance)
+    _deplete_all(boosted_amount)
+
+    with (
+        patch("simulation.world.RESOURCE_REGEN_CHANCE", 1.0),
+        patch("simulation.world.RESOURCE_REGEN_AMOUNT_MIN", 2),
+        patch("simulation.world.RESOURCE_REGEN_AMOUNT_MAX", 2),
+    ):
+        baseline_regenerated = baseline.update_resources(DAY_LENGTH)
+        zero_chance_regenerated = zero_chance.update_resources(DAY_LENGTH)
+        boosted_regenerated = boosted_amount.update_resources(DAY_LENGTH)
+
+    assert baseline_regenerated
+    assert zero_chance_regenerated == []
+    assert boosted_regenerated == baseline_regenerated
+
+    for pos in baseline_regenerated:
+        assert boosted_amount.resources[pos]["quantity"] == baseline.resources[pos]["quantity"] * 2
 
 
 # ---------------------------------------------------------------------------
