@@ -33,7 +33,7 @@ from simulation.sim_logger import SimLogger
 from simulation.event_emitter import EventEmitter
 from simulation.wandb_logger import WandbLogger
 from simulation.day_cycle import DayCycle
-from simulation.lineage import LineageTracker
+from simulation.lineage import LineageRecord, LineageTracker
 from simulation.personality import Personality
 from simulation.metrics_builder import MetricsBuilder
 from simulation.ebs_builder import EBSBuilder
@@ -256,6 +256,53 @@ class SimulationEngine:
             )
         self.oracle.precedents.update(precedents)
 
+    def _load_local_precedents(self) -> str | None:
+        path = Path(self._precedents_path)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            precedents = data.get("precedents", {})
+            if not isinstance(precedents, dict):
+                raise ValueError("precedents must be a mapping")
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Could not load precedents from %s: %s", self._precedents_path, exc)
+            return None
+
+        self.oracle.precedents.update(precedents)
+        logger.info("Loaded %d precedents from %s", len(precedents), self._precedents_path)
+        return self._precedents_path
+
+    def _load_local_lineage(self) -> str | None:
+        path = Path(self._lineage_path)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("lineage payload must be a mapping")
+
+            loaded_records: dict[str, LineageRecord] = {}
+            for name, record in data.items():
+                if not isinstance(record, dict):
+                    raise ValueError(f"lineage record {name!r} must be a mapping")
+                loaded_records[name] = LineageRecord(
+                    agent_name=record["agent_name"],
+                    parent_names=record.get("parent_names", []),
+                    generation=record.get("generation", 0),
+                    born_tick=record.get("born_tick", 0),
+                    died_tick=record.get("died_tick"),
+                    innovations_created=record.get("innovations_created", []),
+                    children_names=record.get("children_names", []),
+                )
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            logger.warning("Could not load lineage from %s: %s", self._lineage_path, exc)
+            return None
+
+        self.lineage.records.update(loaded_records)
+        logger.info("Loaded lineage for %d agents from %s", len(loaded_records), self._lineage_path)
+        return self._lineage_path
+
     def _load_runtime_state(self) -> tuple[dict[str, object], dict[str, object]]:
         cleanup_candidates: list[str] = []
         if self._includes_local_oracle_persistence():
@@ -274,15 +321,11 @@ class SimulationEngine:
             self._load_frozen_precedents(freeze_path)
             precedence_source = freeze_path
         elif self._includes_local_oracle_persistence():
-            self.oracle.load_precedents(self._precedents_path)
-            if Path(self._precedents_path).exists():
-                precedence_source = self._precedents_path
+            precedence_source = self._load_local_precedents()
 
         lineage_loaded_from: str | None = None
         if self._includes_local_lineage_persistence():
-            self.lineage.load(self._lineage_path)
-            if Path(self._lineage_path).exists():
-                lineage_loaded_from = self._lineage_path
+            lineage_loaded_from = self._load_local_lineage()
 
         persistence_trace = {
             "mode": self.persistence,

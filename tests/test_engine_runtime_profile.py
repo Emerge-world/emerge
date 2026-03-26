@@ -218,6 +218,128 @@ def test_frozen_mode_loads_precedents_from_freeze_path_not_local_seed_file(
     assert meta["oracle_trace"]["precedents_loaded_from"] == str(freeze_path)
 
 
+def test_symbolic_mode_loads_precedents_from_freeze_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    freeze_path = tmp_path / "fixtures" / "symbolic.json"
+    freeze_path.parent.mkdir(parents=True)
+    freeze_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "precedents": {
+                    "physical:rest": {
+                        "possible": True,
+                        "reason": "symbolic",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=8, use_llm=False),
+        persistence=replace(base_profile.persistence, mode="none"),
+        oracle=replace(
+            base_profile.oracle,
+            mode="symbolic",
+            freeze_precedents_path=str(freeze_path),
+        ),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+    meta = json.loads((engine.event_emitter.run_dir / "meta.json").read_text())
+
+    assert engine.oracle.precedents["physical:rest"]["reason"] == "symbolic"
+    assert meta["oracle_trace"]["mode"] == "symbolic"
+    assert meta["oracle_trace"]["precedents_loaded_from"] == str(freeze_path)
+
+
+def test_frozen_mode_missing_freeze_snapshot_fails_fast(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    missing_path = tmp_path / "fixtures" / "missing.json"
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=9, use_llm=False),
+        persistence=replace(base_profile.persistence, mode="none"),
+        oracle=replace(
+            base_profile.oracle,
+            mode="frozen",
+            freeze_precedents_path=str(missing_path),
+        ),
+    )
+
+    try:
+        SimulationEngine(profile=profile, run_digest=False)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for missing frozen snapshot")
+
+    assert "freeze_precedents_path" in message
+    assert "does not exist" in message
+
+
+def test_symbolic_mode_malformed_freeze_snapshot_fails_fast(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    freeze_path = tmp_path / "fixtures" / "broken.json"
+    freeze_path.parent.mkdir(parents=True)
+    freeze_path.write_text("{not-json", encoding="utf-8")
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=10, use_llm=False),
+        persistence=replace(base_profile.persistence, mode="none"),
+        oracle=replace(
+            base_profile.oracle,
+            mode="symbolic",
+            freeze_precedents_path=str(freeze_path),
+        ),
+    )
+
+    try:
+        SimulationEngine(profile=profile, run_digest=False)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for malformed symbolic snapshot")
+
+    assert "freeze_precedents_path" in message
+    assert "valid JSON" in message
+
+
+def test_corrupt_local_persistence_does_not_claim_successful_loads_in_trace(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "precedents_14.json").write_text("{broken", encoding="utf-8")
+    (data_dir / "lineage_14.json").write_text("{broken", encoding="utf-8")
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=14, use_llm=False),
+        persistence=replace(base_profile.persistence, mode="full"),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+    meta = json.loads((engine.event_emitter.run_dir / "meta.json").read_text())
+
+    assert meta["oracle_trace"]["precedents_loaded_from"] is None
+    assert meta["persistence_trace"]["lineage_loaded_from"] is None
+
+
 def test_unavailable_llm_updates_effective_profile(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _patch_runtime_side_effects(monkeypatch)
