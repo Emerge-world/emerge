@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import subprocess
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
@@ -49,7 +50,7 @@ class EventEmitter:
         self.run_id = run_id
         self.seed = seed
         self._day_cycle = day_cycle
-        self._experiment_profile = experiment_profile
+        self._experiment_profile = deepcopy(experiment_profile) if experiment_profile is not None else None
 
         self.run_dir = Path("data") / "runs" / run_id
         run_dir = self.run_dir
@@ -171,7 +172,14 @@ class EventEmitter:
         }
         if agent_profiles is not None:
             config["agent_profiles"] = agent_profiles
-        profile = self._experiment_profile if experiment_profile is None else experiment_profile
+        if self._experiment_profile is not None:
+            if experiment_profile is not None and experiment_profile != self._experiment_profile:
+                raise ValueError(
+                    "emit_run_start() experiment_profile must match the emitter's constructor profile"
+                )
+            profile = self._experiment_profile
+        else:
+            profile = deepcopy(experiment_profile) if experiment_profile is not None else None
         if profile is not None:
             config["experiment_profile"] = profile
         self._emit("run_start", 0, {

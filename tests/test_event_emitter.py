@@ -178,9 +178,13 @@ class TestExperimentProfileMetadata:
         )
         assert meta["experiment_profile"] == profile
 
-    def test_run_start_payload_includes_experiment_profile(self, tmp_path, monkeypatch):
+    def test_constructor_profile_is_frozen_and_used_for_run_start(
+        self, tmp_path, monkeypatch
+    ):
         profile = _experiment_profile_dict()
         em = _make_emitter(tmp_path, monkeypatch, experiment_profile=profile)
+        profile["runtime"]["agents"] = 99
+        profile["benchmark"]["tags"].append("mutated")
         em.emit_run_start(
             ["Ada"],
             "my-model",
@@ -188,12 +192,38 @@ class TestExperimentProfileMetadata:
             15,
             15,
             72,
-            experiment_profile=profile,
         )
         em.close()
 
-        payload = _read_events(tmp_path)[0]["payload"]
-        assert payload["config"]["experiment_profile"] == profile
+        expected_profile = _experiment_profile_dict()
+        meta = json.loads(
+            (tmp_path / "data" / "runs" / "test-run-1234" / "meta.json").read_text()
+        )
+        payload = _read_events(tmp_path)[0]["payload"]["config"]["experiment_profile"]
+        assert meta["experiment_profile"] == expected_profile
+        assert payload == expected_profile
+        assert payload == meta["experiment_profile"]
+
+    def test_run_start_rejects_mismatched_experiment_profile(
+        self, tmp_path, monkeypatch
+    ):
+        profile = _experiment_profile_dict()
+        em = _make_emitter(tmp_path, monkeypatch, experiment_profile=profile)
+        mismatched_profile = _experiment_profile_dict()
+        mismatched_profile["runtime"]["agents"] = 99
+
+        with pytest.raises(ValueError):
+            em.emit_run_start(
+                ["Ada"],
+                "my-model",
+                42,
+                15,
+                15,
+                72,
+                experiment_profile=mismatched_profile,
+            )
+
+        em.close()
 
 
 # ------------------------------------------------------------------ #
