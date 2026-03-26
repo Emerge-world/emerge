@@ -21,6 +21,7 @@ from simulation.config import (
     INHERIT_SEMANTIC_MAX,
     TASK_MEMORY_MAX,
 )
+from simulation.runtime_policy import MemoryRuntimeSettings
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ class TaskMemoryEntry:
 class Memory:
     """Dual episodic + semantic memory for an agent."""
 
-    def __init__(self):
+    def __init__(self, runtime_settings: MemoryRuntimeSettings | None = None):
+        self.runtime_settings = runtime_settings or MemoryRuntimeSettings(semantic_memory=True)
         self.episodic: list[str] = []
         self.semantic: list[str] = []
         self.task: list[TaskMemoryEntry] = []
@@ -51,6 +53,8 @@ class Memory:
 
     def add_knowledge(self, entry: str):
         """Add a learned lesson to semantic memory."""
+        if not self.runtime_settings.semantic_memory:
+            return
         self.semantic.append(entry)
         if len(self.semantic) > MEMORY_SEMANTIC_MAX:
             self.semantic = self.semantic[-MEMORY_SEMANTIC_MAX:]
@@ -78,6 +82,8 @@ class Memory:
 
     def should_compress(self, tick: int) -> bool:
         """Check if compression is due (every N ticks, and has episodes)."""
+        if not self.runtime_settings.semantic_memory:
+            return False
         if not self.episodic:
             return False
         if tick < MEMORY_COMPRESSION_INTERVAL:
@@ -94,6 +100,8 @@ class Memory:
         Three-layer fallback: null LLM check, try/except, result validation.
         Never crashes. Returns the list of accepted learnings (empty on any failure).
         """
+        if not self.runtime_settings.semantic_memory:
+            return []
         if not llm:
             logger.debug(f"[{agent_name}] No LLM available, skipping memory compression")
             self._last_compression_tick = tick
@@ -137,7 +145,7 @@ class Memory:
         sections = []
 
         # Semantic knowledge (most important, shown first)
-        if self.semantic:
+        if self.runtime_settings.semantic_memory and self.semantic:
             knowledge = self.semantic[-MEMORY_SEMANTIC_IN_PROMPT:]
             lines = "\n".join(f"- [KNOW] {k}" for k in knowledge)
             sections.append(f"KNOWLEDGE (things I've learned):\n{lines}")
@@ -164,6 +172,8 @@ class Memory:
         Prefixes each entry with '[Inherited]' to distinguish from personal experience.
         No episodic memories are inherited (those are personal).
         """
+        if not self.runtime_settings.semantic_memory:
+            return
         for parent in (parent_a, parent_b):
             for entry in parent.semantic[-INHERIT_SEMANTIC_MAX:]:
                 self.add_knowledge(f"[Inherited] {entry}")

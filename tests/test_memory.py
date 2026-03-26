@@ -12,6 +12,7 @@ from simulation.config import (
     MEMORY_SEMANTIC_MAX,
     MEMORY_COMPRESSION_INTERVAL,
 )
+from simulation.runtime_policy import MemoryRuntimeSettings
 
 
 # ------------------------------------------------------------------
@@ -63,6 +64,31 @@ class TestSemanticMemory:
             mem.add_knowledge(f"knowledge {i}")
         assert mem.semantic[0] == "knowledge 3"
         assert mem.semantic[-1] == f"knowledge {MEMORY_SEMANTIC_MAX + 2}"
+
+    def test_semantic_memory_disabled_omits_knowledge_and_skips_compression(self):
+        mem = Memory(runtime_settings=MemoryRuntimeSettings(semantic_memory=False))
+        mem.add_episode("I saw fruit.")
+        mem.add_knowledge("Fruit grows on trees.")
+
+        assert mem.should_compress(MEMORY_COMPRESSION_INTERVAL) is False
+        assert "[RECENT]" in mem.to_prompt()
+        assert "KNOWLEDGE" not in mem.to_prompt()
+        assert mem.semantic == []
+
+        mock_llm = MagicMock()
+        assert mem.compress(llm=mock_llm, tick=MEMORY_COMPRESSION_INTERVAL, agent_name="Ada") == []
+        mock_llm.generate_structured.assert_not_called()
+
+    def test_inherit_from_skips_semantic_entries_when_disabled(self):
+        parent_a = Memory()
+        parent_b = Memory()
+        parent_a.add_knowledge("Fruit reduces hunger.")
+        parent_b.add_knowledge("Rivers are safe to drink from.")
+
+        child = Memory(runtime_settings=MemoryRuntimeSettings(semantic_memory=False))
+        child.inherit_from(parent_a, parent_b)
+
+        assert child.semantic == []
 
 
 # ------------------------------------------------------------------
