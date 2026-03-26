@@ -10,6 +10,7 @@ import uuid
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Callable
 
 from simulation.config import (
@@ -98,6 +99,7 @@ class SimulationEngine:
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
         self._lineage_path = f"data/lineage_{seed_str}.json"
+        self.persistence = persistence
 
         # Initialize LLM
         self.llm: Optional[LLMClient] = None
@@ -133,12 +135,9 @@ class SimulationEngine:
             runtime_settings=self.runtime_policy.oracle,
         )
 
-        # Auto-load precedents from previous runs
-        self.oracle.load_precedents(self._precedents_path)
-
         # Lineage tracking
         self.lineage = LineageTracker()
-        self.lineage.load(self._lineage_path)
+        persistence_trace, oracle_trace = self._load_runtime_state()
 
         # Name pool management (tracks which names are in use)
         self._used_names: set[str] = set()
@@ -184,11 +183,14 @@ class SimulationEngine:
             precedents_file=self._precedents_path,
             experiment_profile=self._serialized_profile,
         )
+        self.event_emitter.update_meta(
+            persistence_trace=persistence_trace,
+            oracle_trace=oracle_trace,
+        )
 
         # W&B logger (optional)
         self.wandb_logger: Optional[WandbLogger] = wandb_logger
         self.run_digest = run_digest
-        self.persistence = persistence
 
         logger.info(f"Simulation initialized: {num_agents} agents, world {world_width}x{world_height}")
 
@@ -198,6 +200,114 @@ class SimulationEngine:
             "name": agent.name,
             "personality": asdict(agent.personality),
         }
+
+    def _includes_local_oracle_persistence(self) -> bool:
+        return self.persistence in ("oracle", "full")
+
+    def _includes_local_lineage_persistence(self) -> bool:
+        return self.persistence in ("lineage", "full")
+
+    def _oracle_mode(self) -> str:
+        return self.profile.oracle.mode
+
+    def _oracle_novelty_policy(self) -> str:
+        if self._oracle_mode() in ("frozen", "symbolic"):
+            return "reject_unresolved"
+        return "live_learning"
+
+    def _cleanup_local_persistence(self) -> list[str]:
+        candidates: list[str] = []
+        if self._includes_local_oracle_persistence():
+            candidates.append(self._precedents_path)
+        if self._includes_local_lineage_persistence():
+            candidates.append(self._lineage_path)
+
+        cleaned: list[str] = []
+        if not self.profile.persistence.clean_before_run:
+            return cleaned
+
+        for candidate in candidates:
+            path = Path(candidate)
+            if not path.exists():
+                continue
+            try:
+                path.unlink()
+            except OSError as exc:
+                logger.warning("Could not remove persistence file %s: %s", candidate, exc)
+                continue
+            cleaned.append(candidate)
+        return cleaned
+
+    def _load_frozen_precedents(self, freeze_path: str) -> None:
+        path = Path(freeze_path)
+        if not path.exists():
+            raise ValueError(f"oracle.freeze_precedents_path does not exist: {freeze_path}")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"oracle.freeze_precedents_path is not valid JSON: {freeze_path}"
+            ) from exc
+
+        precedents = data.get("precedents")
+        if not isinstance(precedents, dict):
+            raise ValueError(
+                "oracle.freeze_precedents_path must contain a JSON object with a 'precedents' mapping"
+            )
+        self.oracle.precedents.update(precedents)
+
+    def _load_runtime_state(self) -> tuple[dict[str, object], dict[str, object]]:
+        cleanup_candidates: list[str] = []
+        if self._includes_local_oracle_persistence():
+            cleanup_candidates.append(self._precedents_path)
+        if self._includes_local_lineage_persistence():
+            cleanup_candidates.append(self._lineage_path)
+        cleaned_paths = self._cleanup_local_persistence()
+
+        precedence_source: str | None = None
+        if self._oracle_mode() in ("frozen", "symbolic"):
+            freeze_path = self.profile.oracle.freeze_precedents_path
+            if not freeze_path:
+                raise ValueError(
+                    "oracle.freeze_precedents_path is required when oracle.mode is frozen or symbolic"
+                )
+            self._load_frozen_precedents(freeze_path)
+            precedence_source = freeze_path
+        elif self._includes_local_oracle_persistence():
+            self.oracle.load_precedents(self._precedents_path)
+            if Path(self._precedents_path).exists():
+                precedence_source = self._precedents_path
+
+        lineage_loaded_from: str | None = None
+        if self._includes_local_lineage_persistence():
+            self.lineage.load(self._lineage_path)
+            if Path(self._lineage_path).exists():
+                lineage_loaded_from = self._lineage_path
+
+        persistence_trace = {
+            "mode": self.persistence,
+            "clean_before_run": self.profile.persistence.clean_before_run,
+            "local_precedents_path": self._precedents_path,
+            "local_lineage_path": self._lineage_path,
+            "cleanup_candidates": cleanup_candidates,
+            "cleaned_paths": cleaned_paths,
+            "lineage_loaded_from": lineage_loaded_from,
+        }
+        oracle_trace = {
+            "mode": self._oracle_mode(),
+            "freeze_precedents_path": self.profile.oracle.freeze_precedents_path,
+            "precedents_loaded_from": precedence_source,
+            "novelty_policy": self._oracle_novelty_policy(),
+        }
+        return persistence_trace, oracle_trace
+
+    def _save_runtime_state(self) -> None:
+        if self._includes_local_oracle_persistence() and self._oracle_mode() == "live":
+            self.oracle.save_precedents(
+                self._precedents_path, self.current_tick, self._world_seed
+            )
+        if self._includes_local_lineage_persistence():
+            self.lineage.save(self._lineage_path)
 
     def run(self):
         """Run the complete simulation."""
@@ -229,12 +339,7 @@ class SimulationEngine:
                 if TICK_DELAY_SECONDS > 0:
                     time.sleep(TICK_DELAY_SECONDS)
         finally:
-            if self.persistence in ("oracle", "full"):
-                self.oracle.save_precedents(
-                    self._precedents_path, self.current_tick, self._world_seed
-                )
-            if self.persistence in ("lineage", "full"):
-                self.lineage.save(self._lineage_path)
+            self._save_runtime_state()
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()
@@ -828,12 +933,7 @@ class SimulationEngine:
                 if TICK_DELAY_SECONDS > 0:
                     time.sleep(TICK_DELAY_SECONDS)
         finally:
-            if self.persistence in ("oracle", "full"):
-                self.oracle.save_precedents(
-                    self._precedents_path, self.current_tick, self._world_seed
-                )
-            if self.persistence in ("lineage", "full"):
-                self.lineage.save(self._lineage_path)
+            self._save_runtime_state()
             survivors = [a.name for a in self.agents if a.alive]
             self.event_emitter.emit_run_end(self.current_tick, survivors, self.current_tick)
             self.event_emitter.close()

@@ -132,6 +132,92 @@ def test_normalized_profile_reaches_run_artifacts(tmp_path, monkeypatch):
     assert meta["experiment_profile"]["runtime"]["agents"] == MAX_AGENTS
 
 
+def test_clean_before_run_removes_only_local_paths_allowed_by_persistence_mode(
+    tmp_path, monkeypatch
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "precedents_12.json").write_text("{}", encoding="utf-8")
+    (data_dir / "lineage_12.json").write_text("{}", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=12, use_llm=False),
+        persistence=replace(
+            base_profile.persistence,
+            mode="oracle",
+            clean_before_run=True,
+        ),
+    )
+
+    SimulationEngine(profile=profile, run_digest=False)
+
+    assert not (data_dir / "precedents_12.json").exists()
+    assert (data_dir / "lineage_12.json").exists()
+
+
+def test_frozen_mode_loads_precedents_from_freeze_path_not_local_seed_file(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    freeze_path = tmp_path / "fixtures" / "frozen.json"
+    freeze_path.parent.mkdir(parents=True)
+    freeze_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "precedents": {
+                    "physical:rest": {
+                        "possible": True,
+                        "reason": "frozen",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "precedents_7.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "precedents": {
+                    "physical:rest": {
+                        "possible": True,
+                        "reason": "local",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    base_profile = build_default_profile()
+    profile = replace(
+        base_profile,
+        runtime=replace(base_profile.runtime, ticks=0, seed=7, use_llm=False),
+        persistence=replace(base_profile.persistence, mode="none"),
+        oracle=replace(
+            base_profile.oracle,
+            mode="frozen",
+            freeze_precedents_path=str(freeze_path),
+        ),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+    meta = json.loads((engine.event_emitter.run_dir / "meta.json").read_text())
+
+    assert engine.oracle.precedents["physical:rest"]["reason"] == "frozen"
+    assert meta["persistence_trace"]["mode"] == "none"
+    assert meta["oracle_trace"]["mode"] == "frozen"
+    assert meta["oracle_trace"]["precedents_loaded_from"] == str(freeze_path)
+
+
 def test_unavailable_llm_updates_effective_profile(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _patch_runtime_side_effects(monkeypatch)
