@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -59,7 +60,7 @@ def _patch_runtime_side_effects(monkeypatch):
 
 def _read_events(run_dir: Path) -> list[dict]:
     path = run_dir / "events.jsonl"
-    return [line for line in path.read_text().splitlines() if line]
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
 def _make_profile(
@@ -131,7 +132,14 @@ def test_planning_off_skips_planner_and_emits_no_planning_events(tmp_path, monke
 
     planner_plan.assert_not_called()
     events = _read_events(engine.event_emitter.run_dir)
-    assert not any("plan_created" in line or "plan_updated" in line for line in events)
+    planning_event_types = {
+        "plan_created",
+        "plan_updated",
+        "plan_abandoned",
+        "subgoal_completed",
+        "subgoal_failed",
+    }
+    assert planning_event_types.isdisjoint({event["event_type"] for event in events})
 
 
 def test_semantic_memory_off_skips_compression_and_prompt_knowledge(tmp_path, monkeypatch):
@@ -232,6 +240,15 @@ def test_social_off_blocks_forced_social_actions(tmp_path, monkeypatch):
     assert give_item["success"] is False
     assert "Unknown action" in communicate["message"]
     assert "Unknown action" in give_item["message"]
+
+    teach = engine.oracle.resolve_action(
+        sender,
+        {"action": "teach", "target": target.name, "skill": "fire_making"},
+        tick=1,
+    )
+
+    assert teach["success"] is False
+    assert "Unknown action" in teach["message"]
 
 
 def test_teach_off_preserves_other_social_actions(tmp_path, monkeypatch):
