@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Protocol, cast
 
 from simulation import config as sim_config
 from simulation.runtime_settings import (
@@ -9,9 +10,28 @@ from simulation.runtime_settings import (
     ExperimentProfile,
     OracleSettings,
     PersistenceSettings,
+    PersistenceMode,
     RuntimeSettings,
     WorldOverrides,
 )
+
+
+class _ProfileCLIArgs(Protocol):
+    agents: int
+    ticks: int | None
+    seed: int | None
+    no_llm: bool
+    model: str | None
+    width: int
+    height: int
+    start_hour: int
+    persistence: str
+
+
+def _normalize_persistence_mode(persistence: PersistenceMode | str) -> PersistenceMode:
+    if persistence not in ("none", "oracle", "lineage", "full"):
+        raise ValueError(f"Invalid persistence mode: {persistence!r}")
+    return cast(PersistenceMode, persistence)
 
 
 def build_default_profile() -> ExperimentProfile:
@@ -47,7 +67,7 @@ def build_default_profile() -> ExperimentProfile:
     )
 
 
-def build_profile_from_cli(args) -> ExperimentProfile:
+def build_profile_from_cli(args: _ProfileCLIArgs) -> ExperimentProfile:
     profile = build_default_profile()
     profile.runtime.agents = args.agents
     profile.runtime.ticks = args.ticks
@@ -57,7 +77,7 @@ def build_profile_from_cli(args) -> ExperimentProfile:
     profile.runtime.width = args.width
     profile.runtime.height = args.height
     profile.runtime.start_hour = args.start_hour
-    profile.persistence.mode = args.persistence
+    profile.persistence.mode = _normalize_persistence_mode(args.persistence)
     return profile
 
 
@@ -71,7 +91,7 @@ def build_profile_from_engine_kwargs(
     world_width: int,
     world_height: int,
     ollama_model: str | None,
-    persistence: str,
+    persistence: PersistenceMode | str,
 ) -> ExperimentProfile:
     profile = build_default_profile()
     profile.runtime.agents = num_agents
@@ -82,7 +102,7 @@ def build_profile_from_engine_kwargs(
     profile.runtime.width = world_width
     profile.runtime.height = world_height
     profile.runtime.model = ollama_model or profile.runtime.model
-    profile.persistence.mode = persistence
+    profile.persistence.mode = _normalize_persistence_mode(persistence)
     return profile
 
 

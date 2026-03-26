@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from main import build_parser
 from simulation import config as sim_config
 from simulation.runtime_profiles import (
@@ -139,6 +141,21 @@ def test_build_profile_from_engine_kwargs_handles_none_inputs_like_legacy_constr
     assert profile.runtime.ticks is None
     assert profile.runtime.model == sim_config.VLLM_MODEL
     assert profile.persistence.mode == "full"
+
+
+def test_build_profile_from_engine_kwargs_rejects_invalid_persistence_mode():
+    with pytest.raises(ValueError):
+        build_profile_from_engine_kwargs(
+            num_agents=1,
+            world_seed=1,
+            use_llm=True,
+            max_ticks=1,
+            start_hour=6,
+            world_width=10,
+            world_height=10,
+            ollama_model=None,
+            persistence="broken",
+        )
 
 
 def test_profile_serialization_and_wandb_flattening_are_stable():
