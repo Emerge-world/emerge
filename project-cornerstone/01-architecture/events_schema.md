@@ -1,12 +1,12 @@
 # 01A — Canonical `events.jsonl` Schema
 
-_Status: code-aligned with `simulation/event_emitter.py` and `simulation/engine.py` as of 2026-03-24._
+_Status: code-aligned with `simulation/event_emitter.py` and `simulation/engine.py` as of 2026-03-26._
 
 ## Scope
 
 `data/runs/<run_id>/events.jsonl` is the authoritative append-only event stream for a single run.
 
-- `meta.json` is separate and holds run-wide metadata such as prompt hashes, git commit, model ids, and `precedents_file`.
+- `meta.json` is separate and holds run-wide metadata such as prompt hashes, git commit, model ids, `precedents_file`, and the normalized `experiment_profile`.
 - WebSocket messages (`init`, `tick`, `control`) are a separate UI transport and are not the canonical analytics schema.
 
 ## Shared Envelope
@@ -39,6 +39,7 @@ Emitted once, first event in the file.
 | `config.agent_count` | `integer` | Initial agent count. |
 | `config.agent_names` | `string[]` | Initial agent roster. |
 | `config.agent_profiles` | `object[]` | Optional; currently included by the engine. Each entry contains `name` and `personality`. |
+| `config.experiment_profile` | `object` | Optional; the normalized per-run profile serialized by the engine. Mirrors `meta.json.experiment_profile`. |
 | `model_id` | `string` | Agent model id, or `"none"` when running without LLM. |
 | `world_seed` | `integer \| null` | Seed used for world generation. |
 
