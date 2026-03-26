@@ -10,7 +10,7 @@ PersistenceMode = Literal["none", "oracle", "lineage", "full"]
 @dataclass(slots=True)
 class RuntimeSettings:
     use_llm: bool
-    model: str
+    model: str | None
     agents: int
     ticks: int | None
     seed: int | None
