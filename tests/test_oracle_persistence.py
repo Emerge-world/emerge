@@ -55,6 +55,26 @@ def test_load_restores_precedents(tmp_path):
     assert fresh.precedents == oracle.precedents
 
 
+def test_load_explicit_frozen_snapshot_restores_precedents(tmp_path):
+    path = tmp_path / "frozen.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "precedents": {
+                    "physical:rest": {"possible": True, "reason": "frozen"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    oracle = _make_oracle()
+    oracle.load_precedents(str(path))
+
+    assert oracle.precedents["physical:rest"]["reason"] == "frozen"
+
+
 def test_load_merges_without_overwriting_existing(tmp_path):
     oracle = _oracle_with_precedents()
     path = str(tmp_path / "p.json")

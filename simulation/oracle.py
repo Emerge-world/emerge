@@ -154,6 +154,20 @@ class Oracle:
             return self.runtime_settings.reproduction
         return True
 
+    def _oracle_mode(self) -> str:
+        return self.runtime_settings.mode
+
+    def _novelty_is_closed(self) -> bool:
+        return self._oracle_mode() in {"frozen", "symbolic"}
+
+    def _unresolved_result(self, *, message: str, effects: dict | None = None) -> dict:
+        return {
+            "success": False,
+            "message": message,
+            "effects": effects or {},
+            "reason_code": "ORACLE_UNRESOLVED_NOVELTY",
+        }
+
     def resolve_action(self, agent: Agent, action: dict, tick: int) -> dict:
         """
         Resolve an agent's action. Returns the result.
@@ -216,6 +230,16 @@ class Oracle:
         """
         if situation_key in self.precedents:
             return self.precedents[situation_key]
+
+        if self._novelty_is_closed():
+            return {
+                "possible": False,
+                "reason": (
+                    f"Oracle has no precedent for {situation_key!r} in {self._oracle_mode()} mode."
+                ),
+                "reason_code": "ORACLE_UNRESOLVED_NOVELTY",
+                "life_damage": 0,
+            }
 
         default = {"possible": True, "reason": "Default: allowed."}
 
@@ -522,24 +546,30 @@ class Oracle:
                         )
                         return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_MISSING_ITEMS"}
 
-        # Ask the oracle LLM to validate if the innovation makes sense
+        # Ask the oracle to validate if the innovation makes sense
         category = "SURVIVAL"
         _aggressive = False
         _trust_impact = None
-        if self.llm:
-            validation = self._validate_innovation(
-                agent, new_action_name, description, tick,
-                produces=action.get("produces"),
-            )
-            if not validation.get("approved", True):
-                reason = validation.get("reason", "unknown reason")
-                msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {reason}."
-                self._log(tick, msg)
-                agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {reason}.")
-                return {"success": False, "message": msg, "effects": {}, "name": new_action_name, "category": None, "reason_code": "INNOVATION_REJECTED"}
-            category = validation.get("category", "SURVIVAL")
-            _aggressive = validation.get("aggressive", False)
-            _trust_impact = float(validation.get("trust_impact", 0.2)) if _aggressive else None
+        validation = self._validate_innovation(
+            agent, new_action_name, description, tick,
+            produces=action.get("produces"),
+        )
+        if not validation.get("approved", True):
+            reason = validation.get("reason", "unknown reason")
+            msg = f"{agent.name} tried to innovate '{new_action_name}' but the world doesn't allow it: {reason}."
+            self._log(tick, msg)
+            agent.add_memory(f"I tried to create the action '{new_action_name}' but it didn't work: {reason}.")
+            return {
+                "success": False,
+                "message": msg,
+                "effects": {},
+                "name": new_action_name,
+                "category": None,
+                "reason_code": validation.get("reason_code", "INNOVATION_REJECTED"),
+            }
+        category = validation.get("category", "SURVIVAL") or "SURVIVAL"
+        _aggressive = validation.get("aggressive", False)
+        _trust_impact = float(validation.get("trust_impact", 0.2)) if _aggressive else None
 
         # Approve innovation
         agent.actions.append(new_action_name)
@@ -994,6 +1024,19 @@ class Oracle:
                 result["derived_innovations"] = []
             return result
 
+        if self._novelty_is_closed():
+            msg = (
+                f"{agent.name} cannot perform '{action_type}': "
+                f"oracle has no precedent for this situation in {self._oracle_mode()} mode."
+            )
+            self._log(tick, msg)
+            agent.add_memory(
+                f"I tried '{action_type}' but the world has no precedent for it in {self._oracle_mode()} mode."
+            )
+            result = self._unresolved_result(message=msg)
+            result["derived_innovations"] = []
+            return result
+
         if not self.llm:
             no_llm_outcome = {"success": True, "message": f"{agent.name} performed '{action_type}'.", "effects": {"energy": -5}}
             self.precedents[situation_key] = no_llm_outcome
@@ -1180,6 +1223,23 @@ class Oracle:
 
     def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0, produces: dict | None = None) -> dict:
         """Use the oracle LLM to validate whether an innovation is reasonable."""
+        if self._novelty_is_closed():
+            return {
+                "approved": False,
+                "reason": (
+                    f"Oracle has no precedent for innovation {action_name!r} in {self._oracle_mode()} mode."
+                ),
+                "category": None,
+                "reason_code": "ORACLE_UNRESOLVED_NOVELTY",
+            }
+
+        if not self.llm:
+            return {
+                "approved": True,
+                "reason": "Oracle could not decide, defaulting to approved.",
+                "category": "SURVIVAL",
+            }
+
         existing = ", ".join(f'"{a}"' for a in agent.actions)
         produces_text = ""
         if isinstance(produces, dict) and produces:
@@ -1260,7 +1320,7 @@ Otherwise omit both fields."""
         Returns an empty list if no LLM is configured or no candidates survive
         deduplication / validation.
         """
-        if not self.runtime_settings.innovation or not self.llm:
+        if not self.runtime_settings.innovation or self._novelty_is_closed() or not self.llm:
             return []
 
         from simulation.schemas import ItemAffordanceDiscoveryResponse
@@ -1499,6 +1559,17 @@ Respond with JSON:
         key = f"physical:eat:{item_type}"
         if key in self.precedents:
             return self.precedents[key]
+
+        if self._novelty_is_closed():
+            return {
+                "possible": False,
+                "hunger_reduction": 0,
+                "life_change": 0,
+                "reason": (
+                    f"Oracle has no precedent for eating {item_type!r} in {self._oracle_mode()} mode."
+                ),
+                "reason_code": "ORACLE_UNRESOLVED_NOVELTY",
+            }
 
         default = self._ITEM_EAT_DEFAULTS.get(
             item_type,
