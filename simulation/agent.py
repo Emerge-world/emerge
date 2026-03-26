@@ -30,6 +30,7 @@ from simulation.personality import Personality
 from simulation.planner import Planner
 from simulation.planning_state import PlanningState, PlanningSubgoal
 from simulation.retrieval import RetrievalContext, rank_memory_entries
+from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
 from simulation import prompt_loader
 from simulation.message import IncomingMessage
 from simulation.relationship import Relationship
@@ -58,10 +59,26 @@ class Agent:
 
     _id_counter = 0
 
-    def __init__(self, name: Optional[str] = None, x: int = 0, y: int = 0, llm: Optional[LLMClient] = None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        x: int = 0,
+        y: int = 0,
+        llm: Optional[LLMClient] = None,
+        runtime_settings: AgentRuntimeSettings | None = None,
+        memory_settings: MemoryRuntimeSettings | None = None,
+    ):
         Agent._id_counter += 1
         self.id = Agent._id_counter
         self.name = name or AGENT_NAMES[(self.id - 1) % len(AGENT_NAMES)]
+        self.runtime_settings = runtime_settings or AgentRuntimeSettings(
+            explicit_planning=ENABLE_EXPLICIT_PLANNING,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        )
 
         # Position
         self.x = x
@@ -74,7 +91,9 @@ class Agent:
         self.alive = True
 
         # Dual memory system (episodic + semantic)
-        self.memory_system = Memory()
+        self.memory_system = Memory(
+            runtime_settings=memory_settings or MemoryRuntimeSettings(semantic_memory=True)
+        )
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
         self.inventory = Inventory(capacity=AGENT_INVENTORY_CAPACITY)
@@ -89,7 +108,7 @@ class Agent:
         self.personality = Personality.random()
 
         # Available actions (starts with initial actions, can unlock or innovate more)
-        self.actions: list[str] = list(INITIAL_ACTIONS)
+        self.actions: list[str] = self._build_initial_actions()
         # Descriptions for custom (innovated) actions — populated when oracle approves
         self.action_descriptions: dict[str, str] = {}
 
@@ -173,8 +192,24 @@ class Agent:
         cost = costs.get(action, 5)  # innovated actions: default cost 5
         return self.energy >= cost
 
+    def _build_initial_actions(self) -> list[str]:
+        """Build the capability-aware built-in action list available at birth."""
+        actions = list(INITIAL_ACTIONS)
+        disabled_actions: set[str] = set()
+        if not self.runtime_settings.innovation:
+            disabled_actions.add("innovate")
+        if not self.runtime_settings.social:
+            disabled_actions.update({"communicate", "give_item", "teach"})
+        elif not self.runtime_settings.teach:
+            disabled_actions.add("teach")
+        if not self.runtime_settings.item_reflection:
+            disabled_actions.add("reflect_item_uses")
+        return [action for action in actions if action not in disabled_actions]
+
     def unlock_actions_for_tick(self, current_tick: int) -> None:
         """Unlock built-in actions whose age requirements are now met."""
+        if not self.runtime_settings.reproduction:
+            return
         age = current_tick - self.born_tick
         for action_name, min_age in AGE_UNLOCKED_ACTIONS.items():
             if age >= min_age and action_name not in self.actions:
@@ -267,14 +302,15 @@ class Agent:
                 child_parts.append(f"{name} ({status})")
             parts.append(f"Your children: {', '.join(child_parts)}.")
 
-        # Reproduction readiness hint
-        cooldown_remaining = (self.last_reproduce_tick + REPRODUCE_COOLDOWN) - current_tick
-        if cooldown_remaining > 0:
-            parts.append(f"Reproduction on cooldown for {cooldown_remaining} more tick(s).")
-        elif (self.life >= REPRODUCE_MIN_LIFE and self.hunger <= REPRODUCE_MAX_HUNGER
-              and self.energy >= REPRODUCE_MIN_ENERGY
-              and (current_tick - self.born_tick) >= REPRODUCE_MIN_TICKS_ALIVE):
-            parts.append("You are healthy enough to reproduce if you find a willing partner nearby.")
+        if self.runtime_settings.reproduction:
+            # Reproduction readiness hint
+            cooldown_remaining = (self.last_reproduce_tick + REPRODUCE_COOLDOWN) - current_tick
+            if cooldown_remaining > 0:
+                parts.append(f"Reproduction on cooldown for {cooldown_remaining} more tick(s).")
+            elif (self.life >= REPRODUCE_MIN_LIFE and self.hunger <= REPRODUCE_MAX_HUNGER
+                  and self.energy >= REPRODUCE_MIN_ENERGY
+                  and (current_tick - self.born_tick) >= REPRODUCE_MIN_TICKS_ALIVE):
+                parts.append("You are healthy enough to reproduce if you find a willing partner nearby.")
 
         return "\n".join(parts)
 
@@ -410,7 +446,7 @@ class Agent:
             return self._fallback_decision(nearby_tiles)
 
         planning_trace: dict = {}
-        if ENABLE_EXPLICIT_PLANNING and self.planner and self._should_replan(tick):
+        if self.runtime_settings.explicit_planning and self.planner and self._should_replan(tick):
             new_plan = self.planner.plan(
                 agent_name=self.name,
                 tick=tick,

@@ -17,6 +17,7 @@ from simulation.lineage import LineageTracker, LineageRecord
 from simulation.memory import Memory
 from simulation.oracle import Oracle
 from simulation.personality import Personality
+from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +73,24 @@ def test_reproduce_unlock_is_idempotent():
     agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE)
     agent.unlock_actions_for_tick(REPRODUCE_MIN_TICKS_ALIVE + 1)
     assert agent.actions.count("reproduce") == 1
+
+
+def test_reproduction_disabled_never_unlocks_action():
+    agent = Agent(
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=False,
+        ),
+        memory_settings=MemoryRuntimeSettings(semantic_memory=True),
+    )
+
+    agent.unlock_actions_for_tick(10_000)
+
+    assert "reproduce" not in agent.actions
 
 
 # ---------------------------------------------------------------------------

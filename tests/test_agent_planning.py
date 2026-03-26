@@ -5,6 +5,7 @@ from simulation.config import DECISION_RESPONSE_MAX_TOKENS
 from simulation.oracle import Oracle
 from simulation.planning_state import PlanningState, PlanningSubgoal
 from simulation.schemas import AgentDecisionResponse, AgentPlanResponse, PlanSubgoalResponse
+from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
 from simulation.world import World
 
 
@@ -115,6 +116,37 @@ def test_successful_replan_includes_planner_llm_trace(monkeypatch):
     assert "Build or refresh your plan" in planner_trace["user_prompt"]
     assert planner_trace["raw_response"] == '{"goal":"stabilize food"}'
     assert planner_trace["parsed_plan"]["goal"] == "stabilize food"
+
+
+def test_explicit_planning_disabled_skips_planner_invocation():
+    llm = MagicMock()
+    llm.last_call = {}
+    llm.generate_structured.return_value = AgentDecisionResponse(
+        action="move",
+        direction="east",
+        reason="exploring",
+    )
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        llm=llm,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=False,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        ),
+        memory_settings=MemoryRuntimeSettings(semantic_memory=True),
+    )
+    agent.planner.plan = MagicMock(return_value=None)
+
+    action = agent.decide_action([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=2)
+
+    agent.planner.plan.assert_not_called()
+    assert action["action"] == "move"
 
 
 def test_decide_action_omits_none_fields_before_oracle_eat_resolution():
