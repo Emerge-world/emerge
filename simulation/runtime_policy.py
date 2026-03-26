@@ -27,6 +27,8 @@ class OracleRuntimeSettings:
     social: bool
     teach: bool
     reproduction: bool
+    mode: str = "live"
+    freeze_precedents_path: str | None = None
 
 
 @dataclass(slots=True)
@@ -62,6 +64,8 @@ def derive_runtime_policy(profile: ExperimentProfile) -> RuntimePolicy:
             social=caps.social,
             teach=caps.teach,
             reproduction=caps.reproduction,
+            mode=profile.oracle.mode,
+            freeze_precedents_path=profile.oracle.freeze_precedents_path,
         ),
         world=WorldRuntimeSettings(
             initial_resource_scale=profile.world_overrides.initial_resource_scale,

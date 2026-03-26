@@ -24,3 +24,14 @@ def test_derive_runtime_policy_maps_capabilities_and_world_overrides():
     assert policy.memory.semantic_memory is False
     assert policy.world.initial_resource_scale == 0.5
     assert policy.oracle.innovation is True
+
+
+def test_derive_runtime_policy_maps_oracle_mode_and_freeze_path():
+    profile = build_default_profile()
+    profile.oracle.mode = "symbolic"
+    profile.oracle.freeze_precedents_path = "fixtures/symbolic.json"
+
+    policy = derive_runtime_policy(profile)
+
+    assert policy.oracle.mode == "symbolic"
+    assert policy.oracle.freeze_precedents_path == "fixtures/symbolic.json"
