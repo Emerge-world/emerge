@@ -461,7 +461,16 @@ class Oracle:
                 "Is resting physically possible regardless of terrain? "
                 "Respond with JSON: {\"possible\": true, \"reason\": \"brief explanation\"}"
             )
-            self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
+            judgment = self._oracle_reflect_physical(situation_key, reflection_prompt, tick)
+        else:
+            judgment = self.precedents[situation_key]
+
+        if not judgment.get("possible", False):
+            reason = judgment.get("reason", "resting is not possible here")
+            msg = f"{agent.name} cannot rest: {reason}."
+            self._log(tick, msg)
+            agent.add_memory(f"I tried to rest but couldn't: {reason}.")
+            return self._unresolved_result(message=msg)
 
         # Rest is always possible (precedent establishes this)
         tile = self.world.get_tile(agent.x, agent.y)

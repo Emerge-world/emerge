@@ -184,3 +184,26 @@ def test_symbolic_mode_skips_item_affordance_discovery_on_novelty_miss():
 
     assert discovered == []
     llm.generate_structured.assert_not_called()
+
+
+def test_closed_mode_rest_rejects_without_curated_physical_rest_precedent():
+    world = _make_world()
+    agent = _make_agent(world)
+    energy_before = agent.energy
+    llm = MagicMock()
+    oracle = Oracle(
+        world=world,
+        llm=llm,
+        runtime_settings=_runtime_settings(
+            mode="frozen",
+            freeze_precedents_path="fixtures/frozen.json",
+        ),
+    )
+
+    result = oracle.resolve_action(agent, {"action": "rest"}, tick=5)
+
+    assert result["success"] is False
+    assert result["reason_code"] == "ORACLE_UNRESOLVED_NOVELTY"
+    assert agent.energy == energy_before
+    assert "physical:rest" not in oracle.precedents
+    llm.generate_structured.assert_not_called()
