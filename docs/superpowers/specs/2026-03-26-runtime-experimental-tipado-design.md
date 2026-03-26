@@ -191,6 +191,41 @@ Notes:
 - `benchmark.tags` must use a safe empty-list default via dataclass field factory.
 - `persistence.clean_before_run = False` preserves current base behavior in this PR. Future benchmark manifests may override it to `True`.
 
+### 2.2 CLI Mapping and Validation Ownership
+
+`build_profile_from_cli(args)` is responsible for mapping the current runtime-related CLI flags into the typed profile.
+
+Flags that belong in the profile:
+
+- `--agents` -> `runtime.agents`
+- `--ticks` -> `runtime.ticks`
+- `--seed` -> `runtime.seed`
+- `--no-llm` -> `runtime.use_llm = False`
+- `--model` -> `runtime.model`
+- `--persistence` -> `persistence.mode`
+- `--start-hour` -> `runtime.start_hour`
+- `--width` -> `runtime.width`
+- `--height` -> `runtime.height`
+
+Flags that intentionally remain outside the profile in PR 1:
+
+- `--verbose`
+- `--save-log`
+- `--wandb`
+- `--wandb-project`
+- `--wandb-entity`
+- `--wandb-run-name`
+- `--no-digest`
+
+Validation ownership in PR 1:
+
+- `argparse` continues to own primitive parsing of CLI types
+- `build_profile_from_cli()` owns typed mapping and omission of operational-only flags
+- `SimulationEngine` preserves its current compatibility behavior for legacy normalization, including agent-count clamping on the legacy path
+- no new benchmark-specific bounds validation is introduced in PR 1
+
+This means PR 1 should not invent new validation semantics for `width`, `height`, or `start_hour`; it should preserve current behavior and move only the configuration boundary to typed objects.
+
 ### 3. Runtime Wiring
 
 Update `main.py` so the current CLI builds an `ExperimentProfile` and passes it to `SimulationEngine`.
@@ -238,9 +273,33 @@ The effective per-run profile must be observable from the same artifacts and tel
 
 PR 1 should require:
 
-- `data/runs/<run_id>/meta.json` includes the effective `ExperimentProfile` in serialized form
-- `run_start` event payload config includes the effective profile, or a clearly named serialized profile field alongside the existing run config fields
+- `data/runs/<run_id>/meta.json` includes the effective profile under an `experiment_profile` key
+- `run_start` event payload config includes the same nested structure under `config.experiment_profile`
 - existing W&B run-level config, when enabled, is derived from the effective profile for overlapping runtime fields rather than rebuilt independently from raw CLI args
+
+Serialized shape:
+
+- serialize dataclasses with a nested `dataclasses.asdict(profile)`-equivalent structure
+- keep the same top-level sections as the Python model:
+  - `runtime`
+  - `capabilities`
+  - `persistence`
+  - `oracle`
+  - `benchmark`
+  - `world_overrides`
+- string-valued modes are serialized as plain strings such as `"live"` and `"none"`
+- optional fields remain `null` when unset
+- list fields remain JSON arrays
+
+W&B run-level config shape:
+
+- derive it from the same effective profile, not from raw CLI args
+- use a flattened projection with stable keys prefixed by `profile/`, for example:
+  - `profile/runtime/agents`
+  - `profile/runtime/use_llm`
+  - `profile/persistence/mode`
+  - `profile/oracle/mode`
+  - `profile/benchmark/benchmark_id`
 
 This is run-level observability only. Session-level W&B grouping and session artifacts remain out of scope for PR 1.
 
