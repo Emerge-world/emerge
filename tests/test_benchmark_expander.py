@@ -85,6 +85,139 @@ def test_expand_manifest_builds_cross_product_in_deterministic_matrix_order(tmp_
     ]
 
 
+def test_expand_manifest_rejects_unknown_selected_seed_set(tmp_path):
+    manifest = _load(
+        tmp_path,
+        """
+        version: 1
+
+        benchmark:
+          id: benchmark_v1
+          version: "1"
+
+        defaults: {}
+
+        seed_sets:
+          smoke: [11]
+          eval: [22]
+
+        scenarios:
+          alpha: {}
+
+        arms:
+          full: {}
+
+        matrix:
+          seed_sets: [smoke, eval]
+          scenarios: [alpha]
+          arms: [full]
+
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria: []
+        wandb:
+          enabled: false
+        """,
+    )
+
+    try:
+        expand_manifest(manifest, selected_seed_sets=["dev"])
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unknown selected seed set")
+
+    assert "selected_seed_sets" in message
+    assert "dev" in message
+
+
+def test_expand_manifest_rejects_duplicate_selected_seed_set(tmp_path):
+    manifest = _load(
+        tmp_path,
+        """
+        version: 1
+
+        benchmark:
+          id: benchmark_v1
+          version: "1"
+
+        defaults: {}
+
+        seed_sets:
+          smoke: [11]
+          eval: [22]
+
+        scenarios:
+          alpha: {}
+
+        arms:
+          full: {}
+
+        matrix:
+          seed_sets: [smoke, eval]
+          scenarios: [alpha]
+          arms: [full]
+
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria: []
+        wandb:
+          enabled: false
+        """,
+    )
+
+    try:
+        expand_manifest(manifest, selected_seed_sets=["smoke", "smoke"])
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected ValueError for duplicate selected seed sets")
+
+    assert "selected_seed_sets" in message
+    assert "smoke" in message
+    assert "duplicate" in message
+
+
+def test_expand_manifest_selected_seed_sets_follow_manifest_order(tmp_path):
+    manifest = _load(
+        tmp_path,
+        """
+        version: 1
+
+        benchmark:
+          id: benchmark_v1
+          version: "1"
+
+        defaults: {}
+
+        seed_sets:
+          smoke: [11]
+          eval: [22]
+
+        scenarios:
+          alpha: {}
+
+        arms:
+          full: {}
+
+        matrix:
+          seed_sets: [smoke, eval]
+          scenarios: [alpha]
+          arms: [full]
+
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria: []
+        wandb:
+          enabled: false
+        """,
+    )
+
+    expanded = expand_manifest(manifest, selected_seed_sets=["eval", "smoke"])
+
+    assert [item["matrix"]["seed_set"] for item in expanded] == ["smoke", "eval"]
+
+
 def test_expand_manifest_applies_defaults_then_scenario_then_arm_precedence(tmp_path):
     manifest = _load(
         tmp_path,
