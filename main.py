@@ -17,6 +17,7 @@ import sys
 from simulation.engine import SimulationEngine
 from simulation.config import WORLD_START_HOUR, WORLD_WIDTH, WORLD_HEIGHT
 from pathlib import Path
+from simulation.runtime_profiles import build_profile_from_cli, flatten_profile_for_wandb
 from simulation.wandb_logger import WandbLogger
 from simulation import config as sim_config
 from simulation.tick_limits import parse_tick_limit_arg
@@ -49,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--persistence",
         choices=["none", "oracle", "lineage", "full"],
         default="none",
-        help="What to persist across runs: oracle precedents, lineage, both (full), or nothing (none). Default: full",
+        help="What to persist across runs: oracle precedents, lineage, both (full), or nothing (none). Default: none",
     )
     parser.add_argument("--start-hour", type=int, default=WORLD_START_HOUR,
                         help=f"In-world hour the simulation starts at (0-23, default: {WORLD_START_HOUR})")
@@ -74,32 +75,18 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
     setup_logging(args.verbose)
+    profile = build_profile_from_cli(args)
 
     print("🧬 Starting autonomous agent life simulation...\n")
 
     engine = SimulationEngine(
-        num_agents=args.agents,
-        world_seed=args.seed,
-        use_llm=not args.no_llm,
-        max_ticks=args.ticks,
-        start_hour=args.start_hour,
-        world_width=args.width,
-        world_height=args.height,
-        ollama_model=args.model,
+        profile=profile,
         run_digest=not args.no_digest,
-        persistence=args.persistence,
     )
 
     if args.wandb:
         run_config = {
-            "agents": args.agents,
-            "ticks": args.ticks,
-            "seed": args.seed,
-            "no_llm": args.no_llm,
-            "width": args.width,
-            "height": args.height,
-            "start_hour": args.start_hour,
-            "LLM_MODEL": args.model or sim_config.VLLM_MODEL,
+            **flatten_profile_for_wandb(engine.profile),
             "LLM_TEMPERATURE": sim_config.LLM_TEMPERATURE,
             "MOVE_ENERGY_COST": sim_config.ENERGY_COST_MOVE,
             "REST_ENERGY_GAIN": sim_config.ENERGY_RECOVERY_REST,
