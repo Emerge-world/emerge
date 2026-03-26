@@ -35,6 +35,32 @@ def test_main_builds_profile_and_passes_it_to_engine(monkeypatch):
     assert captured["ran"] is True
 
 
+def test_main_passes_false_run_digest_when_no_digest_flag_is_set(monkeypatch):
+    captured = {}
+
+    class FakeEngine:
+        def __init__(self, *, profile, run_digest, **kwargs):
+            captured["run_digest"] = run_digest
+            self.profile = profile
+            self.run_id = "run-124"
+            self.wandb_logger = None
+
+        def run(self):
+            captured["ran"] = True
+
+    monkeypatch.setattr(main_module, "SimulationEngine", FakeEngine)
+    monkeypatch.setattr(main_module, "setup_logging", lambda verbose: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["main.py", "--ticks", "1", "--no-digest"],
+    )
+
+    main_module.main()
+
+    assert captured["run_digest"] is False
+    assert captured["ran"] is True
+
+
 def test_main_derives_wandb_run_config_from_engine_profile(monkeypatch, tmp_path):
     captured = {}
     requested = build_default_profile()
