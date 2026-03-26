@@ -22,6 +22,7 @@ from simulation.runtime_profiles import (
     build_profile_from_engine_kwargs,
     serialize_experiment_profile,
 )
+from simulation.runtime_policy import derive_runtime_policy
 from simulation.runtime_settings import ExperimentProfile
 from simulation.world import World
 from simulation.agent import Agent
@@ -90,6 +91,7 @@ class SimulationEngine:
         use_llm = runtime.use_llm
         ollama_model = runtime.model
         persistence = self.profile.persistence.mode
+        self.runtime_policy = derive_runtime_policy(self.profile)
 
         self.max_ticks = max_ticks
         self._world_seed = world_seed
@@ -112,14 +114,24 @@ class SimulationEngine:
         self.day_cycle = DayCycle(start_hour=start_hour)
 
         # Create world
-        self.world = World(width=world_width, height=world_height, seed=world_seed)
+        self.world = World(
+            width=world_width,
+            height=world_height,
+            seed=world_seed,
+            runtime_settings=self.runtime_policy.world,
+        )
 
         # Create simulation logger
         self.sim_logger = SimLogger()
 
         # Create oracle
-        self.oracle = Oracle(self.world, llm=self.llm, sim_logger=self.sim_logger,
-                             day_cycle=self.day_cycle)
+        self.oracle = Oracle(
+            self.world,
+            llm=self.llm,
+            sim_logger=self.sim_logger,
+            day_cycle=self.day_cycle,
+            runtime_settings=self.runtime_policy.oracle,
+        )
 
         # Auto-load precedents from previous runs
         self.oracle.load_precedents(self._precedents_path)
@@ -136,7 +148,13 @@ class SimulationEngine:
         self.agents: list[Agent] = []
         for i in range(num_agents):
             x, y = self.world.find_spawn_point()
-            agent = Agent(x=x, y=y, llm=self.llm)
+            agent = Agent(
+                x=x,
+                y=y,
+                llm=self.llm,
+                runtime_settings=self.runtime_policy.agent,
+                memory_settings=self.runtime_policy.memory,
+            )
             self.agents.append(agent)
             self._used_names.add(agent.name)
             self.lineage.record_birth(agent.name, [], 0, tick=0)
@@ -553,7 +571,14 @@ class SimulationEngine:
         parent_b = next(a for a in self.agents if a.name == parent_b_name)
 
         name = self._pick_child_name(parent_a_name, parent_b_name)
-        child = Agent(name=name, x=pos[0], y=pos[1], llm=self.llm)
+        child = Agent(
+            name=name,
+            x=pos[0],
+            y=pos[1],
+            llm=self.llm,
+            runtime_settings=self.runtime_policy.agent,
+            memory_settings=self.runtime_policy.memory,
+        )
 
         # Override default stats with child (infant) values
         child.life = CHILD_START_LIFE

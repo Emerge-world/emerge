@@ -158,6 +158,42 @@ def test_unavailable_llm_updates_effective_profile(tmp_path, monkeypatch):
     assert engine.profile.runtime.model == "forced-model"
 
 
+def test_runtime_policy_reaches_engine_subsystems(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    profile = build_default_profile()
+    profile = replace(
+        profile,
+        runtime=replace(
+            profile.runtime,
+            agents=1,
+            ticks=0,
+            seed=21,
+            use_llm=False,
+        ),
+        capabilities=replace(
+            profile.capabilities,
+            explicit_planning=False,
+            semantic_memory=False,
+            innovation=False,
+        ),
+        world_overrides=replace(
+            profile.world_overrides,
+            initial_resource_scale=0.5,
+        ),
+        persistence=replace(profile.persistence, mode="none"),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+
+    assert engine.runtime_policy.world.initial_resource_scale == 0.5
+    assert engine.world.runtime_settings.initial_resource_scale == 0.5
+    assert engine.oracle.runtime_settings.innovation is False
+    assert engine.agents[0].runtime_settings.explicit_planning is False
+    assert engine.agents[0].memory_system.runtime_settings.semantic_memory is False
+
+
 def test_explicit_wandb_logger_stays_outside_profile(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _patch_runtime_side_effects(monkeypatch)
