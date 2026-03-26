@@ -7,6 +7,7 @@
 - `simulation/engine.py` is the orchestration core in both modes.
 - `simulation/runtime_settings.py` defines the typed runtime dataclasses, while `simulation/runtime_profiles.py` builds defaults, CLI overrides, engine kwargs, and serialized artifacts.
 - `main.py -> ExperimentProfile -> SimulationEngine` is the runtime boundary for CLI runs: `main.py` builds a profile from args, passes it into `SimulationEngine`, and the engine deep-copies and normalizes it into the effective `SimulationEngine.profile`.
+- `SimulationEngine` derives a subsystem runtime policy from `ExperimentProfile` and injects it into `World`, `Memory`, `Agent`, and `Oracle`, so backend capability enforcement and world overrides come from the profile rather than global defaults.
 
 ```
 Agents -> Oracle -> World
@@ -31,14 +32,15 @@ PlanningState + Retrieval
 
 ### Agent (`simulation/agent.py`)
 - Maintains stats, dual memory, task memory, personality, inventory, relationships, and optional planning state.
-- Can run an explicit planner/executor loop behind `ENABLE_EXPLICIT_PLANNING`.
+- Accepts runtime settings for action repertoire and planning behavior; the explicit planner/executor loop is gated by the runtime policy.
 - Decides action via structured LLM response or deterministic fallback.
-- Starts with `INITIAL_ACTIONS`; `reproduce` unlocks by age.
+- Starts with a capability-filtered built-in action set; `reproduce` unlocks only when the runtime policy allows it and age requirements are met.
 
 ### Oracle (`simulation/oracle.py`)
 - Sole authority applying action outcomes and world mutations.
 - Uses precedents for deterministic reuse.
 - Handles base actions, `drop_item` inventory placement/transfer, innovated actions, crafting, social actions, reproduction checks.
+- Enforces runtime capability gates fail closed for disabled built-in actions and blocks innovation side-entry affordance discovery when innovation is disabled.
 - Resolves `drop_item` inventory-to-world placement through world helpers so tile resource mutations stay Oracle-mediated.
 
 ### Event Layer (`simulation/event_emitter.py`)

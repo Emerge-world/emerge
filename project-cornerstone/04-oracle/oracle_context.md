@@ -15,6 +15,7 @@ The following oracle methods are live:
 - **`_trigger_post_craft_affordances(agent, produced_items, crafting_action_name)`**: Called after a successful crafting execution. For each produced item type not yet in `agent.auto_reflected_items`, calls `_discover_item_affordances` and marks the item as discovered. Discovery failure is silent and non-blocking — crafting always succeeds regardless.
 - **`_resolve_reflect_item_uses(agent, action_dict)`**: Resolves the built-in `reflect_item_uses` action. Deducts 5 energy, validates that the agent holds the requested item, then calls `_discover_item_affordances`. Returns `success=False` with no energy cost when the inventory is empty or the requested item is not held.
 - **Tool-aware custom-action precedent keys**: item-derived actions use the extended key format `custom_action:{action}:tile:{tile}:tools:{item}:{qty}` so that outcomes with and without a tool remain distinct precedent entries (addresses the generic-key known issue).
+- **Runtime capability enforcement**: `Oracle` now accepts explicit runtime settings derived from `ExperimentProfile` and fails closed for disabled built-in actions (`innovate`, `reflect_item_uses`, `communicate`, `give_item`, `teach`, `reproduce`) before dispatching to action handlers.
 
 **Pending for Phase 1:**
 - `PrecedentKey`/`PrecedentValue` dataclasses (planned structured keys, currently plain strings — deferred as YAGNI)

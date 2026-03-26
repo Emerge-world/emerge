@@ -12,6 +12,7 @@ The following agent cognition features are live:
 - **Task memory**: bounded planning/task ledger used to retain recent plan outcomes and blockers.
 - **Deterministic retrieval**: planner and executor select relevant memory via keyword-and-state scoring rather than pure recency slices.
 - **Explicit planner/executor loop**: when `ENABLE_EXPLICIT_PLANNING` is enabled, agents can create structured plans, execute subgoals, and emit planning events.
+- **Runtime capability policy**: `Agent` now consumes explicit runtime settings from `ExperimentProfile`, so the available action repertoire is capability-filtered at birth and the planner only runs when the runtime policy allows it.
 - **Personality system**: personality traits are implemented and injected into the system prompt via `simulation/personality.py`.
 
 ---
@@ -24,7 +25,7 @@ Each agent has:
 - **Position**: `(x, y)` in the grid
 - **Memory**: `Memory` class with episodic, semantic, and task memory stores
 - **Planning state**: `PlanningState` with goal, subgoals, status, confidence, and blocker tracking
-- **Initial actions**: `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach", "reflect_item_uses"]`
+- **Initial actions**: capability-filtered at birth from `["move", "eat", "rest", "innovate", "pickup", "drop_item", "communicate", "give_item", "teach", "reflect_item_uses"]`
   - `reproduce` is built-in but NOT available at birth; it unlocks once `current_tick - born_tick >= 100`
   - `reflect_item_uses`: costs 5 energy; requires at least one item in inventory; asks the Oracle to suggest new verb actions enabled by a chosen held item; runs the normal innovation validation path for each candidate (see DEC-045)
 - **LLM**: vLLM/OpenAI-compatible structured outputs via `simulation/llm_client.py`

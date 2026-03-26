@@ -34,6 +34,7 @@ else                              → mountain peak (TILE_MOUNTAIN)
 - Forests (mushrooms): dawn regen, 30% chance per depleted forest tile
 - Mountain / cave (stone): no regen — finite resource
 - River (water): quantity=99, inexhaustible (`consume_resource()` short-circuits for `type="water"`)
+- When `WorldRuntimeSettings` are supplied from `ExperimentProfile`, initial resource spawn quantities and dawn regen chance/amount are scaled from the profile; unset overrides preserve the default world behavior.
 
 **New resources require innovation:** `mushroom`, `stone`, and `water` are not accessible via base actions. Only `fruit` works with `eat`. Agents must innovate `forage`, `mine`, `drink`, etc. — preserving the emergence-first philosophy.
 
