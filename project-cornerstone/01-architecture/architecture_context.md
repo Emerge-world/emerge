@@ -5,6 +5,8 @@
 - `main.py` runs headless simulations (CLI mode).
 - `server/run_server.py` + `server/server.py` run FastAPI + WebSocket mode.
 - `simulation/engine.py` is the orchestration core in both modes.
+- `simulation/runtime_settings.py` defines the typed runtime dataclasses, while `simulation/runtime_profiles.py` builds defaults, CLI overrides, engine kwargs, and serialized artifacts.
+- `main.py -> ExperimentProfile -> SimulationEngine` is the runtime boundary for CLI runs: `main.py` builds a profile from args, passes it into `SimulationEngine`, and the engine deep-copies and normalizes it into the effective `SimulationEngine.profile`.
 
 ```
 Agents -> Oracle -> World
@@ -44,6 +46,7 @@ PlanningState + Retrieval
 - Includes lifecycle events needed for post-run reconstruction, including agent births and personality snapshots for initial and born agents.
 - Stores prompt and raw LLM blobs deduplicated by hash.
 - Supports planning lifecycle events in addition to decision/oracle events; see the canonical schema doc for the current emitted set and payloads.
+- Observability contract: `meta.json` is written immediately on run initialization and includes the normalized `experiment_profile`; `run_start` echoes the same profile at `payload.config.experiment_profile`.
 - Canonical schema: `project-cornerstone/01-architecture/events_schema.md`.
 
 ## Planning Loop

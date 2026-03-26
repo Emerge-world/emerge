@@ -1,6 +1,6 @@
 # 🧬 EMERGE — Master Plan (Codebase-Aligned)
 
-_Last updated: 2026-03-12 (aligned with current repository state)_
+_Last updated: 2026-03-26 (aligned with current repository state)_
 
 ## Vision
 
@@ -16,6 +16,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 - FastAPI + WebSocket simulation server and React UI
 - Always-on event stream (`data/runs/<run_id>/events.jsonl`) and metrics builder
 - Optional W&B experiment telemetry and batch execution (`run_batch.py`), including per-tick action and world-resource breakdowns
+- Typed `ExperimentProfile` is the canonical per-run boundary for experimental runs; `config.py` now acts as defaults-only input, and run artifacts persist the effective normalized profile
 
 ## Phase Status (as implemented)
 
