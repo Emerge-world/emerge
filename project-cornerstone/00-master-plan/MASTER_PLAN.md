@@ -15,8 +15,9 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 - Reproduction, inheritance, generations, and lineage persistence
 - FastAPI + WebSocket simulation server and React UI
 - Always-on event stream (`data/runs/<run_id>/events.jsonl`) and metrics builder
-- Optional W&B experiment telemetry and batch execution (`run_batch.py`), including per-tick action and world-resource breakdowns
+- Optional W&B experiment telemetry, including per-tick action and world-resource breakdowns
 - Typed `ExperimentProfile` is the canonical per-run boundary for experimental runs; `config.py` now only supplies defaults for profile-backed runtime fields, and run artifacts persist the effective normalized profile
+- Declarative benchmark manifests now validate closed YAML suites and expand deterministic `seed_sets × scenarios × arms` run matrices under `simulation/benchmark/`, independent from `run_batch.py` and the legacy flat experiment config
 
 ## Phase Status (as implemented)
 
