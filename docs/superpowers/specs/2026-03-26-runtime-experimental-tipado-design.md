@@ -1,0 +1,252 @@
+# Typed Experimental Runtime Design
+
+**Date:** 2026-03-26
+**Status:** Approved
+
+## Problem
+
+The current simulation runtime is configured through a mix of CLI flags, direct reads from `simulation/config.py`, and ad hoc parameter passing into `SimulationEngine`.
+
+That structure makes the base simulation runnable, but it does not provide a typed per-run contract that can support the benchmark refactor described in `BENCHMARK_REFACTOR_TRACKER.md`. In particular:
+
+- `config.py` acts as both defaults store and effective runtime source
+- runtime inputs are passed as loose kwargs instead of a coherent per-run object
+- benchmark metadata has no stable home in the runtime contract
+- future YAML-driven execution would need to translate into the old parameter soup
+
+The first layer of the refactor needs to introduce a typed runtime model without coupling new code to `run_batch.py` or `experiments.yaml`, and without breaking the existing simulation entrypoint.
+
+## Goal
+
+Introduce the first runtime layer for the benchmark refactor:
+
+- a typed `RuntimeSettings`
+- a typed `ExperimentProfile`
+- clear separation between global defaults and per-run overrides
+- initial wiring so `main.py` can construct a profile and pass it into the runtime
+- no dependency on `run_batch.py` or `experiments.yaml`
+
+The repo must remain runnable and the base simulation behavior must remain equivalent to today when using default settings.
+
+## Decision
+
+Adopt a hybrid migration design:
+
+- define the new runtime contract as pure dataclasses
+- keep construction logic separate in a dedicated builder/factory module
+- make `ExperimentProfile` the canonical new per-run object
+- update `main.py` to build and pass an `ExperimentProfile`
+- update `SimulationEngine` to accept `profile` as the new API while keeping legacy kwargs temporarily for compatibility
+
+This is the best fit for PR 1 in `BENCHMARK_REFACTOR_TRACKER.md` because it establishes the correct boundary now, keeps the repo runnable, and avoids prematurely forcing the rest of the runtime to consume benchmark-specific logic.
+
+## Design
+
+### 1. Typed Runtime Model
+
+Add a new module for typed runtime models, for example `simulation/runtime_settings.py`.
+
+It should define the following dataclasses:
+
+- `CapabilitySettings`
+- `PersistenceSettings`
+- `OracleSettings`
+- `BenchmarkMetadata`
+- `WorldOverrides`
+- `RuntimeSettings`
+- `ExperimentProfile`
+
+Expected contents:
+
+- `RuntimeSettings`
+  - `use_llm: bool`
+  - `model: str | None`
+  - `agents: int`
+  - `ticks: int | None`
+  - `seed: int | None`
+  - `width: int`
+  - `height: int`
+  - `start_hour: int`
+- `CapabilitySettings`
+  - `explicit_planning: bool`
+  - `semantic_memory: bool`
+  - `innovation: bool`
+  - `item_reflection: bool`
+  - `social: bool`
+  - `teach: bool`
+  - `reproduction: bool`
+- `OracleSettings`
+  - `mode: live | frozen | symbolic`
+  - `freeze_precedents_path: str | None`
+- `PersistenceSettings`
+  - `mode: none | oracle | lineage | full`
+  - `clean_before_run: bool`
+- `BenchmarkMetadata`
+  - `benchmark_id: str`
+  - `benchmark_version: str`
+  - `scenario_id: str`
+  - `arm_id: str`
+  - `seed_set: str | None`
+  - `session_id: str | None`
+  - `tags: list[str]`
+- `WorldOverrides`
+  - `initial_resource_scale: float | None`
+  - `regen_chance_scale: float | None`
+  - `regen_amount_scale: float | None`
+  - `world_fixture: str | None`
+- `ExperimentProfile`
+  - `runtime: RuntimeSettings`
+  - `capabilities: CapabilitySettings`
+  - `persistence: PersistenceSettings`
+  - `oracle: OracleSettings`
+  - `benchmark: BenchmarkMetadata`
+  - `world_overrides: WorldOverrides`
+
+These dataclasses must stay pure. They should not import CLI code, read `config.py`, or know anything about manifests.
+
+### 2. Builder / Factory Separation
+
+Add a separate construction module, for example `simulation/runtime_profiles.py`.
+
+This module owns the composition logic for:
+
+- reading global defaults from `simulation/config.py`
+- building a default `ExperimentProfile`
+- applying per-run overrides
+- constructing a profile from the current CLI arguments in `main.py`
+
+Recommended public helpers:
+
+- `build_default_profile() -> ExperimentProfile`
+- `build_profile_from_cli(args) -> ExperimentProfile`
+- one or more typed override helpers if needed internally
+
+This separation is required because the tracker explicitly says `config.py` must remain defaults, not the single source of truth. The builder may read `config.py`; the dataclasses must not.
+
+This also keeps the future path clean:
+
+- current CLI -> builder -> `ExperimentProfile`
+- future YAML loader -> builder or typed override helpers -> `ExperimentProfile`
+
+without introducing any dependency on `run_batch.py` or `experiments.yaml`.
+
+### 3. Runtime Wiring
+
+Update `main.py` so the current CLI builds an `ExperimentProfile` and passes it to `SimulationEngine`.
+
+`SimulationEngine` should gain a new optional parameter:
+
+- `profile: ExperimentProfile | None = None`
+
+The compatibility policy should be explicit:
+
+- if `profile` is passed, it is the canonical input
+- if `profile` is not passed, the engine constructs an equivalent profile from legacy kwargs
+- if both `profile` and legacy kwargs are passed, `profile` wins and legacy kwargs are not merged silently
+
+This keeps the old call sites viable while making the new object the real boundary going forward.
+
+For this PR, engine consumption remains conservative:
+
+- use `profile.runtime` for the fields already accepted as direct engine inputs
+- use `profile.persistence.mode` in place of the current persistence string
+- keep `profile.oracle`, `profile.capabilities`, `profile.benchmark`, and `profile.world_overrides` available on the engine even if only partially consumed for now
+
+The engine should expose the effective profile as instance state so later refactor steps can push it down into `World`, `Oracle`, `Agent`, and `Memory` without inventing another configuration path.
+
+### 4. Defaults and Override Precedence
+
+The precedence must be stable and testable:
+
+1. global defaults from `simulation/config.py`
+2. per-run overrides from the current CLI
+3. future typed overrides from manifests or expanded runs
+
+For this PR, only steps 1 and 2 are implemented.
+
+There should be no hidden fallback to globals after a profile has been built. Once the profile exists, it is the effective runtime contract for that run.
+
+This means:
+
+- `config.py` remains the defaults baseline
+- `ExperimentProfile` becomes the per-run source of truth
+- future benchmark tooling can construct profiles without changing runtime APIs again
+
+### 5. Scope Boundaries for PR 1
+
+This PR intentionally stops before capability-aware behavior and benchmark execution features.
+
+Included:
+
+- typed runtime models
+- typed profile builder/factory
+- `main.py` wiring to build and pass a profile
+- `SimulationEngine` compatibility layer for `profile`
+- basic unit tests for defaults, overrides, and compatibility
+
+Explicitly not included:
+
+- new benchmark CLI
+- manifest schema, loader, or matrix expansion
+- prompt-surface changes
+- backend capability toggles in `Agent`, `Oracle`, `World`, or `Memory`
+- session aggregation
+- session-level W&B integration
+- benchmark-specific logic for survival, scarcity, or any named suite
+
+### 6. Error Handling and Safety
+
+This change should not introduce new failure modes into the simulation startup path.
+
+Requirements:
+
+- invalid or missing optional benchmark metadata should not break the base simulation path when using defaults
+- profile construction from the current CLI should produce a fully usable profile for the existing runtime
+- legacy engine construction without `profile` must still work
+- default behavior should remain equivalent to the current base simulation
+
+No new benchmark-specific validation layer is needed in this PR. The goal is to establish the typed contract and wiring, not to enforce the full manifest schema yet.
+
+### 7. Tests
+
+Add basic unit coverage for the new profile layer.
+
+Required tests:
+
+- default profile values mirror the current baseline from `simulation/config.py`
+- CLI-derived overrides change only the expected runtime fields
+- nested dataclass defaults are independent and safe
+- benchmark metadata, oracle settings, persistence settings, and world overrides are present with stable defaults
+- `SimulationEngine(profile=...)` uses the profile path successfully
+- `SimulationEngine(...)` with legacy kwargs still works
+- if both `profile` and legacy kwargs are supplied, the profile path has explicit precedence
+
+These tests should stay narrow. The purpose is to lock down the contract and transition behavior, not to validate future benchmark functionality.
+
+## What Does Not Change
+
+- the current CLI surface in `main.py`
+- the base simulation execution model
+- current W&B run logging behavior
+- prompt composition
+- capability-specific backend behavior
+- any existing benchmark scripts, even if they become legacy after later PRs
+
+## Touch Points
+
+| File | Change |
+|---|---|
+| `simulation/runtime_settings.py` | Add typed dataclasses for the runtime contract |
+| `simulation/runtime_profiles.py` | Add default/profile construction helpers |
+| `main.py` | Build an `ExperimentProfile` from CLI args and pass it to the engine |
+| `simulation/engine.py` | Accept `profile`, normalize compatibility, expose effective profile |
+| `tests/...` | Add unit tests for profile defaults, overrides, and engine precedence |
+
+## Documentation Updates During Implementation
+
+The implementation should also update:
+
+- `project-cornerstone/00-master-plan/DECISION_LOG.md` to record the new runtime profile boundary
+- the relevant architecture and benchmark-tracker docs if implementation details require clarification
+
+No benchmark-manifest documentation changes are required in this PR because manifest work starts in the next slice.
