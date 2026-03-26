@@ -5,7 +5,7 @@ from textwrap import dedent
 import pytest
 
 from simulation.benchmark.loader import load_manifest
-from simulation.benchmark.schema import ManifestValidationError
+from simulation.benchmark.schema import CriterionConfig, ManifestValidationError, WandbConfig
 
 
 def _write_manifest(tmp_path, content: str):
@@ -78,6 +78,89 @@ def test_load_manifest_accepts_minimal_valid_manifest(tmp_path):
     assert manifest.benchmark.id == "survival_v1"
     assert manifest.benchmark.version == "1"
     assert manifest.metrics.primary == ["summary.agents.survival_rate"]
+
+
+def test_load_manifest_wraps_yaml_syntax_error_with_source_path(tmp_path):
+    path = _write_manifest(
+        tmp_path,
+        """
+        version: 1
+        benchmark:
+          id: survival_v1
+          version: "1"
+        defaults: {}
+        seed_sets:
+          smoke: [11]
+        scenarios:
+          default_day: {}
+        arms:
+          full: {}
+        matrix:
+          seed_sets: [smoke]
+          scenarios: [default_day]
+          arms: [full]
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria: []
+        wandb:
+          enabled: false
+          project: [broken
+        """,
+    )
+
+    with pytest.raises(ManifestValidationError) as excinfo:
+        load_manifest(path)
+
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "YAML" in message
+
+
+def test_load_manifest_returns_typed_criteria_and_wandb_sections(tmp_path):
+    path = _write_manifest(
+        tmp_path,
+        """
+        version: 1
+
+        benchmark:
+          id: survival_v1
+          version: "1"
+
+        defaults: {}
+        seed_sets:
+          smoke: [11]
+        scenarios:
+          default_day: {}
+        arms:
+          full: {}
+        matrix:
+          seed_sets: [smoke]
+          scenarios: [default_day]
+          arms: [full]
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria:
+          - id: full_survival_gate
+            metric: summary.agents.survival_rate
+            threshold: 0.8
+            description: gate
+        wandb:
+          enabled: true
+          project: emerge
+          group_by: [benchmark_id, scenario_id]
+        """,
+    )
+
+    manifest = load_manifest(path)
+
+    assert manifest.criteria
+    assert isinstance(manifest.criteria[0], CriterionConfig)
+    assert manifest.criteria[0].id == "full_survival_gate"
+    assert manifest.criteria[0].threshold == 0.8
+    assert isinstance(manifest.wandb, WandbConfig)
+    assert manifest.wandb.enabled is True
+    assert manifest.wandb.project == "emerge"
+    assert manifest.wandb.group_by == ["benchmark_id", "scenario_id"]
 
 
 def test_load_manifest_rejects_unknown_top_level_key(tmp_path):
@@ -195,6 +278,47 @@ def test_load_manifest_rejects_unknown_matrix_reference(tmp_path):
 
     assert "matrix.scenarios[0]" in str(excinfo.value)
     assert "night_start" in str(excinfo.value)
+
+
+def test_load_manifest_rejects_unknown_criteria_key(tmp_path):
+    path = _write_manifest(
+        tmp_path,
+        """
+        version: 1
+
+        benchmark:
+          id: survival_v1
+          version: "1"
+
+        defaults: {}
+        seed_sets:
+          smoke: [11]
+        scenarios:
+          default_day: {}
+        arms:
+          full: {}
+        matrix:
+          seed_sets: [smoke]
+          scenarios: [default_day]
+          arms: [full]
+        metrics:
+          primary: [summary.agents.survival_rate]
+        criteria:
+          - id: full_survival_gate
+            metric: summary.agents.survival_rate
+            threshold: 0.8
+            stray: true
+        wandb:
+          enabled: false
+        """,
+    )
+
+    with pytest.raises(ManifestValidationError) as excinfo:
+        load_manifest(path)
+
+    message = str(excinfo.value)
+    assert "criteria[0].stray" in message
+    assert "is not allowed" in message
 
 
 def test_load_manifest_reports_multiple_errors_together(tmp_path):
