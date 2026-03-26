@@ -1,6 +1,6 @@
 # 🧬 EMERGE — Master Plan (Codebase-Aligned)
 
-_Last updated: 2026-03-26 (aligned with current repository state)_
+_Last updated: 2026-03-27 (aligned with current repository state)_
 
 ## Vision
 
@@ -19,6 +19,7 @@ The repository is **beyond the original Phase 1 scope** and already includes:
 - Typed `ExperimentProfile` is the canonical per-run boundary for experimental runs; `config.py` now only supplies defaults for profile-backed runtime fields, and run artifacts persist the effective normalized profile
 - Runtime behavior now derives a subsystem-oriented policy from `ExperimentProfile`, so backend capability gates and world overrides flow through `SimulationEngine` instead of global defaults
 - Declarative benchmark manifests now validate closed YAML suites and expand deterministic `seed_sets × scenarios × arms` run matrices under `simulation/benchmark/`, independent from `run_batch.py` and the legacy flat experiment config
+- Benchmark runs now make oracle/persistence semantics explicit: profiles choose `persistence.mode`, `clean_before_run`, and `oracle.mode`, while run artifacts record `persistence_trace` / `oracle_trace` so cleanup, snapshot loads, and novelty policy are auditable
 
 ## Phase Status (as implemented)
 
