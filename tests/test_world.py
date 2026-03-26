@@ -412,6 +412,30 @@ def test_river_has_water_resource():
     pytest.skip("No river tile found in this world")
 
 
+def test_initial_resource_scale_preserves_river_water():
+    """Initial resource scaling must not remove permanent river water resources."""
+    world = World(
+        width=30,
+        height=30,
+        seed=42,
+        runtime_settings=WorldRuntimeSettings(
+            initial_resource_scale=0.0,
+            regen_chance_scale=None,
+            regen_amount_scale=None,
+        ),
+    )
+
+    for y in range(world.height):
+        for x in range(world.width):
+            if world.get_tile(x, y) == TILE_RIVER:
+                res = world.get_resource(x, y)
+                assert res is not None, f"River tile at ({x},{y}) lost its water resource"
+                assert res["type"] == "water", f"River tile at ({x},{y}) has wrong resource type: {res['type']}"
+                assert res["quantity"] == RIVER_WATER_QTY, f"River water at ({x},{y}) has unexpected quantity: {res['quantity']}"
+                return
+    pytest.skip("No river tile found in this world")
+
+
 def test_river_water_inexhaustible():
     """Consuming from a river tile must not reduce its quantity."""
     world = World(width=30, height=30, seed=42)

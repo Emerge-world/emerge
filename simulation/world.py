@@ -113,7 +113,11 @@ class World:
                 spawn = TILE_RESOURCE_SPAWN.get(tile)
                 if spawn:
                     self._resource_positions.setdefault(tile, []).append((x, y))
-                    qty = self._scale_quantity(self._rng.randint(spawn["min"], spawn["max"]))
+                    if tile == TILE_RIVER:
+                        # River water is permanent backend state, not a scalable consumable.
+                        qty = spawn["min"]
+                    else:
+                        qty = self._scale_quantity(self._rng.randint(spawn["min"], spawn["max"]))
                     if qty > 0:
                         self.resources[(x, y)] = {"type": spawn["type"], "quantity": qty}
 
