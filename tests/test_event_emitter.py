@@ -15,7 +15,55 @@ from simulation.personality import Personality
 # Helpers
 # ------------------------------------------------------------------ #
 
-def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42, max_ticks=72):
+def _experiment_profile_dict() -> dict:
+    return {
+        "runtime": {
+            "use_llm": False,
+            "model": None,
+            "agents": 3,
+            "ticks": 72,
+            "seed": 42,
+            "width": 15,
+            "height": 15,
+            "start_hour": 6,
+        },
+        "capabilities": {
+            "explicit_planning": True,
+            "semantic_memory": True,
+            "innovation": True,
+            "item_reflection": True,
+            "social": True,
+            "teach": True,
+            "reproduction": True,
+        },
+        "persistence": {"mode": "none", "clean_before_run": False},
+        "oracle": {"mode": "live", "freeze_precedents_path": None},
+        "benchmark": {
+            "benchmark_id": "adhoc",
+            "benchmark_version": "adhoc",
+            "scenario_id": "default",
+            "arm_id": "default",
+            "seed_set": None,
+            "session_id": None,
+            "tags": [],
+        },
+        "world_overrides": {
+            "initial_resource_scale": None,
+            "regen_chance_scale": None,
+            "regen_amount_scale": None,
+            "world_fixture": None,
+        },
+    }
+
+
+def _make_emitter(
+    tmp_path,
+    monkeypatch,
+    run_id="test-run-1234",
+    seed=42,
+    max_ticks=72,
+    experiment_profile=None,
+):
     monkeypatch.chdir(tmp_path)
     day_cycle = DayCycle(start_hour=6)
     em = EventEmitter(
@@ -30,6 +78,7 @@ def _make_emitter(tmp_path, monkeypatch, run_id="test-run-1234", seed=42, max_ti
         oracle_model_id="test-oracle-model",
         day_cycle=day_cycle,
         precedents_file="data/precedents_42.json",
+        experiment_profile=experiment_profile,
     )
     return em
 
@@ -116,6 +165,35 @@ class TestMeta:
         meta_path = tmp_path / "data" / "runs" / "test-run-1234" / "meta.json"
         assert meta_path.exists()
         em.close()
+
+
+class TestExperimentProfileMetadata:
+    def test_meta_json_includes_experiment_profile(self, tmp_path, monkeypatch):
+        profile = _experiment_profile_dict()
+        em = _make_emitter(tmp_path, monkeypatch, experiment_profile=profile)
+        em.close()
+
+        meta = json.loads(
+            (tmp_path / "data" / "runs" / "test-run-1234" / "meta.json").read_text()
+        )
+        assert meta["experiment_profile"] == profile
+
+    def test_run_start_payload_includes_experiment_profile(self, tmp_path, monkeypatch):
+        profile = _experiment_profile_dict()
+        em = _make_emitter(tmp_path, monkeypatch, experiment_profile=profile)
+        em.emit_run_start(
+            ["Ada"],
+            "my-model",
+            42,
+            15,
+            15,
+            72,
+            experiment_profile=profile,
+        )
+        em.close()
+
+        payload = _read_events(tmp_path)[0]["payload"]
+        assert payload["config"]["experiment_profile"] == profile
 
 
 # ------------------------------------------------------------------ #

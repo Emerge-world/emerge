@@ -44,10 +44,12 @@ class EventEmitter:
         oracle_model_id: str,
         day_cycle: DayCycle,
         precedents_file: Optional[str] = None,
+        experiment_profile: Optional[dict] = None,
     ):
         self.run_id = run_id
         self.seed = seed
         self._day_cycle = day_cycle
+        self._experiment_profile = experiment_profile
 
         self.run_dir = Path("data") / "runs" / run_id
         run_dir = self.run_dir
@@ -96,6 +98,8 @@ class EventEmitter:
             "precedents_file": precedents_file,
             "created_at": datetime.datetime.now().isoformat() + "Z",
         }
+        if self._experiment_profile is not None:
+            meta["experiment_profile"] = self._experiment_profile
         (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
         # Open events.jsonl with line-buffering so each write flushes automatically
@@ -155,6 +159,7 @@ class EventEmitter:
         height: int,
         max_ticks: int | None,
         agent_profiles: Optional[list[dict]] = None,
+        experiment_profile: Optional[dict] = None,
     ):
         """Emit run_start as the first event (tick=0, sim_time=None)."""
         config = {
@@ -166,6 +171,9 @@ class EventEmitter:
         }
         if agent_profiles is not None:
             config["agent_profiles"] = agent_profiles
+        profile = self._experiment_profile if experiment_profile is None else experiment_profile
+        if profile is not None:
+            config["experiment_profile"] = profile
         self._emit("run_start", 0, {
             "config": config,
             "model_id": model_id,
