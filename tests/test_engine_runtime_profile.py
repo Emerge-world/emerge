@@ -1,0 +1,135 @@
+from dataclasses import replace
+
+from simulation.engine import SimulationEngine
+from simulation.runtime_profiles import build_default_profile
+
+
+def _patch_runtime_side_effects(monkeypatch):
+    monkeypatch.setattr("simulation.engine.TICK_DELAY_SECONDS", 0)
+    monkeypatch.setattr("simulation.engine.MetricsBuilder.build", lambda self: None)
+    monkeypatch.setattr("simulation.engine.EBSBuilder.build", lambda self: None)
+
+
+def test_profile_argument_has_precedence_over_legacy_kwargs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    profile = build_default_profile()
+    profile = replace(
+        profile,
+        runtime=replace(
+            profile.runtime,
+            agents=2,
+            ticks=1,
+            seed=7,
+            use_llm=False,
+            width=18,
+            height=12,
+            start_hour=20,
+        ),
+        persistence=replace(profile.persistence, mode="none"),
+    )
+
+    engine = SimulationEngine(
+        profile=profile,
+        num_agents=99,
+        world_seed=999,
+        use_llm=True,
+        max_ticks=123,
+        start_hour=6,
+        world_width=5,
+        world_height=5,
+        persistence="full",
+        run_digest=False,
+    )
+
+    assert engine.profile.runtime.agents == 2
+    assert engine.profile.runtime.seed == 7
+    assert engine.profile.runtime.use_llm is False
+    assert engine.profile.runtime.width == 18
+    assert engine.profile.persistence.mode == "none"
+    assert engine.max_ticks == 1
+    assert engine._world_seed == 7
+    assert engine._precedents_path.endswith("precedents_7.json")
+    assert engine._lineage_path.endswith("lineage_7.json")
+
+
+def test_legacy_engine_without_profile_keeps_full_persistence_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    engine = SimulationEngine(
+        num_agents=1,
+        use_llm=False,
+        max_ticks=0,
+        world_seed=3,
+        run_digest=False,
+    )
+
+    assert engine.profile.persistence.mode == "full"
+
+
+def test_agent_count_is_reflected_after_legacy_clamping(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    engine = SimulationEngine(
+        num_agents=999,
+        use_llm=False,
+        max_ticks=0,
+        world_seed=3,
+        run_digest=False,
+    )
+
+    assert engine.profile.runtime.agents == len(engine.agents)
+
+
+def test_unavailable_llm_updates_effective_profile(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    class FakeLLMClient:
+        def __init__(self, *args, **kwargs):
+            self.model = kwargs.get("model") or "fake-model"
+
+        def is_available(self):
+            return False
+
+    monkeypatch.setattr("simulation.engine.LLMClient", FakeLLMClient)
+
+    profile = build_default_profile()
+    profile = replace(
+        profile,
+        runtime=replace(profile.runtime, use_llm=True, model="forced-model", ticks=0),
+    )
+
+    engine = SimulationEngine(profile=profile, run_digest=False)
+
+    assert engine.use_llm is False
+    assert engine.profile.runtime.use_llm is False
+    assert engine.profile.runtime.model == "forced-model"
+
+
+def test_explicit_wandb_logger_stays_outside_profile(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+    sentinel = object()
+
+    engine = SimulationEngine(
+        profile=build_default_profile(),
+        wandb_logger=sentinel,
+        run_digest=False,
+    )
+
+    assert engine.wandb_logger is sentinel
+
+
+def test_run_digest_stays_outside_profile(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _patch_runtime_side_effects(monkeypatch)
+
+    engine = SimulationEngine(
+        profile=build_default_profile(),
+        run_digest=False,
+    )
+
+    assert engine.run_digest is False

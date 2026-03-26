@@ -16,10 +16,10 @@ from simulation.engine import SimulationEngine
 
 # ── CLI parser ────────────────────────────────────────────────────────────────
 
-def test_persistence_defaults_to_full():
+def test_persistence_defaults_to_none():
     parser = build_parser()
     args = parser.parse_args([])
-    assert args.persistence == "full"
+    assert args.persistence == "none"
 
 
 def test_persistence_accepts_none():

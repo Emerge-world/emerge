@@ -17,6 +17,11 @@ from simulation.config import (
     AGENT_NAME_POOL, CHILD_START_LIFE, CHILD_START_HUNGER, CHILD_START_ENERGY,
     BONDING_TRUST_THRESHOLD, BASE_ACTIONS,
 )
+from simulation.runtime_profiles import (
+    build_profile_from_engine_kwargs,
+    serialize_experiment_profile,
+)
+from simulation.runtime_settings import ExperimentProfile
 from simulation.world import World
 from simulation.agent import Agent
 from simulation.oracle import Oracle
@@ -53,13 +58,41 @@ class SimulationEngine:
         ollama_model: Optional[str] = None,
         run_digest: bool = True,
         persistence: str = "full",
+        profile: ExperimentProfile | None = None,
     ):
-        self.max_ticks = max_ticks
+        if profile is None:
+            profile = build_profile_from_engine_kwargs(
+                num_agents=num_agents,
+                world_seed=world_seed,
+                use_llm=use_llm,
+                max_ticks=max_ticks,
+                start_hour=start_hour,
+                world_width=world_width,
+                world_height=world_height,
+                ollama_model=ollama_model,
+                persistence=persistence,
+            )
+
+        self.profile = profile
         self.current_tick = 0
-        self.use_llm = use_llm
+        runtime = self.profile.runtime
+        self.use_llm = runtime.use_llm
+        num_agents = min(runtime.agents, MAX_AGENTS)
+        runtime.agents = num_agents
+        world_seed = runtime.seed
+        max_ticks = runtime.ticks
+        start_hour = runtime.start_hour
+        world_width = runtime.width
+        world_height = runtime.height
+        use_llm = runtime.use_llm
+        ollama_model = runtime.model
+        persistence = self.profile.persistence.mode
+
+        self.max_ticks = max_ticks
         self._world_seed = world_seed
         seed_str = str(world_seed) if world_seed is not None else "unseeded"
         self._precedents_path = f"data/precedents_{seed_str}.json"
+        self._lineage_path = f"data/lineage_{seed_str}.json"
 
         # Initialize LLM
         self.llm: Optional[LLMClient] = None
@@ -70,6 +103,7 @@ class SimulationEngine:
                 logger.warning("⚠️  Ollama is not available. Running in fallback mode (no LLM).")
                 self.llm = None
                 self.use_llm = False
+                self.profile.runtime.use_llm = False
 
         # Day/night cycle
         self.day_cycle = DayCycle(start_hour=start_hour)
@@ -88,8 +122,6 @@ class SimulationEngine:
         self.oracle.load_precedents(self._precedents_path)
 
         # Lineage tracking
-        seed_str = str(world_seed) if world_seed is not None else "unseeded"
-        self._lineage_path = f"data/lineage_{seed_str}.json"
         self.lineage = LineageTracker()
         self.lineage.load(self._lineage_path)
 
@@ -116,6 +148,7 @@ class SimulationEngine:
         self.run_id = f"{_ts}_{_seed_part}_a{len(self.agents)}_{_short_uuid}"
         _agent_model_id = self.llm.model if self.llm else "none"
         _oracle_model_id = self.oracle.llm.model if self.oracle.llm else "none"
+        self._serialized_profile = serialize_experiment_profile(self.profile)
         self.event_emitter = EventEmitter(
             run_id=self.run_id,
             seed=world_seed,
@@ -128,6 +161,7 @@ class SimulationEngine:
             oracle_model_id=_oracle_model_id,
             day_cycle=self.day_cycle,
             precedents_file=self._precedents_path,
+            experiment_profile=self._serialized_profile,
         )
 
         # W&B logger (optional)
@@ -156,6 +190,7 @@ class SimulationEngine:
             height=self.world.height,
             max_ticks=self.max_ticks,
             agent_profiles=[self._agent_profile(a) for a in self.agents],
+            experiment_profile=self._serialized_profile,
         )
 
         try:
@@ -731,6 +766,7 @@ class SimulationEngine:
             height=self.world.height,
             max_ticks=self.max_ticks,
             agent_profiles=[self._agent_profile(a) for a in self.agents],
+            experiment_profile=self._serialized_profile,
         )
 
         try:
