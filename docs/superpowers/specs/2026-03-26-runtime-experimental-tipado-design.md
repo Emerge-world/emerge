@@ -265,7 +265,15 @@ For this PR, engine consumption remains conservative:
 - use `profile.persistence.mode` in place of the current persistence string
 - keep `profile.oracle`, `profile.capabilities`, `profile.benchmark`, and `profile.world_overrides` available on the engine even if only partially consumed for now
 
-The engine should expose the effective profile as instance state so later refactor steps can push it down into `World`, `Oracle`, `Agent`, and `Memory` without inventing another configuration path.
+For PR 1, `SimulationEngine.profile` should mean the effective profile after startup normalization, not merely the requested builder output. That effective profile must reflect any normalization that happens before the run starts and that changes actual runtime execution, including:
+
+- legacy constructor-default normalization when `profile` is omitted
+- legacy agent-count clamping
+- LLM availability fallback if startup detects that LLM mode cannot be used
+
+Run artifacts and telemetry in this PR should serialize the effective profile, not a stale pre-normalization version.
+
+The engine should expose this effective profile as instance state so later refactor steps can push it down into `World`, `Oracle`, `Agent`, and `Memory` without inventing another configuration path.
 
 ### 3.1 Observability Contract
 
@@ -300,6 +308,15 @@ W&B run-level config shape:
   - `profile/persistence/mode`
   - `profile/oracle/mode`
   - `profile/benchmark/benchmark_id`
+- keep existing non-profile telemetry/config keys that do not overlap with the profile contract, such as prompt hashes and non-profile simulation constants
+- do not keep duplicated raw CLI-derived keys for fields now represented as `profile/*`
+
+EventEmitter handoff:
+
+- `SimulationEngine` owns serialization of the effective profile to a plain nested dict
+- `EventEmitter.__init__(...)` should accept that serialized dict as an `experiment_profile` argument for `meta.json`
+- `EventEmitter.emit_run_start(...)` should accept the same serialized dict, or read the constructor-provided payload, so `config.experiment_profile` matches `meta.json`
+- `EventEmitter` should not depend on runtime dataclass types directly
 
 This is run-level observability only. Session-level W&B grouping and session artifacts remain out of scope for PR 1.
 
@@ -355,6 +372,7 @@ Requirements:
 - non-`live` oracle modes are reserved in PR 1 and must not be exposed through the current CLI path
 - `runtime.ticks=None` and `runtime.seed=None` must be treated as valid runtime values, not builder-only sentinels
 - `wandb_logger` and `run_digest` must preserve current behavior because they remain outside the profile boundary in this PR
+- artifact and telemetry serialization must reflect the effective post-normalization profile used to start the run
 - default behavior should remain equivalent to the current base simulation
 
 No new benchmark-specific validation layer is needed in this PR. The goal is to establish the typed contract and wiring, not to enforce the full manifest schema yet.
@@ -376,6 +394,7 @@ Required tests:
 - if both `profile` and legacy kwargs are supplied, the profile path has explicit precedence
 - `wandb_logger` and `run_digest` remain explicit engine inputs when `profile` is supplied
 - serialized run metadata and W&B run config reflect the effective profile
+- engine startup normalization updates the serialized effective profile before `meta.json` and `run_start` are written
 
 These tests should stay narrow. The purpose is to lock down the contract and transition behavior, not to validate future benchmark functionality.
 
@@ -383,7 +402,7 @@ These tests should stay narrow. The purpose is to lock down the contract and tra
 
 - the current CLI surface in `main.py`
 - the base simulation execution model
-- current W&B run logging behavior
+- current W&B metric and artifact logging behavior
 - prompt composition
 - capability-specific backend behavior
 - any existing benchmark scripts, even if they become legacy after later PRs
