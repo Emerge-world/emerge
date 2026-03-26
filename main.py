@@ -74,8 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    setup_logging(args.verbose)
     profile = build_profile_from_cli(args)
+    setup_logging(args.verbose)
 
     print("🧬 Starting autonomous agent life simulation...\n")
 
