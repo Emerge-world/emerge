@@ -9,7 +9,7 @@ from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSetting
 from simulation.world import World
 
 
-def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
+def test_agent_keeps_existing_plan_when_progressing():
     llm = MagicMock()
     llm.last_call = {}
     llm.generate_structured.side_effect = [
@@ -35,7 +35,20 @@ def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
         ),
         AgentDecisionResponse(action="move", direction="east", reason="following plan"),
     ]
-    agent = Agent(name="Ada", x=5, y=5, llm=llm)
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        llm=llm,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        ),
+    )
     agent.planning_state = PlanningState(
         goal="stabilize food",
         goal_type="survival",
@@ -52,15 +65,13 @@ def test_agent_keeps_existing_plan_when_progressing(monkeypatch):
         blockers=[],
         rationale_summary="fruit visible",
     )
-    monkeypatch.setattr("simulation.agent.ENABLE_EXPLICIT_PLANNING", True)
-
     action = agent.decide_action([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=2)
 
     assert "_planning_trace" in action
     assert action["_planning_trace"]["plan_created"]["goal"] == "stabilize food"
 
 
-def test_successful_replan_includes_planner_llm_trace(monkeypatch):
+def test_successful_replan_includes_planner_llm_trace():
     llm = MagicMock()
     llm.last_call = {}
 
@@ -106,8 +117,20 @@ def test_successful_replan_includes_planner_llm_trace(monkeypatch):
         return decision_response
 
     llm.generate_structured.side_effect = fake_generate_structured
-    agent = Agent(name="Ada", x=5, y=5, llm=llm)
-    monkeypatch.setattr("simulation.agent.ENABLE_EXPLICIT_PLANNING", True)
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        llm=llm,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        ),
+    )
 
     action = agent.decide_action([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=2)
 
