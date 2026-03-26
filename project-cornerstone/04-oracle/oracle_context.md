@@ -38,8 +38,13 @@ Agent decides action → Oracle.resolve_action()
   ├── drop_item: Place inventory items on the current tile if the stack is empty or same-typed
   ├── communicate / give_item / teach: Resolve social built-in actions deterministically
   ├── reproduce: Validate age/health/adjacency/cooldown, then spawn child
-  ├── innovate: Validate with LLM, register new action
-  └── custom:   Search precedent or ask LLM to determine result
+  ├── innovate:
+  │   ├── live → validate via LLM / fallback, then register approved action
+  │   └── frozen|symbolic → reject unresolved novelty unless already covered by curated precedents
+  └── custom:
+      ├── exact precedent hit → apply cached result
+      ├── live miss → ask LLM or use live fallback, then cache result
+      └── frozen|symbolic miss → reject unresolved novelty
 ```
 
 ### Precedent system (current)
