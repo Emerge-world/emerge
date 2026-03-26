@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
 
 from simulation.benchmark.loader import load_manifest
 from simulation.benchmark.schema import CriterionConfig, ManifestValidationError, WandbConfig
+
+_EXAMPLE_MANIFEST_DIR = Path(__file__).resolve().parents[1] / "benchmarks" / "manifests"
 
 
 def _write_manifest(tmp_path, content: str):
@@ -14,64 +17,12 @@ def _write_manifest(tmp_path, content: str):
     return path
 
 
-def test_load_manifest_accepts_minimal_valid_manifest(tmp_path):
-    path = _write_manifest(
-        tmp_path,
-        """
-        version: 1
+def _example_manifest_path(name: str) -> Path:
+    return _EXAMPLE_MANIFEST_DIR / name
 
-        benchmark:
-          id: survival_v1
-          version: "1"
 
-        defaults:
-          runtime:
-            agents: 3
-            ticks: 300
-            width: 15
-            height: 15
-            start_hour: 8
-            use_llm: true
-          capabilities:
-            explicit_planning: true
-            semantic_memory: true
-            innovation: true
-            item_reflection: true
-            social: true
-            teach: true
-            reproduction: true
-          persistence:
-            mode: none
-            clean_before_run: true
-          oracle:
-            mode: live
-          world_overrides: {}
-          tags: [sanity]
-
-        seed_sets:
-          smoke: [11, 22]
-
-        scenarios:
-          default_day: {}
-
-        arms:
-          full: {}
-
-        matrix:
-          seed_sets: [smoke]
-          scenarios: [default_day]
-          arms: [full]
-
-        metrics:
-          primary:
-            - summary.agents.survival_rate
-
-        criteria: []
-
-        wandb:
-          enabled: false
-        """,
-    )
+def test_load_manifest_accepts_minimal_valid_manifest():
+    path = _example_manifest_path("example_minimal.yaml")
 
     manifest = load_manifest(path)
 

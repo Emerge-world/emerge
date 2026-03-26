@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from textwrap import dedent
 
 from simulation.benchmark.expander import build_run_id, expand_manifest
 from simulation.benchmark.loader import load_manifest
+
+_EXAMPLE_MANIFEST_DIR = Path(__file__).resolve().parents[1] / "benchmarks" / "manifests"
 
 
 def _write_manifest(tmp_path, content: str):
@@ -14,6 +17,10 @@ def _write_manifest(tmp_path, content: str):
 
 def _load(tmp_path, content: str):
     return load_manifest(_write_manifest(tmp_path, content))
+
+
+def _example_manifest_path(name: str) -> Path:
+    return _EXAMPLE_MANIFEST_DIR / name
 
 
 def test_expand_manifest_builds_cross_product_in_deterministic_matrix_order(tmp_path):
@@ -303,78 +310,8 @@ def test_build_run_id_uses_stable_format():
     ) == "benchmark_v1__v1__ss-smoke__sc-alpha__arm-full__seed-11"
 
 
-def test_expand_manifest_returns_expected_small_suite_payload(tmp_path):
-    manifest = _load(
-        tmp_path,
-        """
-        version: 1
-
-        benchmark:
-          id: benchmark_v1
-          version: "1"
-          description: Small suite
-
-        defaults:
-          runtime:
-            agents: 2
-            ticks: 25
-            width: 12
-            height: 12
-            start_hour: 8
-            use_llm: true
-          capabilities:
-            explicit_planning: true
-            semantic_memory: true
-            innovation: true
-            item_reflection: true
-            social: true
-            teach: true
-            reproduction: true
-          persistence:
-            mode: none
-            clean_before_run: true
-          oracle:
-            mode: live
-          tags: [suite]
-
-        seed_sets:
-          smoke: [11, 22]
-
-        scenarios:
-          alpha:
-            runtime:
-              start_hour: 9
-
-        arms:
-          full: {}
-          no_llm:
-            runtime:
-              use_llm: false
-
-        matrix:
-          seed_sets: [smoke]
-          scenarios: [alpha]
-          arms: [full, no_llm]
-
-        metrics:
-          primary: [summary.agents.survival_rate]
-          secondary: [summary.actions.oracle_success_rate]
-
-        criteria:
-          - id: full_survival_gate
-            scenario: alpha
-            arm: full
-            metric: summary.agents.survival_rate
-            op: ">="
-            threshold: 0.8
-            description: Gate
-
-        wandb:
-          enabled: true
-          project: emerge
-          group_by: [benchmark_id, scenario_id, arm_id]
-        """,
-    )
+def test_expand_manifest_returns_expected_small_suite_payload():
+    manifest = load_manifest(_example_manifest_path("example_small_suite.yaml"))
 
     expanded = expand_manifest(manifest)
 

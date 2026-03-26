@@ -1,0 +1,68 @@
+version: 1
+
+benchmark:
+  id: benchmark_v1
+  version: "1"
+  description: Small suite
+
+defaults:
+  runtime:
+    agents: 2
+    ticks: 25
+    width: 12
+    height: 12
+    start_hour: 8
+    use_llm: true
+  capabilities:
+    explicit_planning: true
+    semantic_memory: true
+    innovation: true
+    item_reflection: true
+    social: true
+    teach: true
+    reproduction: true
+  persistence:
+    mode: none
+    clean_before_run: true
+  oracle:
+    mode: live
+  tags: [suite]
+
+seed_sets:
+  smoke: [11, 22]
+
+scenarios:
+  alpha:
+    runtime:
+      start_hour: 9
+
+arms:
+  full: {}
+  no_llm:
+    runtime:
+      use_llm: false
+
+matrix:
+  seed_sets: [smoke]
+  scenarios: [alpha]
+  arms: [full, no_llm]
+
+metrics:
+  primary:
+    - summary.agents.survival_rate
+  secondary:
+    - summary.actions.oracle_success_rate
+
+criteria:
+  - id: full_survival_gate
+    scenario: alpha
+    arm: full
+    metric: summary.agents.survival_rate
+    op: ">="
+    threshold: 0.8
+    description: Gate
+
+wandb:
+  enabled: true
+  project: emerge
+  group_by: [benchmark_id, scenario_id, arm_id]

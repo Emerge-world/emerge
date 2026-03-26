@@ -1,0 +1,51 @@
+version: 1
+
+benchmark:
+  id: survival_v1
+  version: "1"
+
+defaults:
+  runtime:
+    agents: 3
+    ticks: 300
+    width: 15
+    height: 15
+    start_hour: 8
+    use_llm: true
+  capabilities:
+    explicit_planning: true
+    semantic_memory: true
+    innovation: true
+    item_reflection: true
+    social: true
+    teach: true
+    reproduction: true
+  persistence:
+    mode: none
+    clean_before_run: true
+  oracle:
+    mode: live
+  tags: [sanity]
+
+seed_sets:
+  smoke: [11, 22]
+
+scenarios:
+  default_day: {}
+
+arms:
+  full: {}
+
+matrix:
+  seed_sets: [smoke]
+  scenarios: [default_day]
+  arms: [full]
+
+metrics:
+  primary:
+    - summary.agents.survival_rate
+
+criteria: []
+
+wandb:
+  enabled: false
