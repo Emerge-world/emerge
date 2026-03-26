@@ -132,7 +132,29 @@ def _build_profile(
     profile.benchmark.seed_set = seed_set
     profile.benchmark.session_id = None
 
+    _validate_effective_profile(
+        profile,
+        scenario_id=scenario_id,
+        arm_id=arm_id,
+    )
+
     return profile
+
+
+def _validate_effective_profile(
+    profile: ExperimentProfile,
+    *,
+    scenario_id: str,
+    arm_id: str,
+) -> None:
+    if (
+        profile.oracle.mode in {"frozen", "symbolic"}
+        and not profile.oracle.freeze_precedents_path
+    ):
+        raise ValueError(
+            f"Expanded profile for scenario={scenario_id!r}, arm={arm_id!r} "
+            "requires oracle.freeze_precedents_path when oracle.mode is frozen or symbolic"
+        )
 
 
 def _apply_override(profile: ExperimentProfile, override: ProfileOverride) -> None:

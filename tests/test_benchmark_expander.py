@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import yaml
 from pathlib import Path
 from textwrap import dedent
+
+import pytest
 
 from simulation.benchmark.expander import build_run_id, expand_manifest
 from simulation.benchmark.loader import load_manifest
@@ -17,6 +20,41 @@ def _write_manifest(tmp_path, content: str):
 
 def _load(tmp_path, content: str):
     return load_manifest(_write_manifest(tmp_path, content))
+
+
+def _make_manifest(tmp_path, *, defaults: dict[str, object]):
+    manifest = {
+        "version": 1,
+        "benchmark": {
+            "id": "benchmark_v1",
+            "version": "1",
+        },
+        "defaults": defaults,
+        "seed_sets": {
+            "smoke": [11],
+        },
+        "scenarios": {
+            "alpha": {},
+        },
+        "arms": {
+            "full": {},
+        },
+        "matrix": {
+            "seed_sets": ["smoke"],
+            "scenarios": ["alpha"],
+            "arms": ["full"],
+        },
+        "metrics": {
+            "primary": ["summary.agents.survival_rate"],
+        },
+        "criteria": [],
+        "wandb": {
+            "enabled": False,
+        },
+    }
+    return load_manifest(
+        _write_manifest(tmp_path, yaml.safe_dump(manifest, sort_keys=False))
+    )
 
 
 def _example_manifest_path(name: str) -> Path:
@@ -223,6 +261,33 @@ def test_expand_manifest_selected_seed_sets_follow_manifest_order(tmp_path):
     expanded = expand_manifest(manifest, selected_seed_sets=["eval", "smoke"])
 
     assert [item["matrix"]["seed_set"] for item in expanded] == ["smoke", "eval"]
+
+
+def test_expand_manifest_rejects_frozen_profile_without_freeze_path(tmp_path):
+    manifest = _make_manifest(
+        tmp_path,
+        defaults={"oracle": {"mode": "frozen"}},
+    )
+
+    with pytest.raises(ValueError, match="freeze_precedents_path"):
+        expand_manifest(manifest)
+
+
+def test_expand_manifest_accepts_symbolic_profile_with_freeze_path(tmp_path):
+    manifest = _make_manifest(
+        tmp_path,
+        defaults={
+            "oracle": {
+                "mode": "symbolic",
+                "freeze_precedents_path": "fixtures/symbolic.json",
+            }
+        },
+    )
+
+    runs = expand_manifest(manifest)
+
+    assert runs[0]["profile"]["oracle"]["mode"] == "symbolic"
+    assert runs[0]["profile"]["oracle"]["freeze_precedents_path"] == "fixtures/symbolic.json"
 
 
 def test_expand_manifest_applies_defaults_then_scenario_then_arm_precedence(tmp_path):
