@@ -7,7 +7,7 @@
 - `simulation/engine.py` is the orchestration core in both modes.
 - `simulation/runtime_settings.py` defines the typed runtime dataclasses, while `simulation/runtime_profiles.py` builds defaults, CLI overrides, engine kwargs, and serialized artifacts.
 - `main.py -> ExperimentProfile -> SimulationEngine` is the runtime boundary for CLI runs: `main.py` builds a profile from args, passes it into `SimulationEngine`, and the engine deep-copies and normalizes it into the effective `SimulationEngine.profile`.
-- `SimulationEngine` derives a subsystem runtime policy from `ExperimentProfile` and injects it into `World`, `Memory`, `Agent`, and `Oracle`, so backend capability enforcement and world overrides come from the profile rather than global defaults.
+- `SimulationEngine` derives a subsystem runtime policy from `ExperimentProfile` and injects it into `World`, `Agent`, and `Oracle`; `Memory` receives its settings through `Agent`, so backend capability enforcement and world overrides come from the profile rather than global defaults.
 
 ```
 Agents -> Oracle -> World
