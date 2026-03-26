@@ -104,6 +104,20 @@ Expected contents:
 
 These dataclasses must stay pure. They should not import CLI code, read `config.py`, or know anything about manifests.
 
+`OracleSettings.mode` semantics for the contract:
+
+- `live`: current runtime behavior using the existing oracle path
+- `frozen`: reserved for a future deterministic mode backed by a read-only precedents snapshot
+- `symbolic`: reserved for a future deterministic non-LLM oracle path
+
+`freeze_precedents_path` semantics:
+
+- required for `frozen` once that mode is implemented
+- ignored for `live`
+- ignored for `symbolic` in the current design unless a later spec states otherwise
+
+PR 1 does not implement `frozen` or `symbolic` behavior. It only introduces the typed field and keeps the current CLI/builder path on `live`.
+
 ### 2. Builder / Factory Separation
 
 Add a separate construction module, for example `simulation/runtime_profiles.py`.
@@ -202,6 +216,14 @@ They are operational runtime wrappers, not part of the typed experimental settin
 
 This keeps the old call sites viable while making the new object the real boundary going forward.
 
+Legacy constructor compatibility must preserve historical `SimulationEngine` semantics for omitted kwargs. In particular:
+
+- `build_default_profile()` is the baseline for `main.py` and future benchmark entrypoints
+- direct legacy `SimulationEngine(...)` construction without `profile` must preserve the constructor's current defaults
+- therefore, if `profile` is omitted and `persistence` is also omitted, the effective profile built inside the engine must use legacy constructor default `"full"` rather than the CLI/profile-builder default `"none"`
+
+This keeps old programmatic call sites stable while the migration is in progress. The mismatch is transitional and should disappear when the legacy kwargs are removed in a later refactor.
+
 For this PR, engine consumption remains conservative:
 
 - use `profile.runtime` for the fields already accepted as direct engine inputs
@@ -209,6 +231,18 @@ For this PR, engine consumption remains conservative:
 - keep `profile.oracle`, `profile.capabilities`, `profile.benchmark`, and `profile.world_overrides` available on the engine even if only partially consumed for now
 
 The engine should expose the effective profile as instance state so later refactor steps can push it down into `World`, `Oracle`, `Agent`, and `Memory` without inventing another configuration path.
+
+### 3.1 Observability Contract
+
+The effective per-run profile must be observable from the same artifacts and telemetry that describe the run.
+
+PR 1 should require:
+
+- `data/runs/<run_id>/meta.json` includes the effective `ExperimentProfile` in serialized form
+- `run_start` event payload config includes the effective profile, or a clearly named serialized profile field alongside the existing run config fields
+- existing W&B run-level config, when enabled, is derived from the effective profile for overlapping runtime fields rather than rebuilt independently from raw CLI args
+
+This is run-level observability only. Session-level W&B grouping and session artifacts remain out of scope for PR 1.
 
 ### 4. Defaults and Override Precedence
 
@@ -259,6 +293,7 @@ Requirements:
 - invalid or missing optional benchmark metadata should not break the base simulation path when using defaults
 - profile construction from the current CLI should produce a fully usable profile for the existing runtime
 - legacy engine construction without `profile` must still work
+- non-`live` oracle modes are reserved in PR 1 and must not be exposed through the current CLI path
 - `runtime.ticks=None` and `runtime.seed=None` must be treated as valid runtime values, not builder-only sentinels
 - `wandb_logger` and `run_digest` must preserve current behavior because they remain outside the profile boundary in this PR
 - default behavior should remain equivalent to the current base simulation
@@ -278,8 +313,10 @@ Required tests:
 - benchmark metadata, oracle settings, persistence settings, and world overrides are present with stable defaults
 - `SimulationEngine(profile=...)` uses the profile path successfully
 - `SimulationEngine(...)` with legacy kwargs still works
+- legacy `SimulationEngine(...)` construction preserves `persistence=\"full\"` when no `profile` is supplied and no persistence override is passed
 - if both `profile` and legacy kwargs are supplied, the profile path has explicit precedence
 - `wandb_logger` and `run_digest` remain explicit engine inputs when `profile` is supplied
+- serialized run metadata and W&B run config reflect the effective profile
 
 These tests should stay narrow. The purpose is to lock down the contract and transition behavior, not to validate future benchmark functionality.
 
@@ -300,6 +337,8 @@ These tests should stay narrow. The purpose is to lock down the contract and tra
 | `simulation/runtime_profiles.py` | Add default/profile construction helpers |
 | `main.py` | Build an `ExperimentProfile` from CLI args and pass it to the engine |
 | `simulation/engine.py` | Accept `profile`, normalize compatibility, expose effective profile |
+| `simulation/event_emitter.py` | Carry serialized effective profile into run metadata and run-start payload |
+| `simulation/wandb_logger.py` or `main.py` W&B setup | Build run-level W&B config from the effective profile |
 | `tests/...` | Add unit tests for profile defaults, overrides, and engine precedence |
 
 ## Documentation Updates During Implementation
