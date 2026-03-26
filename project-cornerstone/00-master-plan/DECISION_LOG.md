@@ -460,6 +460,6 @@ Add 5 new tile types (sand, forest, mountain, cave, river) and replace white-noi
 ### DEC-049: Backend runtime capabilities are enforced from ExperimentProfile
 - **Date**: 2026-03-26
 - **Context**: The typed runtime profile boundary existed, but backend execution still needed an explicit derivation layer so `World`, `Memory`, `Agent`, and `Oracle` could obey per-run capability flags and world overrides without depending on global defaults.
-- **Decision**: `SimulationEngine` derives a subsystem runtime policy from `ExperimentProfile` and injects explicit runtime settings into `World`, `Memory`, `Agent`, and `Oracle`. Capability gates fail closed in backend paths, while prompt-surface changes remain out of scope for this integration.
+- **Decision**: `SimulationEngine` derives a subsystem runtime policy from `ExperimentProfile` and injects explicit runtime settings into `World`, `Agent`, and `Oracle`; `Memory` receives its settings through `Agent`. Capability gates fail closed in backend paths, while prompt-surface changes remain out of scope for this integration.
 - **Rejected alternatives**: Continuing to read capability flags from global config; wiring only prompt changes without backend enforcement; scattering per-subsystem conditionals across unrelated modules.
 - **Consequences**: Profile-backed runs now have a single backend policy source of truth, capability regressions are tested at both subsystem and engine levels, and future prompt-surface tweaks can be handled separately from enforcement.
