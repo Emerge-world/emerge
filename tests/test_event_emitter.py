@@ -154,6 +154,8 @@ class TestMeta:
             (tmp_path / "data" / "runs" / "test-run-1234" / "meta.json").read_text()
         )
 
+        assert meta["run_id"] == "test-run-1234"
+        assert meta["experiment_profile"] == profile
         assert meta["persistence_trace"]["mode"] == "oracle"
         assert meta["oracle_trace"]["mode"] == "frozen"
 
