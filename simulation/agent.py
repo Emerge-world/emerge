@@ -302,15 +302,14 @@ class Agent:
                 child_parts.append(f"{name} ({status})")
             parts.append(f"Your children: {', '.join(child_parts)}.")
 
-        if self.runtime_settings.reproduction:
-            # Reproduction readiness hint
-            cooldown_remaining = (self.last_reproduce_tick + REPRODUCE_COOLDOWN) - current_tick
-            if cooldown_remaining > 0:
-                parts.append(f"Reproduction on cooldown for {cooldown_remaining} more tick(s).")
-            elif (self.life >= REPRODUCE_MIN_LIFE and self.hunger <= REPRODUCE_MAX_HUNGER
-                  and self.energy >= REPRODUCE_MIN_ENERGY
-                  and (current_tick - self.born_tick) >= REPRODUCE_MIN_TICKS_ALIVE):
-                parts.append("You are healthy enough to reproduce if you find a willing partner nearby.")
+        # Reproduction readiness hint
+        cooldown_remaining = (self.last_reproduce_tick + REPRODUCE_COOLDOWN) - current_tick
+        if cooldown_remaining > 0:
+            parts.append(f"Reproduction on cooldown for {cooldown_remaining} more tick(s).")
+        elif (self.life >= REPRODUCE_MIN_LIFE and self.hunger <= REPRODUCE_MAX_HUNGER
+              and self.energy >= REPRODUCE_MIN_ENERGY
+              and (current_tick - self.born_tick) >= REPRODUCE_MIN_TICKS_ALIVE):
+            parts.append("You are healthy enough to reproduce if you find a willing partner nearby.")
 
         return "\n".join(parts)
 
