@@ -129,6 +129,34 @@ class TestMeta:
         meta_path = tmp_path / "data" / "runs" / "test-run-1234" / "meta.json"
         assert meta_path.exists()
 
+    def test_meta_json_includes_runtime_trace_blocks(self, tmp_path, monkeypatch):
+        profile = _experiment_profile_dict()
+        em = _make_emitter(tmp_path, monkeypatch, experiment_profile=profile)
+        em.update_meta(
+            persistence_trace={
+                "mode": "oracle",
+                "clean_before_run": True,
+                "local_precedents_path": "data/precedents_42.json",
+                "local_lineage_path": "data/lineage_42.json",
+                "cleanup_candidates": ["data/precedents_42.json"],
+                "cleaned_paths": [],
+            },
+            oracle_trace={
+                "mode": "frozen",
+                "freeze_precedents_path": "fixtures/frozen.json",
+                "precedents_loaded_from": "fixtures/frozen.json",
+                "novelty_policy": "reject_unresolved",
+            },
+        )
+        em.close()
+
+        meta = json.loads(
+            (tmp_path / "data" / "runs" / "test-run-1234" / "meta.json").read_text()
+        )
+
+        assert meta["persistence_trace"]["mode"] == "oracle"
+        assert meta["oracle_trace"]["mode"] == "frozen"
+
     def test_meta_json_fields(self, tmp_path, monkeypatch):
         em = _make_emitter(tmp_path, monkeypatch, seed=99)
         em.close()

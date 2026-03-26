@@ -84,7 +84,7 @@ class EventEmitter:
                 prompt_hashes[key] = hashlib.sha256(content.encode()).hexdigest()
 
         # Write meta.json immediately so it's available even if the run crashes
-        meta = {
+        self._meta = {
             "run_id": run_id,
             "seed": seed,
             "width": world_width,
@@ -100,8 +100,8 @@ class EventEmitter:
             "created_at": datetime.datetime.now().isoformat() + "Z",
         }
         if self._experiment_profile is not None:
-            meta["experiment_profile"] = self._experiment_profile
-        (run_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+            self._meta["experiment_profile"] = self._experiment_profile
+        (run_dir / "meta.json").write_text(json.dumps(self._meta, indent=2), encoding="utf-8")
 
         # Open events.jsonl with line-buffering so each write flushes automatically
         self._fh = (run_dir / "events.jsonl").open("w", encoding="utf-8", buffering=1)
@@ -146,6 +146,13 @@ class EventEmitter:
     @staticmethod
     def _action_origin(action_name: str) -> str:
         return "base" if action_name in _BASE_ACTIONS_SET else "innovation"
+
+    def update_meta(self, **fields: object) -> None:
+        self._meta.update(deepcopy(fields))
+        (self.run_dir / "meta.json").write_text(
+            json.dumps(self._meta, indent=2),
+            encoding="utf-8",
+        )
 
     # ------------------------------------------------------------------ #
     # Public emit methods (called from engine.py)
