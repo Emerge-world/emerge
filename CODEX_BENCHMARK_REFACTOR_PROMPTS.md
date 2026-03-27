@@ -15,7 +15,7 @@ Están redactados para una migración **greenfield**, sin compatibilidad con `ru
 
 ---
 
-## Prompt 0 — Kickoff y limpieza de alcance
+## Prompt 0 — Kickoff y limpieza de alcance (DONE)
 
 ```text
 Quiero refactorizar esta codebase para soportar benchmarks declarativos definidos sólo por YAML, con ejecución, agregación, decisión y reporting en W&B.
@@ -41,7 +41,7 @@ Quiero una propuesta concreta, orientada a implementación, no una explicación 
 
 ---
 
-## Prompt 1 — Crear el runtime experimental y el profile
+## Prompt 1 — Crear el runtime experimental y el profile (DONE)
 
 ```text
 Implementa la primera capa del refactor: runtime experimental tipado.
@@ -73,7 +73,7 @@ Entrega:
 
 ---
 
-## Prompt 2 — Implementar manifest schema, loader y expander
+## Prompt 2 — Implementar manifest schema, loader y expander (DONE)
 
 ```text
 Implementa el sistema declarativo de manifests de benchmark, sin relación con `run_batch.py` ni con `experiments.yaml`.
@@ -118,7 +118,7 @@ Entrega:
 
 ---
 
-## Prompt 3 — Inyectar el profile en engine/agent/oracle/world/memory
+## Prompt 3 — Inyectar el profile en engine/agent/oracle/world/memory (DONE)
 
 ```text
 Conecta `ExperimentProfile` al runtime real.
@@ -153,7 +153,7 @@ Entrega:
 
 ---
 
-## Prompt 4 — Añadir `persistence.mode` y `oracle.mode`
+## Prompt 4 — Añadir `persistence.mode` y `oracle.mode` (DONE)
 
 ```text
 Implementa modos explícitos de persistencia y oráculo para benchmarking.
@@ -359,6 +359,8 @@ Devuélveme:
 4) si hace falta, implementa los fixes y añade tests.
 ```
 
+
+## Pasar a pydantic las dataclasses
 ---
 
 ## Prompt único alternativo, si prefieres un solo disparo
