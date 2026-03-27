@@ -213,6 +213,7 @@ def test_frozen_mode_loads_precedents_from_freeze_path_not_local_seed_file(
     meta = json.loads((engine.event_emitter.run_dir / "meta.json").read_text())
 
     assert engine.oracle.precedents["physical:rest"]["reason"] == "frozen"
+    assert meta["precedents_file"] == str(freeze_path)
     assert meta["persistence_trace"]["mode"] == "none"
     assert meta["oracle_trace"]["mode"] == "frozen"
     assert meta["oracle_trace"]["precedents_loaded_from"] == str(freeze_path)
@@ -254,6 +255,7 @@ def test_symbolic_mode_loads_precedents_from_freeze_path(tmp_path, monkeypatch):
     meta = json.loads((engine.event_emitter.run_dir / "meta.json").read_text())
 
     assert engine.oracle.precedents["physical:rest"]["reason"] == "symbolic"
+    assert meta["precedents_file"] == str(freeze_path)
     assert meta["oracle_trace"]["mode"] == "symbolic"
     assert meta["oracle_trace"]["precedents_loaded_from"] == str(freeze_path)
 

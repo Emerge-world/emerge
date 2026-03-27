@@ -100,6 +100,7 @@ def test_symbolic_mode_rejects_innovation_novelty_without_approving():
     assert result["reason_code"] == "ORACLE_UNRESOLVED_NOVELTY"
     assert "fish_trap" not in agent.actions
     assert "innovation:fish_trap" not in oracle.precedents
+    assert oracle.last_cache_hit is False
     llm.generate_structured.assert_not_called()
 
 
@@ -206,4 +207,27 @@ def test_closed_mode_rest_rejects_without_curated_physical_rest_precedent():
     assert result["reason_code"] == "ORACLE_UNRESOLVED_NOVELTY"
     assert agent.energy == energy_before
     assert "physical:rest" not in oracle.precedents
+    assert oracle.last_cache_hit is False
+    llm.generate_structured.assert_not_called()
+
+
+def test_closed_mode_eat_miss_marks_oracle_resolution_as_not_cache_hit():
+    world = _make_world()
+    agent = _make_agent(world)
+    agent.inventory.add("mystery_root", 1)
+    llm = MagicMock()
+    oracle = Oracle(
+        world=world,
+        llm=llm,
+        runtime_settings=_runtime_settings(
+            mode="symbolic",
+            freeze_precedents_path="fixtures/symbolic.json",
+        ),
+    )
+
+    result = oracle.resolve_action(agent, {"action": "eat", "item": "mystery_root"}, tick=6)
+
+    assert result["success"] is False
+    assert result["message"].startswith("Ada cannot eat mystery_root:")
+    assert oracle.last_cache_hit is False
     llm.generate_structured.assert_not_called()

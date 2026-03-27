@@ -180,7 +180,7 @@ class SimulationEngine:
             agent_model_id=_agent_model_id,
             oracle_model_id=_oracle_model_id,
             day_cycle=self.day_cycle,
-            precedents_file=self._precedents_path,
+            precedents_file=self._effective_precedents_file(oracle_trace),
             experiment_profile=self._serialized_profile,
         )
         self.event_emitter.update_meta(
@@ -214,6 +214,16 @@ class SimulationEngine:
         if self._oracle_mode() in ("frozen", "symbolic"):
             return "reject_unresolved"
         return "live_learning"
+
+    def _effective_precedents_file(self, oracle_trace: dict[str, object]) -> str:
+        loaded_from = oracle_trace.get("precedents_loaded_from")
+        if isinstance(loaded_from, str) and loaded_from:
+            return loaded_from
+        if self._oracle_mode() in ("frozen", "symbolic"):
+            freeze_path = self.profile.oracle.freeze_precedents_path
+            if freeze_path:
+                return freeze_path
+        return self._precedents_path
 
     def _cleanup_local_persistence(self) -> list[str]:
         candidates: list[str] = []

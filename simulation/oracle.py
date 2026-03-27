@@ -161,6 +161,7 @@ class Oracle:
         return self._oracle_mode() in {"frozen", "symbolic"}
 
     def _unresolved_result(self, *, message: str, effects: dict | None = None) -> dict:
+        self.last_cache_hit = False
         return {
             "success": False,
             "message": message,
@@ -232,6 +233,7 @@ class Oracle:
             return self.precedents[situation_key]
 
         if self._novelty_is_closed():
+            self.last_cache_hit = False
             return {
                 "possible": False,
                 "reason": (
@@ -1233,6 +1235,7 @@ class Oracle:
     def _validate_innovation(self, agent: Agent, action_name: str, description: str, tick: int = 0, produces: dict | None = None) -> dict:
         """Use the oracle LLM to validate whether an innovation is reasonable."""
         if self._novelty_is_closed():
+            self.last_cache_hit = False
             return {
                 "approved": False,
                 "reason": (
@@ -1570,6 +1573,7 @@ Respond with JSON:
             return self.precedents[key]
 
         if self._novelty_is_closed():
+            self.last_cache_hit = False
             return {
                 "possible": False,
                 "hunger_reduction": 0,
