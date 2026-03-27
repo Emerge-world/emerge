@@ -21,7 +21,7 @@ GRID LEGEND:
   @=you  .=land  S=sand  ~=river  W=water
   F=fruit-tree  t=empty-tree  f=forest  M=mountain  C=cave  #=bounds
 
-Action format - respond with a JSON object:
+Action format — respond with a JSON object:
 - move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
 - eat: {"action": "eat", "reason": "..."} (eat food at current or adjacent tile)
   IMPORTANT: If no food tile is within reach but you have edible food in INVENTORY, you MUST use: {"action": "eat", "item": "<item_name>", "reason": "..."}

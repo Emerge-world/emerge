@@ -139,9 +139,9 @@ class PromptSurfaceBuilder:
     def _custom_actions_section(self, action_descriptions: dict[str, str]) -> str:
         if not action_descriptions:
             return ""
-        lines = ["", "YOUR CUSTOM ACTIONS (use directly - do NOT re-innovate these):"]
+        lines = ["", "YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):"]
         for name, desc in action_descriptions.items():
             lines.append(
-                f'  - {name}: {desc} -> use: {{"action": "{name}", "reason": "..."}}'
+                f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}'
             )
         return "\n".join(lines)

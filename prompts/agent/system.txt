@@ -18,7 +18,7 @@ GRID LEGEND:
   @=you  .=land  S=sand  ~=river  W=water
   F=fruit-tree  t=empty-tree  f=forest  M=mountain  C=cave  #=bounds
 
-Action format - respond with a JSON object:
+Action format — respond with a JSON object:
 $builtin_action_examples
 $reproduction_action_note
 - For approved innovations: {"action": "<action_name>", "reason": "...", ...extra_params}

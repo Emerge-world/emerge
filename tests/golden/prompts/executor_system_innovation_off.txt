@@ -20,7 +20,7 @@ GRID LEGEND:
   @=you  .=land  S=sand  ~=river  W=water
   F=fruit-tree  t=empty-tree  f=forest  M=mountain  C=cave  #=bounds
 
-Action format - respond with a JSON object:
+Action format — respond with a JSON object:
 - move: {"action": "move", "direction": "north|northeast|east|southeast|south|southwest|west|northwest", "reason": "..."}
 - eat: {"action": "eat", "reason": "..."} (eat food at current or adjacent tile)
   IMPORTANT: If no food tile is within reach but you have edible food in INVENTORY, you MUST use: {"action": "eat", "item": "<item_name>", "reason": "..."}
@@ -44,6 +44,6 @@ IMPORTANT: If you choose a built-in action, include every field shown in that ac
 
 DIRECTIONS: north=up south=down west=left east=right (+ diagonals: northeast, northwest, southeast, southwest)
 
-YOUR CUSTOM ACTIONS (use directly - do NOT re-innovate these):
-  - cut_branches: cut branches with a sharp tool -> use: {"action": "cut_branches", "reason": "..."}
+YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):
+  - cut_branches: cut branches with a sharp tool → use: {"action": "cut_branches", "reason": "..."}
 Always respond ONLY with a valid JSON object. Keep reason brief, under 240 characters, and grounded in the immediate situation.
