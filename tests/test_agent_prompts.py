@@ -4,6 +4,7 @@ from simulation.agent import Agent
 from simulation.config import REPRODUCE_MIN_TICKS_ALIVE
 from simulation.personality import Personality
 from simulation.planning_state import PlanningState, PlanningSubgoal
+from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
 
 def _make_nearby(center_tile: str, *extra: dict) -> list[dict]:
     """Build a nearby_tiles list with the agent at (5,5) on center_tile."""
@@ -266,3 +267,109 @@ class TestPlanningPrompt:
 
         assert "ACTIVE SUBGOAL" in prompt
         assert "move toward fruit" in prompt
+
+
+def test_decision_prompt_hides_planning_sections_when_explicit_planning_disabled():
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=False,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=True,
+        ),
+    )
+
+    prompt = agent._build_decision_prompt([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=1)
+
+    assert "CURRENT GOAL" not in prompt
+    assert "ACTIVE SUBGOAL" not in prompt
+    assert "PLAN STATUS" not in prompt
+
+
+def test_decision_prompt_hides_social_sections_when_social_disabled():
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=True,
+            social=False,
+            teach=False,
+            reproduction=True,
+        ),
+    )
+    agent.incoming_messages = []
+
+    prompt = agent._build_decision_prompt(
+        [{"x": 5, "y": 5, "tile": "land", "distance": 0}],
+        tick=1,
+        nearby_agents=[],
+    )
+
+    assert "NEARBY AGENTS" not in prompt
+    assert "INCOMING MESSAGES" not in prompt
+    assert "RELATIONSHIPS" not in prompt
+
+
+def test_decision_prompt_hides_reproduction_sections_when_reproduction_disabled():
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=True,
+            social=True,
+            teach=True,
+            reproduction=False,
+        ),
+    )
+
+    prompt = agent._build_decision_prompt([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=1)
+
+    assert "FAMILY:" not in prompt
+    assert '"action": "reproduce"' not in prompt
+
+
+def test_decision_prompt_semantic_memory_off_keeps_recent_events():
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        memory_settings=MemoryRuntimeSettings(semantic_memory=False),
+    )
+    agent.add_memory("I moved east.")
+    agent.memory_system.add_knowledge("Fruit reduces hunger.")
+
+    prompt = agent._build_decision_prompt([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=1)
+
+    assert "KNOWLEDGE" not in prompt
+    assert "RECENT EVENTS" in prompt
+
+
+def test_decision_prompt_item_reflection_off_removes_reflection_hint():
+    agent = Agent(
+        name="Ada",
+        x=5,
+        y=5,
+        runtime_settings=AgentRuntimeSettings(
+            explicit_planning=True,
+            innovation=True,
+            item_reflection=False,
+            social=True,
+            teach=True,
+            reproduction=True,
+        ),
+    )
+
+    prompt = agent._build_decision_prompt([{"x": 5, "y": 5, "tile": "land", "distance": 0}], tick=1)
+
+    assert "reflect_item_uses" not in prompt

@@ -37,6 +37,59 @@ class PromptSurfaceBuilder:
             )
         )
 
+    def build_executor_decision(
+        self,
+        *,
+        tick: int,
+        time_info: str,
+        current_tile_info: str,
+        life: int,
+        max_life: int,
+        hunger: int,
+        max_hunger: int,
+        hunger_threshold: int,
+        energy: int,
+        max_energy: int,
+        status_effects: str,
+        inventory_info: str,
+        ascii_grid: str,
+        pickup_ready_resources: str,
+        nearby_resource_hints: str,
+        social_context: dict[str, str],
+        planning_context: dict[str, str],
+        family_info: str,
+        memory_text: str,
+        reproduction_hint: str,
+    ) -> str:
+        return self._normalize(
+            prompt_loader.render(
+                "agent/decision",
+                tick=tick,
+                time_info=time_info,
+                current_tile_info=current_tile_info,
+                life=life,
+                max_life=max_life,
+                hunger=hunger,
+                max_hunger=max_hunger,
+                hunger_threshold=hunger_threshold,
+                energy=energy,
+                max_energy=max_energy,
+                status_effects=status_effects,
+                inventory_info=inventory_info,
+                ascii_grid=ascii_grid,
+                pickup_ready_resources=pickup_ready_resources,
+                nearby_resource_hints=nearby_resource_hints,
+                social_context_block=self._social_context_block(social_context),
+                planning_status_block=self._planning_status_block(planning_context),
+                family_block=self._family_block(family_info),
+                memory_text=memory_text,
+                reproduction_hint_block=self._reproduction_hint_block(
+                    reproduction_hint
+                ),
+                decision_reflection_questions=self._decision_reflection_questions(),
+            )
+        )
+
     def _normalize(self, text: str) -> str:
         lines = [line.rstrip() for line in text.splitlines()]
         normalized = "\n".join(lines).strip()
@@ -145,3 +198,79 @@ class PromptSurfaceBuilder:
                 f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}'
             )
         return "\n".join(lines)
+
+    def _social_context_block(self, social_context: dict[str, str]) -> str:
+        if not self.agent_settings.social:
+            return ""
+        sections = [
+            social_context.get("nearby_agents", ""),
+            social_context.get("incoming_messages", ""),
+            social_context.get("relationships", ""),
+        ]
+        return "\n".join(section for section in sections if section)
+
+    def _planning_status_block(self, planning_context: dict[str, str]) -> str:
+        if not self.agent_settings.explicit_planning:
+            return ""
+        return "\n".join(
+            [
+                "CURRENT GOAL:",
+                planning_context.get("current_goal", "None."),
+                "",
+                "ACTIVE SUBGOAL:",
+                planning_context.get("active_subgoal", "None."),
+                "",
+                "PLAN STATUS:",
+                planning_context.get("plan_status", "No active plan."),
+            ]
+        )
+
+    def _family_block(self, family_info: str) -> str:
+        if not self.agent_settings.reproduction:
+            return ""
+        return f"FAMILY:\n{family_info}"
+
+    def _reproduction_hint_block(self, reproduction_hint: str) -> str:
+        if not self.agent_settings.reproduction:
+            return ""
+        return reproduction_hint
+
+    def _decision_reflection_questions(self) -> str:
+        lines = [
+            "- What is the most urgent threat or opportunity right now?",
+            "- Am I making progress, or repeating actions without improving my situation?",
+        ]
+        if self.agent_settings.innovation:
+            lines.append(
+                "- Is there a useful visible opportunity that current actions do not exploit yet?"
+            )
+        lines.append(self._long_horizon_reflection_question())
+        lines.append(
+            "- Would preserving energy or knowledge now create more options soon?"
+        )
+        if self.agent_settings.item_reflection:
+            lines.append(
+                "- If I am carrying an item whose full potential is unclear, reflecting on it (reflect_item_uses) may unlock new ways to use it."
+            )
+        return "\n".join(lines)
+
+    def _long_horizon_reflection_question(self) -> str:
+        options: list[str] = []
+        if self.agent_settings.social:
+            options.append("cooperation")
+            if self.agent_settings.teach:
+                options.append("teaching")
+        options.append("repositioning")
+        if self.agent_settings.reproduction:
+            options.append("reproduction")
+        return (
+            "- If I am stable, would "
+            f"{self._human_join(options)} create better long-term prospects?"
+        )
+
+    def _human_join(self, items: list[str]) -> str:
+        if len(items) == 1:
+            return items[0]
+        if len(items) == 2:
+            return f"{items[0]} or {items[1]}"
+        return f"{', '.join(items[:-1])}, or {items[-1]}"

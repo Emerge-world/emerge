@@ -363,6 +363,8 @@ class Agent:
         )
 
     def _build_executor_memory_text(self, nearby_tiles: list[dict]) -> str:
+        if not self.memory_system.runtime_settings.semantic_memory:
+            return self.get_recent_memory()
         ranked = self._rank_relevant_memory(nearby_tiles, EXECUTOR_CONTEXT_MAX)
         if not ranked:
             return self.get_recent_memory()
@@ -631,9 +633,10 @@ class Agent:
                 "Costs both parents life-30, hunger+30, energy-30."
             )
 
-        return prompt_loader.render(
-            "agent/decision",
+        return self.prompt_surface.build_executor_decision(
             tick=tick,
+            time_info=time_description,
+            current_tile_info=current_tile_info,
             life=self.life,
             max_life=AGENT_MAX_LIFE,
             hunger=self.hunger,
@@ -641,21 +644,23 @@ class Agent:
             hunger_threshold=HUNGER_DAMAGE_THRESHOLD,
             energy=self.energy,
             max_energy=AGENT_MAX_ENERGY,
+            status_effects=status_effects,
+            inventory_info=inventory_info,
             ascii_grid=ascii_grid,
             pickup_ready_resources=pickup_ready_resources,
             nearby_resource_hints=nearby_resource_hints,
-            memory_text=memory_text,
-            status_effects=status_effects,
-            time_info=time_description,
-            inventory_info=inventory_info,
-            current_tile_info=current_tile_info,
-            nearby_agents=nearby_agents_text,
-            incoming_messages=incoming_messages_text,
-            relationships=relationships_text,
+            social_context={
+                "nearby_agents": nearby_agents_text,
+                "incoming_messages": incoming_messages_text,
+                "relationships": relationships_text,
+            },
+            planning_context={
+                "current_goal": current_goal,
+                "active_subgoal": active_subgoal,
+                "plan_status": plan_status,
+            },
             family_info=family_info,
-            current_goal=current_goal,
-            active_subgoal=active_subgoal,
-            plan_status=plan_status,
+            memory_text=memory_text,
             reproduction_hint=reproduction_hint,
         )
 

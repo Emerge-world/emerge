@@ -1,0 +1,46 @@
+Daylight.
+[Tile: land]
+TICK 7 - What do you do next?
+
+YOUR STATS: Life=90/100, Hunger=20/100 (danger at 80+), Energy=70/100
+
+INVENTORY: fruit x1
+YOUR VISION (7x7 grid, you are @):
+. . .
+
+RESOURCES ON YOUR TILE:
+- fruit HERE (qty: 1)
+
+NEARBY RESOURCES (MOVE FIRST):
+- mushroom 1 tile EAST (qty: 1)
+NEARBY AGENTS:
+- Bruno 1 tile EAST
+INCOMING MESSAGES:
+- Bruno: fruit east
+RELATIONSHIPS:
+- Bruno trust=0.60
+CURRENT GOAL:
+stabilize food
+
+ACTIVE SUBGOAL:
+move toward fruit
+
+PLAN STATUS:
+status=active, confidence=0.80, horizon=short
+
+YOUR MEMORY:
+KNOWLEDGE (things I've learned):
+- [KNOW] Fruit reduces hunger.
+
+RECENT EVENTS:
+- [RECENT] I moved east.
+
+Before choosing, briefly reflect:
+- What is the most urgent threat or opportunity right now?
+- Am I making progress, or repeating actions without improving my situation?
+- Is there a useful visible opportunity that current actions do not exploit yet?
+- If I am stable, would cooperation, teaching, or repositioning create better long-term prospects?
+- Would preserving energy or knowledge now create more options soon?
+- If I am carrying an item whose full potential is unclear, reflecting on it (reflect_item_uses) may unlock new ways to use it.
+
+Respond with a JSON object.
