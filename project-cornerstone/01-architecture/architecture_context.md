@@ -33,6 +33,7 @@ PlanningState + Retrieval
 ### Agent (`simulation/agent.py`)
 - Maintains stats, dual memory, task memory, personality, inventory, relationships, and optional planning state.
 - Accepts runtime settings for action repertoire and planning behavior; the explicit planner/executor loop is gated by the runtime policy.
+- Owns a shared `PromptSurfaceBuilder` initialized from the effective runtime policy so executor prompts and planner-facing observation text use the same capability-aware composition boundary.
 - Decides action via structured LLM response or deterministic fallback.
 - Starts with a capability-filtered built-in action set; `reproduce` unlocks only when the runtime policy allows it and age requirements are met.
 
@@ -73,8 +74,9 @@ When explicit planning is enabled, agent cognition follows:
 
 - `simulation/day_cycle.py`: day/sunset/night logic.
 - `simulation/planning_state.py`: durable planner state and subgoal models.
+- `simulation/prompt_surface.py`: shared capability-aware prompt composition for executor and planner surfaces.
 - `simulation/retrieval.py`: deterministic memory relevance scoring.
-- `simulation/planner.py`: structured planner call and plan parsing.
+- `simulation/planner.py`: structured planner call and plan parsing, now rendered through the shared prompt-surface builder instead of `prompt_loader` directly.
 - `simulation/metrics_builder.py`: derives summary + timeseries from event streams, including personality-to-survival correlation metrics.
 - `simulation/wandb_logger.py`: optional observer metrics to W&B, including world resource quantities grouped by type.
 - `run_batch.py`: YAML-configured subprocess sweep runner.

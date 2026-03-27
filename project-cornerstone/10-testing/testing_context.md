@@ -13,6 +13,7 @@ The repository already has broad pytest coverage across core systems, including:
 
 See `tests/` for concrete files (e.g., `test_reproduction.py`, `test_event_emitter.py`, `test_metrics_builder.py`).
 - Runtime-profile regression coverage now lives in `tests/test_runtime_profile_capabilities.py`, which exercises planning-off, semantic-memory-off, innovation-off, item-reflection-off, social-off, teach-off, and reproduction-off backend paths against the real engine/subsystem wiring.
+- Prompt-surface regression coverage now lives in `tests/test_prompt_surface.py`, with full rendered executor/planner goldens stored under `tests/golden/prompts/` so prompt wording and capability ablations stay aligned.
 
 ## Testing layers in practice
 

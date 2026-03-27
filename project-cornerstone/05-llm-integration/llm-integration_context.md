@@ -15,6 +15,7 @@
 
 - Prompt templates are file-based under `prompts/agent` and `prompts/oracle`.
 - `simulation/prompt_loader.py` handles template loading/caching.
+- `simulation/prompt_surface.py` is the capability-aware composition boundary for executor and planner prompts; it renders the file-based templates through `prompt_loader` and injects optional blocks from the effective runtime policy.
 - Agent prompts include memory, perception, relationships, and family context.
 - The agent system prompt must stay aligned with built-in action examples because missing example fields now invalidate the response at the schema boundary.
 
