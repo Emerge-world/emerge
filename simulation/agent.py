@@ -29,6 +29,7 @@ from simulation.inventory import Inventory
 from simulation.personality import Personality
 from simulation.planner import Planner
 from simulation.planning_state import PlanningState, PlanningSubgoal
+from simulation.prompt_surface import PromptSurfaceBuilder
 from simulation.retrieval import RetrievalContext, rank_memory_entries
 from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
 from simulation import prompt_loader
@@ -93,6 +94,10 @@ class Agent:
         # Dual memory system (episodic + semantic)
         self.memory_system = Memory(
             runtime_settings=memory_settings or MemoryRuntimeSettings(semantic_memory=True)
+        )
+        self.prompt_surface = PromptSurfaceBuilder(
+            agent_settings=self.runtime_settings,
+            memory_settings=self.memory_system.runtime_settings,
         )
 
         # Inventory (quantity-based, max AGENT_INVENTORY_CAPACITY total items)
@@ -579,18 +584,11 @@ class Agent:
         return "\n".join(self._build_resource_hint_line(tile) for tile in resource_tiles)
 
     def _build_system_prompt(self) -> str:
-        custom_actions_section = ""
-        if self.action_descriptions:
-            lines = ["", "YOUR CUSTOM ACTIONS (use directly — do NOT re-innovate these):"]
-            for name, desc in self.action_descriptions.items():
-                lines.append(f'  - {name}: {desc} → use: {{"action": "{name}", "reason": "..."}}')
-            custom_actions_section = "\n".join(lines)
-        return prompt_loader.render(
-            "agent/system",
+        return self.prompt_surface.build_executor_system(
             name=self.name,
-            actions=", ".join(self.actions),
+            actions=self.actions,
             personality_description=self.personality.to_prompt(),
-            custom_actions_section=custom_actions_section,
+            action_descriptions=self.action_descriptions,
         )
 
     def _build_decision_prompt(self, nearby_tiles: list[dict], tick: int,
