@@ -129,7 +129,7 @@ class Agent:
 
         # LLM
         self.llm = llm
-        self.planner = Planner(llm) if llm else None
+        self.planner = Planner(llm, prompt_surface=self.prompt_surface) if llm else None
         self.planning_state = PlanningState.empty()
         self.last_execution_result: dict = {}
 
@@ -406,19 +406,20 @@ class Agent:
         nearby_agents: list | None = None,
     ) -> str:
         nearby_names = [other.name for other, _ in (nearby_agents or [])]
-        parts = [
-            f"Stats: life={self.life}, hunger={self.hunger}, energy={self.energy}",
-            f"Resources on current tile: {self._resource_names_for_distance(nearby_tiles, distance=0)}",
-            f"Nearby resources: {self._nearby_resource_names(nearby_tiles)}",
-            f"Inventory: {self.inventory.to_prompt() or 'empty'}",
-            f"Nearby agents: {', '.join(nearby_names) if nearby_names else 'none'}",
-        ]
         innovations = [a for a in self.actions if a not in BASE_ACTIONS]
-        if innovations:
-            parts.append(f"Custom actions: {', '.join(innovations)}")
-        if time_description:
-            parts.insert(0, time_description.strip())
-        return "\n".join(parts)
+        return self.prompt_surface.build_planner_observation_text(
+            life=self.life,
+            hunger=self.hunger,
+            energy=self.energy,
+            inventory_info=self.inventory.to_prompt(),
+            current_tile_resources=self._resource_names_for_distance(
+                nearby_tiles, distance=0
+            ),
+            nearby_resources=self._nearby_resource_names(nearby_tiles),
+            nearby_agent_names=nearby_names,
+            custom_actions=innovations,
+            time_description=time_description,
+        )
 
     def _plan_status_text(self) -> str:
         if not self.planning_state.goal:

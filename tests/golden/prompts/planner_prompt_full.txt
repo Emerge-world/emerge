@@ -1,0 +1,26 @@
+TICK 5 - Build or refresh your plan.
+
+CURRENT OBSERVATION:
+Daylight.
+Stats: life=90, hunger=20, energy=70
+Resources on current tile: fruit
+Nearby resources: mushroom
+Inventory: fruit x1
+Nearby agents: Bruno
+Custom actions: cut_branches
+
+CURRENT PLAN:
+stabilize food
+
+RELEVANT MEMORY:
+- fruit helps
+
+PLANNING QUESTIONS:
+- What most needs attention over the next few ticks?
+- Am I getting closer to a better position, capability, or relationship?
+- Am I repeating actions without progress?
+- Is there a blocked opportunity that suggests innovation or a different approach?
+- If survival is stable, should I prepare for cooperation, teaching, or reproduction?
+- Do I need to change my goal?
+
+Consider these questions silently, then return a compact structured plan.

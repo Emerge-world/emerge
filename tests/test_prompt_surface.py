@@ -68,6 +68,20 @@ def _decision_kwargs() -> dict:
     }
 
 
+def _planner_observation_kwargs() -> dict:
+    return {
+        "life": 90,
+        "hunger": 20,
+        "energy": 70,
+        "inventory_info": "INVENTORY: fruit x1",
+        "current_tile_resources": "fruit",
+        "nearby_resources": "mushroom",
+        "nearby_agent_names": ["Bruno"],
+        "custom_actions": ["cut_branches"],
+        "time_description": "Daylight.",
+    }
+
+
 def test_executor_system_full_matches_golden():
     prompt = _builder().build_executor_system(
         name="Ada",
@@ -151,3 +165,60 @@ def test_executor_decision_reproduction_off_matches_golden():
         **_decision_kwargs()
     )
     _assert_matches_golden("executor_decision_reproduction_off.txt", prompt)
+
+
+def test_planner_system_full_matches_golden():
+    prompt = _builder().build_planner_system(agent_name="Ada")
+    _assert_matches_golden("planner_system_full.txt", prompt)
+
+
+def test_planner_system_innovation_off_matches_golden():
+    prompt = _builder(innovation=False).build_planner_system(agent_name="Ada")
+    _assert_matches_golden("planner_system_innovation_off.txt", prompt)
+
+
+def test_planner_system_reproduction_off_matches_golden():
+    prompt = _builder(reproduction=False).build_planner_system(agent_name="Ada")
+    _assert_matches_golden("planner_system_reproduction_off.txt", prompt)
+
+
+def test_planner_prompt_full_matches_golden():
+    builder = _builder()
+    observation = builder.build_planner_observation_text(
+        **_planner_observation_kwargs()
+    )
+    prompt = builder.build_planner_prompt(
+        tick=5,
+        observation_text=observation,
+        planner_context=["fruit helps"],
+        current_plan="stabilize food",
+    )
+    _assert_matches_golden("planner_prompt_full.txt", prompt)
+
+
+def test_planner_prompt_social_off_matches_golden():
+    builder = _builder(social=False, teach=False)
+    observation = builder.build_planner_observation_text(
+        **_planner_observation_kwargs()
+    )
+    prompt = builder.build_planner_prompt(
+        tick=5,
+        observation_text=observation,
+        planner_context=["fruit helps"],
+        current_plan="stabilize food",
+    )
+    _assert_matches_golden("planner_prompt_social_off.txt", prompt)
+
+
+def test_planner_prompt_innovation_off_matches_golden():
+    builder = _builder(innovation=False)
+    observation = builder.build_planner_observation_text(
+        **_planner_observation_kwargs()
+    )
+    prompt = builder.build_planner_prompt(
+        tick=5,
+        observation_text=observation,
+        planner_context=["fruit helps"],
+        current_plan="stabilize food",
+    )
+    _assert_matches_golden("planner_prompt_innovation_off.txt", prompt)

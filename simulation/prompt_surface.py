@@ -90,6 +90,66 @@ class PromptSurfaceBuilder:
             )
         )
 
+    def build_planner_system(self, *, agent_name: str) -> str:
+        return self._normalize(
+            prompt_loader.render(
+                "agent/planner_system",
+                agent_name=agent_name,
+                planner_capability_guidance=self._planner_capability_guidance(),
+            )
+        )
+
+    def build_planner_prompt(
+        self,
+        *,
+        tick: int,
+        observation_text: str,
+        planner_context: list[str],
+        current_plan: str,
+    ) -> str:
+        return self._normalize(
+            prompt_loader.render(
+                "agent/planner",
+                tick=tick,
+                observation_text=observation_text,
+                current_plan_block=self._current_plan_block(current_plan),
+                planner_context="\n".join(f"- {entry}" for entry in planner_context)
+                or "- none",
+                planner_reflection_questions=self._planner_reflection_questions(),
+            )
+        )
+
+    def build_planner_observation_text(
+        self,
+        *,
+        life: int,
+        hunger: int,
+        energy: int,
+        inventory_info: str,
+        current_tile_resources: str,
+        nearby_resources: str,
+        nearby_agent_names: list[str],
+        custom_actions: list[str],
+        time_description: str,
+    ) -> str:
+        parts = []
+        if time_description:
+            parts.append(time_description.strip())
+        parts.extend(
+            [
+                f"Stats: life={life}, hunger={hunger}, energy={energy}",
+                f"Resources on current tile: {current_tile_resources or 'none'}",
+                f"Nearby resources: {nearby_resources or 'none'}",
+                f"Inventory: {self._planner_inventory_summary(inventory_info)}",
+            ]
+        )
+        if self.agent_settings.social:
+            nearby = ", ".join(nearby_agent_names) if nearby_agent_names else "none"
+            parts.append(f"Nearby agents: {nearby}")
+        if custom_actions:
+            parts.append(f"Custom actions: {', '.join(custom_actions)}")
+        return "\n".join(parts)
+
     def _normalize(self, text: str) -> str:
         lines = [line.rstrip() for line in text.splitlines()]
         normalized = "\n".join(lines).strip()
@@ -235,6 +295,11 @@ class PromptSurfaceBuilder:
             return ""
         return reproduction_hint
 
+    def _current_plan_block(self, current_plan: str) -> str:
+        if not self.agent_settings.explicit_planning:
+            return ""
+        return f"CURRENT PLAN:\n{current_plan}"
+
     def _decision_reflection_questions(self) -> str:
         lines = [
             "- What is the most urgent threat or opportunity right now?",
@@ -274,3 +339,102 @@ class PromptSurfaceBuilder:
         if len(items) == 2:
             return f"{items[0]} or {items[1]}"
         return f"{', '.join(items[:-1])}, or {items[-1]}"
+
+    def _planner_capability_guidance(self) -> str:
+        lines = [
+            (
+                "- When survival is stable (roughly hunger not high and energy not low), "
+                f"longer-horizon subgoals often involve {self._planner_long_horizon_guidance()}."
+            ),
+            (
+                "- Vary long-horizon goals across situations: "
+                f"{self._planner_goal_variety_guidance()}."
+            ),
+        ]
+        instability_guidance = self._planner_instability_guidance()
+        if instability_guidance:
+            lines.append(instability_guidance)
+        return "\n".join(lines)
+
+    def _planner_long_horizon_guidance(self) -> str:
+        options = ["capability building"]
+        if self.agent_settings.innovation:
+            options.append("innovation")
+        if self.agent_settings.social:
+            options.append("cooperation")
+            if self.agent_settings.teach:
+                options.append("teaching")
+        if self.agent_settings.reproduction:
+            options.append("preparing favorable conditions for future reproduction")
+        return self._human_join(options)
+
+    def _planner_goal_variety_guidance(self) -> str:
+        options = [
+            "sometimes improve food/water access",
+            "sometimes exploration",
+            "sometimes tools",
+        ]
+        if self.agent_settings.social and self.agent_settings.reproduction:
+            options.append("sometimes social/lineage opportunities")
+        elif self.agent_settings.social:
+            options.append("sometimes social opportunities")
+        elif self.agent_settings.reproduction:
+            options.append("sometimes lineage opportunities")
+        return ", ".join(options)
+
+    def _planner_instability_guidance(self) -> str:
+        unstable_options = []
+        if self.agent_settings.reproduction:
+            unstable_options.append("reproduction")
+        if self.agent_settings.innovation:
+            unstable_options.append("innovation")
+        if not unstable_options:
+            return ""
+        joined = self._human_join(unstable_options)
+        if len(unstable_options) == 1:
+            return (
+                f"- Do not force {joined} when the situation is unstable; treat it as a "
+                "strategic option, not an obligation."
+            )
+        return (
+            f"- Do not force {joined} when the situation is unstable; treat them as "
+            "strategic options, not obligations."
+        )
+
+    def _planner_reflection_questions(self) -> str:
+        lines = ["- What most needs attention over the next few ticks?"]
+        if self.agent_settings.social:
+            lines.append(
+                "- Am I getting closer to a better position, capability, or relationship?"
+            )
+        else:
+            lines.append(
+                "- Am I getting closer to a better position or capability?"
+            )
+        lines.append("- Am I repeating actions without progress?")
+        if self.agent_settings.innovation:
+            lines.append(
+                "- Is there a blocked opportunity that suggests innovation or a different approach?"
+            )
+        strategic_options = []
+        if self.agent_settings.social:
+            strategic_options.append("cooperation")
+            if self.agent_settings.teach:
+                strategic_options.append("teaching")
+        if self.agent_settings.reproduction:
+            strategic_options.append("reproduction")
+        if strategic_options:
+            lines.append(
+                "- If survival is stable, should I prepare for "
+                f"{self._human_join(strategic_options)}?"
+            )
+        lines.append("- Do I need to change my goal?")
+        return "\n".join(lines)
+
+    def _planner_inventory_summary(self, inventory_info: str) -> str:
+        if not inventory_info:
+            return "empty"
+        prefix = "INVENTORY: "
+        if inventory_info.startswith(prefix):
+            return inventory_info[len(prefix):]
+        return inventory_info

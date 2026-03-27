@@ -1,17 +1,43 @@
 from unittest.mock import MagicMock
 
-from simulation import prompt_loader
 from simulation.config import PLANNER_RESPONSE_MAX_TOKENS
 from simulation.planner import Planner
+from simulation.prompt_surface import PromptSurfaceBuilder
 from simulation.planning_state import PlanningState
+from simulation.runtime_policy import AgentRuntimeSettings, MemoryRuntimeSettings
+
+
+def _builder(**caps):
+    return PromptSurfaceBuilder(
+        agent_settings=AgentRuntimeSettings(
+            explicit_planning=caps.get("explicit_planning", True),
+            innovation=caps.get("innovation", True),
+            item_reflection=caps.get("item_reflection", True),
+            social=caps.get("social", True),
+            teach=caps.get("teach", True),
+            reproduction=caps.get("reproduction", True),
+        ),
+        memory_settings=MemoryRuntimeSettings(semantic_memory=True),
+    )
 
 
 def test_planner_prompt_includes_updated_reflection_questions():
-    prompt = prompt_loader.render(
-        "agent/planner",
+    builder = _builder()
+    observation = builder.build_planner_observation_text(
+        life=90,
+        hunger=20,
+        energy=70,
+        inventory_info="INVENTORY: fruit x1",
+        current_tile_resources="fruit",
+        nearby_resources="mushroom",
+        nearby_agent_names=["Bruno"],
+        custom_actions=["cut_branches"],
+        time_description="Daylight.",
+    )
+    prompt = builder.build_planner_prompt(
         tick=5,
-        observation_text="fruit east",
-        planner_context="- fruit helps",
+        observation_text=observation,
+        planner_context=["fruit helps"],
         current_plan="stabilize food",
     )
 
@@ -24,7 +50,7 @@ def test_planner_prompt_includes_updated_reflection_questions():
 
 
 def test_planner_system_requires_movement_before_pickup_for_nearby_items():
-    prompt = prompt_loader.render("agent/planner_system", agent_name="Ada")
+    prompt = _builder().build_planner_system(agent_name="Ada")
 
     assert "move" in prompt.lower()
     assert "before" in prompt.lower()
@@ -54,7 +80,7 @@ def test_planner_returns_planning_state():
     typed.rationale_summary = "Hunger is rising and fruit is visible"
     llm.generate_structured.return_value = typed
 
-    planner = Planner(llm=llm)
+    planner = Planner(llm=llm, prompt_surface=_builder())
     state = planner.plan(
         agent_name="Ada",
         tick=5,
@@ -71,7 +97,7 @@ def test_planner_returns_none_on_invalid_llm():
     llm = MagicMock()
     llm.generate_structured.return_value = None
 
-    planner = Planner(llm=llm)
+    planner = Planner(llm=llm, prompt_surface=_builder())
 
     assert planner.plan(
         agent_name="Ada",
@@ -79,3 +105,56 @@ def test_planner_returns_none_on_invalid_llm():
         observation_text="fruit east",
         planner_context=[],
     ) is None
+
+
+def test_planner_prompt_omits_innovation_question_when_innovation_disabled():
+    builder = _builder(innovation=False)
+    observation = builder.build_planner_observation_text(
+        life=90,
+        hunger=20,
+        energy=70,
+        inventory_info="INVENTORY: fruit x1",
+        current_tile_resources="fruit",
+        nearby_resources="mushroom",
+        nearby_agent_names=["Bruno"],
+        custom_actions=["cut_branches"],
+        time_description="Daylight.",
+    )
+    prompt = builder.build_planner_prompt(
+        tick=5,
+        observation_text=observation,
+        planner_context=["fruit helps"],
+        current_plan="stabilize food",
+    )
+
+    assert "suggests innovation" not in prompt
+
+
+def test_planner_prompt_omits_social_progress_question_when_social_disabled():
+    builder = _builder(social=False, teach=False)
+    observation = builder.build_planner_observation_text(
+        life=90,
+        hunger=20,
+        energy=70,
+        inventory_info="INVENTORY: fruit x1",
+        current_tile_resources="fruit",
+        nearby_resources="mushroom",
+        nearby_agent_names=["Bruno"],
+        custom_actions=["cut_branches"],
+        time_description="Daylight.",
+    )
+    prompt = builder.build_planner_prompt(
+        tick=5,
+        observation_text=observation,
+        planner_context=["fruit helps"],
+        current_plan="stabilize food",
+    )
+
+    assert "relationship" not in prompt
+    assert "cooperation" not in prompt
+
+
+def test_planner_system_omits_reproduction_guidance_when_reproduction_disabled():
+    prompt = _builder(reproduction=False).build_planner_system(agent_name="Ada")
+
+    assert "future reproduction" not in prompt

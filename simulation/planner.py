@@ -1,12 +1,15 @@
-from simulation import prompt_loader
+from __future__ import annotations
+
 from simulation.config import PLANNER_RESPONSE_MAX_TOKENS
 from simulation.planning_state import PlanningState, PlanningSubgoal
+from simulation.prompt_surface import PromptSurfaceBuilder
 from simulation.schemas import AgentPlanResponse
 
 
 class Planner:
-    def __init__(self, llm):
+    def __init__(self, llm, prompt_surface: PromptSurfaceBuilder):
         self.llm = llm
+        self.prompt_surface = prompt_surface
         self.last_call: dict = {}
 
     def plan(
@@ -21,12 +24,11 @@ class Planner:
             self.last_call = {}
             return None
 
-        system_prompt = prompt_loader.render("agent/planner_system", agent_name=agent_name)
-        user_prompt = prompt_loader.render(
-            "agent/planner",
+        system_prompt = self.prompt_surface.build_planner_system(agent_name=agent_name)
+        user_prompt = self.prompt_surface.build_planner_prompt(
             tick=tick,
             observation_text=observation_text,
-            planner_context="\n".join(f"- {entry}" for entry in planner_context) or "- none",
+            planner_context=planner_context,
             current_plan=(current_plan.goal if current_plan else "none"),
         )
         typed = self.llm.generate_structured(
